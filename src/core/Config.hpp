@@ -17,7 +17,7 @@ namespace Config {
     inline constexpr int ROOM_ROWS = 15;
     inline constexpr int ROOM_PIXEL_WIDTH = ROOM_COLS * TILE_SIZE;
     inline constexpr int ROOM_PIXEL_HEIGHT = ROOM_ROWS * TILE_SIZE;
-    inline constexpr int ROOM_OFFSET_X = (VIRTUAL_WIDTH - ROOM_PIXEL_WIDTH) / 2;
+    inline constexpr int ROOM_OFFSET_X = 0;
     inline constexpr int ROOM_OFFSET_Y = 0;
 
     inline constexpr int CASTLE_GRID_SIZE = 9;

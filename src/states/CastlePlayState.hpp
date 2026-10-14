@@ -31,4 +31,7 @@ private:
     bool teleporterMapOpen_ = false;
     int tpCursorGx_ = Config::ENTRANCE_GRID_X;
     int tpCursorGy_ = Config::ENTRANCE_GRID_Y;
+
+    Camera2D worldCam_{};
+    Vector2 camTarget_{ 600.0f, 360.0f };
 };

@@ -14,6 +14,7 @@ public:
     void Shutdown();
 
     void BeginSceneCapture();
+    void BeginSceneCapture(const Camera2D& cam);
     void EndSceneAndPresent(
         const GameContext& ctx,
         Vector2 playerScreenPos,

@@ -10,6 +10,7 @@ struct HeroRenderParams {
     Vector2 velocity{};
     float scaleX = 1.0f;
     float scaleY = 1.0f;
+    float height = 54.0f;
     float facingDir = 1.0f;
     ClassType classType = ClassType::Knights_Base;
     EquipTier swordTier = EquipTier::Squire;

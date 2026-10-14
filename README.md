@@ -83,3 +83,4 @@ cmake --build build -j$(nproc)
 
 ## License
 MIT License. Created for educational and enthusiast purposes.
+

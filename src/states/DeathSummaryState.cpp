@@ -48,21 +48,25 @@ void DeathSummaryState::Update(float dt, GameContext& ctx) {
 
     int histSize = static_cast<int>(ctx.lineageHistory.size());
 
+    // Оновлення горизонтальної анімації скролу галереї
+    if (galleryIndex_ >= 0) {
+        targetScrollX_ = static_cast<float>(galleryIndex_) * 460.0f;
+        galleryScrollX_ += (targetScrollX_ - galleryScrollX_) * std::min(1.0f, 12.0f * dt);
+    }
+
     // Перемикання вліво: перехід до галереї картин предків
     if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) {
         if (galleryIndex_ == -1) {
             if (histSize > 0) {
                 galleryIndex_ = histSize - 1; // останній збережений предок
+                targetScrollX_ = static_cast<float>(galleryIndex_) * 460.0f;
+                galleryScrollX_ = targetScrollX_;
                 if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f);
             }
-        } else {
-            if (galleryIndex_ > 0) {
-                galleryIndex_--;
-                if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f);
-            } else {
-                galleryIndex_ = -1; // повернення до огляду поточного забігу
-                if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 1.0f);
-            }
+        } else if (galleryIndex_ > 0) {
+            galleryIndex_--;
+            targetScrollX_ = static_cast<float>(galleryIndex_) * 460.0f;
+            if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f);
         }
     }
 
@@ -71,23 +75,23 @@ void DeathSummaryState::Update(float dt, GameContext& ctx) {
         if (galleryIndex_ == -1) {
             if (histSize > 0) {
                 galleryIndex_ = 0; // найперший предок
+                targetScrollX_ = static_cast<float>(galleryIndex_) * 460.0f;
+                galleryScrollX_ = targetScrollX_;
                 if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f);
             }
-        } else {
-            if (galleryIndex_ < histSize - 1) {
-                galleryIndex_++;
-                if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f);
-            } else {
-                galleryIndex_ = -1; // повернення до огляду
-                if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 1.0f);
-            }
+        } else if (galleryIndex_ < histSize - 1) {
+            galleryIndex_++;
+            targetScrollX_ = static_cast<float>(galleryIndex_) * 460.0f;
+            if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f);
         }
     }
 
     // Перемикання між оглядом забігу та галереєю спадкоємців (TAB / ESC)
-    if (IsKeyPressed(KEY_TAB)) {
+    if (IsKeyPressed(KEY_TAB) || (galleryIndex_ >= 0 && IsKeyPressed(KEY_ESCAPE))) {
         if (galleryIndex_ == -1 && histSize > 0) {
             galleryIndex_ = histSize - 1;
+            targetScrollX_ = static_cast<float>(galleryIndex_) * 460.0f;
+            galleryScrollX_ = targetScrollX_;
         } else {
             galleryIndex_ = -1;
         }
@@ -305,113 +309,148 @@ void DeathSummaryState::DrawAncestorGalleryModal(GameContext& ctx) {
         return;
     }
 
-    const SlainRecord& rec = ctx.lineageHistory[static_cast<size_t>(galleryIndex_)];
-
     // Верхній геральдичний заголовок галереї
     std::string header = "ROYAL ANCESTRAL MEMORIAL GALLERY";
     int hw = Ui::Measure(header.c_str(), 28);
-    Ui::Text(header.c_str(), (Config::VIRTUAL_WIDTH - hw) / 2, 24, 28, GOLD);
+    Ui::Text(header.c_str(), (Config::VIRTUAL_WIDTH - hw) / 2 + 1, 23, 28, BLACK);
+    Ui::Text(header.c_str(), (Config::VIRTUAL_WIDTH - hw) / 2, 22, 28, GOLD);
 
     std::string subHeader = "PORTRAIT " + std::to_string(galleryIndex_ + 1) + " OF " + std::to_string(histSize);
     int shw = Ui::Measure(subHeader.c_str(), 16);
-    Ui::Text(subHeader.c_str(), (Config::VIRTUAL_WIDTH - shw) / 2, 58, 16, SKYBLUE);
+    Ui::Text(subHeader.c_str(), (Config::VIRTUAL_WIDTH - shw) / 2 + 1, 55, 16, BLACK);
+    Ui::Text(subHeader.c_str(), (Config::VIRTUAL_WIDTH - shw) / 2, 54, 16, SKYBLUE);
 
-    // 1. Барокова золота рама портрета по центру (Gilded picture frame on stone wall)
-    int pw = 420;
-    int ph = 420;
-    int px = (Config::VIRTUAL_WIDTH - pw) / 2;
-    int py = 88;
+    // Малювання безперервного ряду картин на стіні коридору замку зі скролом
+    constexpr float SPACING = 460.0f;
 
-    Rectangle outerFrame = { static_cast<float>(px), static_cast<float>(py), static_cast<float>(pw), static_cast<float>(ph) };
-    // Золотий різьблений багет рами
-    DrawRectangleRounded(outerFrame, 0.05f, 4, Color{ 88, 68, 24, 255 });
-    DrawRectangleRoundedLines(outerFrame, 0.05f, 4, 6.0f, GOLD);
+    for (int i = 0; i < histSize; ++i) {
+        float cx = (Config::VIRTUAL_WIDTH * 0.5f) + (i * SPACING) - galleryScrollX_;
 
-    // Внутрішнє темно-оксамитове паспарту картини
-    Rectangle innerMat = { outerFrame.x + 14.0f, outerFrame.y + 14.0f, outerFrame.width - 28.0f, outerFrame.height - 28.0f };
-    DrawRectangleRounded(innerMat, 0.04f, 4, Color{ 22, 16, 28, 255 });
-    DrawRectangleRoundedLines(innerMat, 0.04f, 4, 2.5f, Color{ 145, 110, 45, 255 });
+        // Кулінг картин, що вийшли за межі екрана
+        if (cx < -280.0f || cx > Config::VIRTUAL_WIDTH + 280.0f) {
+            continue;
+        }
 
-    // Полотно картини з градієнтом
-    Rectangle canvasRec = { innerMat.x + 8.0f, innerMat.y + 8.0f, innerMat.width - 16.0f, innerMat.height - 16.0f };
-    DrawRectangleGradientV(
-        static_cast<int>(canvasRec.x),
-        static_cast<int>(canvasRec.y),
-        static_cast<int>(canvasRec.width),
-        static_cast<int>(canvasRec.height),
-        rec.wasVictory ? Color{ 36, 48, 72, 255 } : Color{ 34, 24, 38, 255 },
-        Color{ 14, 10, 18, 255 }
-    );
+        const SlainRecord& rec = ctx.lineageHistory[static_cast<size_t>(i)];
 
-    // П'єдестал та парадний портрет предка в повний зріст
-    Vector2 heroPos = { canvasRec.x + canvasRec.width * 0.5f, canvasRec.y + 245.0f };
-    DrawCircleGradient(static_cast<int>(heroPos.x), static_cast<int>(heroPos.y - 20.0f), 85.0f, Fade(Color{ 120, 160, 220, 255 }, 0.25f), BLANK);
-    DrawEllipse(static_cast<int>(heroPos.x), static_cast<int>(heroPos.y + 52.0f), 78.0f, 16.0f, Color{ 42, 38, 56, 255 });
-    DrawEllipseLines(static_cast<int>(heroPos.x), static_cast<int>(heroPos.y + 52.0f), 78.0f, 16.0f, GOLD);
+        float distFromCenter = std::abs(cx - Config::VIRTUAL_WIDTH * 0.5f);
+        float focus = std::clamp(1.0f - distFromCenter / 450.0f, 0.0f, 1.0f);
+        float alpha = 0.55f + 0.45f * focus;
+        float scale = 0.88f + 0.12f * focus;
 
-    if (ctx.renderer) {
-        HeirCandidate tempHeir{};
-        tempHeir.name = rec.heroName;
-        tempHeir.classType = rec.heroClass;
-        tempHeir.spell = SpellType::Dagger;
-        tempHeir.visualSeed = 1000 + static_cast<uint32_t>(galleryIndex_ * 791);
-        ctx.renderer->DrawHeroPreview(heroPos, 2.1f, tempHeir, ctx, animTimer_);
+        int pw = static_cast<int>(360.0f * scale);
+        int ph = static_cast<int>(370.0f * scale);
+        int px = static_cast<int>(cx - pw * 0.5f);
+        int py = static_cast<int>(84.0f + (370.0f - ph) * 0.5f);
+
+        // Настінний смолоскип між картинами
+        if (i < histSize - 1) {
+            float torchX = cx + SPACING * 0.5f;
+            if (torchX >= 0.0f && torchX <= Config::VIRTUAL_WIDTH) {
+                DrawRectangle(static_cast<int>(torchX - 5), 230, 10, 45, Color{ 48, 38, 32, 255 });
+                DrawCircle(static_cast<int>(torchX), 220, 14.0f, Fade(ORANGE, 0.45f));
+                DrawCircle(static_cast<int>(torchX), 220, 8.0f + std::sin(animTimer_ * 10.0f + i) * 2.0f, GOLD);
+                DrawCircle(static_cast<int>(torchX), 218, 4.0f, YELLOW);
+            }
+        }
+
+        // 1. Золота барокова різьблена рама картини
+        Rectangle outerFrame = { static_cast<float>(px), static_cast<float>(py), static_cast<float>(pw), static_cast<float>(ph) };
+        DrawRectangleRounded(outerFrame, 0.05f, 4, Fade(Color{ 88, 68, 24, 255 }, alpha));
+        DrawRectangleRoundedLines(outerFrame, 0.05f, 4, 5.0f * scale, Fade(focus > 0.8f ? GOLD : Color{ 175, 140, 55, 255 }, alpha));
+
+        // Внутрішнє оксамитове паспарту картини
+        Rectangle innerMat = { outerFrame.x + 12.0f * scale, outerFrame.y + 12.0f * scale, outerFrame.width - 24.0f * scale, outerFrame.height - 24.0f * scale };
+        DrawRectangleRounded(innerMat, 0.04f, 4, Fade(Color{ 20, 16, 26, 255 }, alpha));
+        DrawRectangleRoundedLines(innerMat, 0.04f, 4, 2.0f, Fade(Color{ 145, 110, 45, 255 }, alpha));
+
+        // Полотно картини з готичним градієнтом
+        Rectangle canvasRec = { innerMat.x + 6.0f, innerMat.y + 6.0f, innerMat.width - 12.0f, innerMat.height - 12.0f };
+        DrawRectangleGradientV(
+            static_cast<int>(canvasRec.x),
+            static_cast<int>(canvasRec.y),
+            static_cast<int>(canvasRec.width),
+            static_cast<int>(canvasRec.height),
+            Fade(rec.wasVictory ? Color{ 36, 48, 72, 255 } : Color{ 34, 24, 38, 255 }, alpha),
+            Fade(Color{ 14, 10, 18, 255 }, alpha)
+        );
+
+        // Парадний портрет предка в повний зріст
+        Vector2 heroPos = { canvasRec.x + canvasRec.width * 0.5f, canvasRec.y + canvasRec.height * 0.62f };
+        DrawCircleGradient(static_cast<int>(heroPos.x), static_cast<int>(heroPos.y - 15.0f), 70.0f * scale, Fade(Color{ 120, 160, 220, 255 }, 0.22f * alpha), BLANK);
+        DrawEllipse(static_cast<int>(heroPos.x), static_cast<int>(heroPos.y + 44.0f * scale), 68.0f * scale, 14.0f * scale, Fade(Color{ 42, 38, 56, 255 }, alpha));
+        DrawEllipseLines(static_cast<int>(heroPos.x), static_cast<int>(heroPos.y + 44.0f * scale), 68.0f * scale, 14.0f * scale, Fade(GOLD, alpha));
+
+        if (ctx.renderer) {
+            HeirCandidate tempHeir{};
+            tempHeir.name = rec.heroName;
+            tempHeir.classType = rec.heroClass;
+            tempHeir.spell = SpellType::Dagger;
+            tempHeir.visualSeed = 1000 + static_cast<uint32_t>(i * 791);
+            ctx.renderer->DrawHeroPreview(heroPos, 1.85f * scale, tempHeir, ctx, animTimer_);
+        }
+
+        // Лавровий вінок переможця на полотні
+        if (rec.wasVictory) {
+            Rectangle vBadge = { canvasRec.x + canvasRec.width - 96.0f * scale, canvasRec.y + 10.0f, 86.0f * scale, 24.0f };
+            DrawRectangleRounded(vBadge, 0.4f, 4, Fade(Color{ 85, 65, 18, 255 }, alpha));
+            DrawRectangleRoundedLines(vBadge, 0.4f, 4, 1.5f, Fade(GOLD, alpha));
+            Ui::Text("VICTOR", static_cast<int>(vBadge.x + 12.0f), static_cast<int>(vBadge.y + 5.0f), 12, GOLD);
+        }
+
+        // 2. Латунна табличка під картиною
+        int plaqueW = static_cast<int>(400.0f * scale);
+        int plaqueH = 92;
+        int plaqueX = static_cast<int>(cx - plaqueW * 0.5f);
+        int plaqueY = py + ph + 10;
+
+        Rectangle plaqueRec = { static_cast<float>(plaqueX), static_cast<float>(plaqueY), static_cast<float>(plaqueW), static_cast<float>(plaqueH) };
+        DrawRectangleRounded(plaqueRec, 0.15f, 4, Fade(Color{ 36, 28, 18, 245 }, alpha));
+        DrawRectangleRoundedLines(plaqueRec, 0.15f, 4, 2.2f, Fade(focus > 0.8f ? GOLD : Color{ 160, 130, 45, 255 }, alpha));
+
+        // Гвинтики на кутах таблички
+        DrawCircle(plaqueX + 8, plaqueY + 8, 2.5f, Fade(GOLD, alpha));
+        DrawCircle(plaqueX + plaqueW - 8, plaqueY + 8, 2.5f, Fade(GOLD, alpha));
+        DrawCircle(plaqueX + 8, plaqueY + plaqueH - 8, 2.5f, Fade(GOLD, alpha));
+        DrawCircle(plaqueX + plaqueW - 8, plaqueY + plaqueH - 8, 2.5f, Fade(GOLD, alpha));
+
+        // Текст таблички
+        int tnw = Ui::Measure(rec.heroName.c_str(), 18);
+        Ui::Text(rec.heroName.c_str(), plaqueX + (plaqueW - tnw) / 2, plaqueY + 10, 18, Fade(GOLD, alpha));
+
+        std::string fateDesc = rec.wasVictory
+            ? "Triumphant Overlord"
+            : ("Slain by: " + rec.killerName);
+        int fdw = Ui::Measure(fateDesc.c_str(), 14);
+        Ui::Text(fateDesc.c_str(), plaqueX + (plaqueW - fdw) / 2, plaqueY + 36, 14, Fade(rec.wasVictory ? LIME : RED, alpha));
+
+        std::string statsLine = Registry::GetClass(rec.heroClass).name +
+                                " * Slain: " + std::to_string(rec.enemiesSlain) +
+                                " * Gold: " + std::to_string(rec.goldCollected) + " G";
+        int slw = Ui::Measure(statsLine.c_str(), 13);
+        Ui::Text(statsLine.c_str(), plaqueX + (plaqueW - slw) / 2, plaqueY + 62, 13, Fade(YELLOW, alpha));
     }
 
-    // Лавровий вінок переможця на картині, якщо предок завершив гру перемогою
-    if (rec.wasVictory) {
-        DrawRectangleRounded({ canvasRec.x + canvasRec.width - 110.0f, canvasRec.y + 12.0f, 96.0f, 26.0f }, 0.4f, 4, Color{ 85, 65, 18, 255 });
-        DrawRectangleRoundedLines({ canvasRec.x + canvasRec.width - 110.0f, canvasRec.y + 12.0f, 96.0f, 26.0f }, 0.4f, 4, 1.5f, GOLD);
-        Ui::Text("VICTOR", canvasRec.x + canvasRec.width - 92.0f, canvasRec.y + 18.0f, 13, GOLD);
+    // 3. Інтерактивні навігаційні кнопки зі стрілками по боках
+    if (galleryIndex_ > 0) {
+        Rectangle leftArrow = { 40.0f, 290.0f, 150.0f, 50.0f };
+        DrawRectangleRounded(leftArrow, 0.35f, 4, Color{ 26, 22, 36, 235 });
+        DrawRectangleRoundedLines(leftArrow, 0.35f, 4, 1.8f, GOLD);
+        Ui::Text("<-- [A] PREV", static_cast<int>(leftArrow.x + 18), static_cast<int>(leftArrow.y + 15), 16, GOLD);
     }
 
-    // 2. Латунна меморіальна табличка під картиною (Engraved Brass Plaque)
-    int plaqueW = 760;
-    int plaqueH = 105;
-    int plaqueX = (Config::VIRTUAL_WIDTH - plaqueW) / 2;
-    int plaqueY = 524;
+    if (galleryIndex_ < histSize - 1) {
+        Rectangle rightArrow = { static_cast<float>(Config::VIRTUAL_WIDTH - 190), 290.0f, 150.0f, 50.0f };
+        DrawRectangleRounded(rightArrow, 0.35f, 4, Color{ 26, 22, 36, 235 });
+        DrawRectangleRoundedLines(rightArrow, 0.35f, 4, 1.8f, GOLD);
+        Ui::Text("NEXT [D] -->", static_cast<int>(rightArrow.x + 22), static_cast<int>(rightArrow.y + 15), 16, GOLD);
+    }
 
-    Rectangle plaqueRec = { static_cast<float>(plaqueX), static_cast<float>(plaqueY), static_cast<float>(plaqueW), static_cast<float>(plaqueH) };
-    DrawRectangleRounded(plaqueRec, 0.15f, 4, Color{ 36, 28, 18, 245 });
-    DrawRectangleRoundedLines(plaqueRec, 0.15f, 4, 2.5f, GOLD);
-
-    // Гвинтики на кутах таблички
-    DrawCircle(plaqueX + 12, plaqueY + 12, 3.0f, GOLD);
-    DrawCircle(plaqueX + plaqueW - 12, plaqueY + 12, 3.0f, GOLD);
-    DrawCircle(plaqueX + 12, plaqueY + plaqueH - 12, 3.0f, GOLD);
-    DrawCircle(plaqueX + plaqueW - 12, plaqueY + plaqueH - 12, 3.0f, GOLD);
-
-    // Гравійований текст таблички
-    int tnw = Ui::Measure(rec.heroName.c_str(), 22);
-    Ui::Text(rec.heroName.c_str(), plaqueX + (plaqueW - tnw) / 2, plaqueY + 14, 22, GOLD);
-
-    std::string fateDesc = rec.wasVictory
-        ? "Triumphant Overlord of Castle Hamson"
-        : ("Fell nobly in combat to: " + rec.killerName);
-    int fdw = Ui::Measure(fateDesc.c_str(), 15);
-    Ui::Text(fateDesc.c_str(), plaqueX + (plaqueW - fdw) / 2, plaqueY + 44, 15, rec.wasVictory ? LIME : RED);
-
-    std::string statsLine = "Class: " + Registry::GetClass(rec.heroClass).name +
-                            "   *   Monsters Slain: " + std::to_string(rec.enemiesSlain) +
-                            "   *   Treasury Bestowed: " + std::to_string(rec.goldCollected) + " G";
-    int slw = Ui::Measure(statsLine.c_str(), 14);
-    Ui::Text(statsLine.c_str(), plaqueX + (plaqueW - slw) / 2, plaqueY + 70, 14, YELLOW);
-
-    // 3. Інтерактивні навігаційні стрілки по боках
-    Rectangle leftArrow = { 100.0f, 270.0f, 180.0f, 54.0f };
-    DrawRectangleRounded(leftArrow, 0.35f, 4, Color{ 26, 22, 36, 235 });
-    DrawRectangleRoundedLines(leftArrow, 0.35f, 4, 1.8f, GOLD);
-    Ui::Text("<-- [A] PREV", leftArrow.x + 28, leftArrow.y + 17, 18, GOLD);
-
-    Rectangle rightArrow = { static_cast<float>(Config::VIRTUAL_WIDTH - 280), 270.0f, 180.0f, 54.0f };
-    DrawRectangleRounded(rightArrow, 0.35f, 4, Color{ 26, 22, 36, 235 });
-    DrawRectangleRoundedLines(rightArrow, 0.35f, 4, 1.8f, GOLD);
-    Ui::Text("NEXT [D] -->", rightArrow.x + 32, rightArrow.y + 17, 18, GOLD);
-
-    // Нижні підказки
-    const char* hint = "[TAB / ESC] Return to Run Summary   *   [ENTER / SPACE] Choose Next Heir";
+    // Нижні підказки керування
+    const char* hint = "[<-- A / D -->] Slide Along Hallway Wall   *   [TAB / ESC] Run Overview   *   [ENTER / SPACE] Choose Next Heir";
     int hmw = Ui::Measure(hint, 16);
-    Ui::Text(hint, (Config::VIRTUAL_WIDTH - hmw) / 2, 646, 16, Color{ 220, 225, 240, 255 });
+    Ui::Text(hint, (Config::VIRTUAL_WIDTH - hmw) / 2 + 1, 659, 16, BLACK);
+    Ui::Text(hint, (Config::VIRTUAL_WIDTH - hmw) / 2, 658, 16, Color{ 220, 225, 240, 255 });
 }
 
 void DeathSummaryState::Draw(GameContext& ctx) {

@@ -29,6 +29,12 @@ void CastlePlayState::OnEnter(GameContext& ctx) {
     };
     player_.InitFromContext(ctx, startPos);
 
+    // Ініціалізація 2D-камери світу (1:1 масштаб без зазорів, 1920x1080)
+    worldCam_.offset = { Config::RENDER_WIDTH * 0.5f, Config::RENDER_HEIGHT * 0.5f };
+    worldCam_.zoom = static_cast<float>(Config::RENDER_WIDTH) / static_cast<float>(Config::ROOM_PIXEL_WIDTH);
+    camTarget_ = { Config::ROOM_PIXEL_WIDTH * 0.5f, Config::ROOM_PIXEL_HEIGHT * 0.5f };
+    worldCam_.target = camTarget_;
+
     Room& startRoom = castle_.GetRoom(curGx_, curGy_);
     startRoom.OnPlayerEnterRoom(ctx, player_);
     castle_.SyncRoomStateToContext(startRoom, ctx);
@@ -53,6 +59,30 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
     curRoom.Update(dt, ctx, player_);
     castle_.SyncRoomStateToContext(curRoom, ctx);
 
+    // Плавне стеження 2D-камери за гравцем (Smooth Lerp Camera)
+    float targetX = player_.GetCenter().x;
+    float targetY = player_.GetCenter().y;
+
+    float minX = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
+    float maxX = static_cast<float>(Config::ROOM_PIXEL_WIDTH) - minX;
+    if (minX >= maxX) {
+        targetX = Config::ROOM_PIXEL_WIDTH * 0.5f;
+    } else {
+        targetX = std::clamp(targetX, minX, maxX);
+    }
+
+    float minY = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
+    float maxY = static_cast<float>(Config::ROOM_PIXEL_HEIGHT) - minY;
+    if (minY >= maxY) {
+        targetY = Config::ROOM_PIXEL_HEIGHT * 0.5f;
+    } else {
+        targetY = std::clamp(targetY, minY, maxY);
+    }
+
+    camTarget_.x += (targetX - camTarget_.x) * std::min(1.0f, 10.0f * dt);
+    camTarget_.y += (targetY - camTarget_.y) * std::min(1.0f, 10.0f * dt);
+    worldCam_.target = camTarget_;
+
     // 1. Перевірка відкриття карти Телепорту
     if (curRoom.requestOpenTeleporterMap || IsKeyPressed(KEY_M)) {
         curRoom.requestOpenTeleporterMap = false;
@@ -76,7 +106,9 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
         curRoom.requestExitBossArena = false;
         const SavedRoomNode& saved = ctx.savedCastle[static_cast<size_t>(curGy_)][static_cast<size_t>(curGx_)];
         curRoom.BuildFromNode(curGx_, curGy_, saved, curRoom.roomLevel, ctx);
-        player_.SetCenter({ Config::VIRTUAL_WIDTH * 0.5f, 12.0f * Config::TILE_SIZE });
+        player_.SetCenter({ Config::ROOM_PIXEL_WIDTH * 0.5f, 12.0f * Config::TILE_SIZE });
+        camTarget_ = player_.GetCenter();
+        worldCam_.target = camTarget_;
         return;
     }
 
@@ -160,18 +192,30 @@ void CastlePlayState::CheckRoomDoorTransitions(GameContext& ctx) {
     // Вихід на Північ (NORTH)
     else if (pBounds.y < 0.0f && (curRoom.doorMask & DoorMask::NORTH) && curGy_ > 0) {
         nextGy = curGy_ - 1;
-        newPlayerCenter = { Config::VIRTUAL_WIDTH * 0.5f, roomBottom - 54.0f };
+        newPlayerCenter = { Config::ROOM_PIXEL_WIDTH * 0.5f, roomBottom - 54.0f };
         player_.vel.y = -340.0f;
         transitioned = true;
     }
     // Вихід на Південь (SOUTH)
     else if (player_.GetBottom() > roomBottom - 8.0f && (curRoom.doorMask & DoorMask::SOUTH) && curGy_ < Config::CASTLE_GRID_SIZE - 1) {
         nextGy = curGy_ + 1;
-        newPlayerCenter = { Config::VIRTUAL_WIDTH * 0.5f, 42.0f };
+        newPlayerCenter = { Config::ROOM_PIXEL_WIDTH * 0.5f, 42.0f };
         transitioned = true;
     }
 
     if (transitioned && castle_.IsRoomActive(nextGx, nextGy)) {
+        // Видаляємо всі неподібрані монети, мішечки та зілля з кімнати при переході в іншу кімнату
+        curRoom.interactables.erase(
+            std::remove_if(curRoom.interactables.begin(), curRoom.interactables.end(),
+                [](const Interactable& it) {
+                    return it.kind == InteractableKind::DroppedCoin ||
+                           it.kind == InteractableKind::MeatDrop ||
+                           it.kind == InteractableKind::ManaDrop;
+                }),
+            curRoom.interactables.end()
+        );
+        curRoom.projectiles.clear();
+
         castle_.SyncRoomStateToContext(curRoom, ctx);
         curGx_ = nextGx;
         curGy_ = nextGy;
@@ -180,6 +224,10 @@ void CastlePlayState::CheckRoomDoorTransitions(GameContext& ctx) {
         Room& nextRoom = castle_.GetRoom(curGx_, curGy_);
         nextRoom.OnPlayerEnterRoom(ctx, player_);
         castle_.SyncRoomStateToContext(nextRoom, ctx);
+
+        // Миттєве фокусування 2D-камери
+        camTarget_ = player_.GetCenter();
+        worldCam_.target = camTarget_;
     }
 }
 
@@ -202,12 +250,29 @@ void CastlePlayState::UpdateTeleporterOverlay(GameContext& ctx) {
              target.roomType == RoomType::BossEntrance);
 
         if (canTeleport) {
+            Room& leavingRoom = castle_.GetRoom(curGx_, curGy_);
+            leavingRoom.interactables.erase(
+                std::remove_if(leavingRoom.interactables.begin(), leavingRoom.interactables.end(),
+                    [](const Interactable& it) {
+                        return it.kind == InteractableKind::DroppedCoin ||
+                               it.kind == InteractableKind::MeatDrop ||
+                               it.kind == InteractableKind::ManaDrop;
+                    }),
+                leavingRoom.interactables.end()
+            );
+            leavingRoom.projectiles.clear();
+            castle_.SyncRoomStateToContext(leavingRoom, ctx);
+
             curGx_ = tpCursorGx_;
             curGy_ = tpCursorGy_;
             Room& destRoom = castle_.GetRoom(curGx_, curGy_);
-            player_.SetCenter({ Config::VIRTUAL_WIDTH * 0.5f, 12.0f * Config::TILE_SIZE });
+            player_.SetCenter({ Config::ROOM_PIXEL_WIDTH * 0.5f, 12.0f * Config::TILE_SIZE });
             destRoom.OnPlayerEnterRoom(ctx, player_);
             teleporterMapOpen_ = false;
+
+            camTarget_ = player_.GetCenter();
+            worldCam_.target = camTarget_;
+
             if (ctx.audio) ctx.audio->PlaySfx(SfxId::SpellCast, 1.25f);
         } else {
             if (ctx.audio) ctx.audio->PlaySfx(SfxId::FairyFail);
@@ -215,12 +280,123 @@ void CastlePlayState::UpdateTeleporterOverlay(GameContext& ctx) {
     }
 }
 
+namespace {
+    void DrawSpellIcon(SpellType type, int cx, int cy, float size) {
+        float r = size * 0.5f;
+        switch (type) {
+            case SpellType::Dagger: {
+                DrawLineEx({ cx - r * 0.5f, cy + r * 0.5f }, { cx + r * 0.5f, cy - r * 0.5f }, 3.5f, Color{ 220, 230, 245, 255 });
+                DrawCircle(static_cast<int>(cx + r * 0.5f), static_cast<int>(cy - r * 0.5f), 2.0f, WHITE);
+                DrawCircle(static_cast<int>(cx - r * 0.5f), static_cast<int>(cy + r * 0.5f), 2.5f, GOLD);
+                break;
+            }
+            case SpellType::Axe: {
+                DrawLineEx({ cx - r * 0.45f, cy + r * 0.5f }, { cx + r * 0.45f, cy - r * 0.5f }, 3.0f, Color{ 140, 95, 55, 255 });
+                DrawTriangle({ static_cast<float>(cx + r * 0.5f), static_cast<float>(cy - r * 0.6f) },
+                             { static_cast<float>(cx + r * 0.1f), static_cast<float>(cy - r * 0.2f) },
+                             { static_cast<float>(cx + r * 0.65f), static_cast<float>(cy - r * 0.1f) },
+                             Color{ 215, 225, 240, 255 });
+                break;
+            }
+            case SpellType::Chakram: {
+                DrawRing({ static_cast<float>(cx), static_cast<float>(cy) }, r * 0.45f, r * 0.75f, 0.0f, 360.0f, 24, Color{ 215, 225, 240, 255 });
+                DrawCircle(cx, cy, 2.5f, GOLD);
+                break;
+            }
+            case SpellType::FlameBarrier: {
+                DrawCircle(cx, cy, r * 0.65f, Color{ 255, 75, 25, 255 });
+                DrawCircle(cx, cy, r * 0.40f, Color{ 255, 215, 45, 255 });
+                DrawCircle(cx, cy, r * 0.20f, WHITE);
+                break;
+            }
+            case SpellType::Conflux: {
+                DrawRing({ static_cast<float>(cx), static_cast<float>(cy) }, r * 0.25f, r * 0.65f, 0.0f, 360.0f, 16, Color{ 140, 230, 255, 255 });
+                DrawCircle(cx, cy, 3.0f, WHITE);
+                break;
+            }
+            case SpellType::Scythe: {
+                DrawLineEx({ cx - r * 0.4f, cy + r * 0.6f }, { cx + r * 0.35f, cy - r * 0.55f }, 2.8f, Color{ 110, 80, 50, 255 });
+                DrawRing({ static_cast<float>(cx + r * 0.35f), static_cast<float>(cy - r * 0.2f) }, r * 0.45f, r * 0.70f, 180.0f, 330.0f, 16, Color{ 220, 230, 245, 255 });
+                break;
+            }
+            case SpellType::CrowStorm: {
+                DrawTriangle({ static_cast<float>(cx), static_cast<float>(cy - r * 0.5f) },
+                             { static_cast<float>(cx - r * 0.65f), static_cast<float>(cy + r * 0.4f) },
+                             { static_cast<float>(cx + r * 0.65f), static_cast<float>(cy + r * 0.4f) },
+                             Color{ 135, 45, 185, 255 });
+                DrawCircle(cx, cy, 3.0f, GOLD);
+                break;
+            }
+            case SpellType::TimeStop: {
+                DrawTriangle({ static_cast<float>(cx - r * 0.5f), static_cast<float>(cy - r * 0.5f) },
+                             { static_cast<float>(cx + r * 0.5f), static_cast<float>(cy - r * 0.5f) },
+                             { static_cast<float>(cx), static_cast<float>(cy) },
+                             Color{ 255, 215, 30, 255 });
+                DrawTriangle({ static_cast<float>(cx - r * 0.5f), static_cast<float>(cy + r * 0.5f) },
+                             { static_cast<float>(cx), static_cast<float>(cy) },
+                             { static_cast<float>(cx + r * 0.5f), static_cast<float>(cy + r * 0.5f) },
+                             Color{ 255, 215, 30, 255 });
+                break;
+            }
+            default:
+                DrawCircle(cx, cy, r * 0.5f, SKYBLUE);
+                break;
+        }
+    }
+
+    void DrawTalentIcon(ClassType type, int cx, int cy, float size) {
+        float r = size * 0.5f;
+        switch (type) {
+            case ClassType::Knights_Base:
+            case ClassType::Paladin_Upgraded: {
+                Rectangle sRec = { cx - r * 0.45f, cy - r * 0.5f, r * 0.9f, r * 0.7f };
+                DrawRectangleRounded(sRec, 0.3f, 4, Color{ 145, 155, 175, 255 });
+                DrawLineEx({ cx - r * 0.35f, static_cast<float>(cy) }, { cx + r * 0.35f, static_cast<float>(cy) }, 2.0f, GOLD);
+                DrawLineEx({ static_cast<float>(cx), cy - r * 0.4f }, { static_cast<float>(cx), cy + r * 0.4f }, 2.0f, GOLD);
+                break;
+            }
+            case ClassType::Barbarian_Base:
+            case ClassType::BarbarianKing_Upgraded: {
+                DrawCircleLines(cx, cy, r * 0.35f, ORANGE);
+                DrawCircleLines(cx, cy, r * 0.65f, RED);
+                DrawCircle(cx, cy, 3.0f, WHITE);
+                break;
+            }
+            case ClassType::Shinobi_Base:
+            case ClassType::Hokage_Upgraded: {
+                Rectangle logRec = { cx - r * 0.35f, cy - r * 0.5f, r * 0.7f, r * 1.0f };
+                DrawRectangleRounded(logRec, 0.3f, 4, Color{ 120, 75, 40, 255 });
+                DrawCircle(cx, cy - static_cast<int>(r * 0.3f), 3.0f, GREEN);
+                break;
+            }
+            case ClassType::Miner_Base:
+            case ClassType::Spelunker_Upgraded: {
+                Rectangle lRec = { cx - r * 0.35f, cy - r * 0.35f, r * 0.7f, r * 0.7f };
+                DrawRectangleRounded(lRec, 0.2f, 4, Color{ 75, 60, 45, 255 });
+                DrawCircle(cx, cy, r * 0.25f, YELLOW);
+                break;
+            }
+            case ClassType::Lich_Base:
+            case ClassType::LichKing_Upgraded: {
+                DrawCircle(cx - 3, cy, r * 0.35f, Fade(Color{ 180, 70, 240, 255 }, 0.85f));
+                DrawCircle(cx + 3, cy - 2, r * 0.30f, Fade(Color{ 140, 40, 210, 255 }, 0.85f));
+                break;
+            }
+            default: {
+                DrawCircle(cx, cy, r * 0.5f, Color{ 180, 195, 220, 255 });
+                DrawCircleLines(cx, cy, r * 0.5f, GOLD);
+                break;
+            }
+        }
+    }
+} // anonymous namespace
+
 void CastlePlayState::Draw(GameContext& ctx) {
     const Room& curRoom = castle_.GetRoom(curGx_, curGy_);
 
-    // 1. Захоплення сцени у RenderTexture2D та пост-обробка GLSL 330 шейдерами (Colorblind, Nostalgic, Myopia, Hyperopia, Darkness, Vertigo)
+    // 1. Захоплення сцени у RenderTexture2D через ShaderManager із 2D-камерою кімнати
     if (ctx.shaders) {
-        ctx.shaders->BeginSceneCapture();
+        ctx.shaders->BeginSceneCapture(worldCam_);
     }
 
     curRoom.Draw(ctx, player_);
@@ -230,24 +406,34 @@ void CastlePlayState::Draw(GameContext& ctx) {
 
     // Червоний спалах по краях при пораненні (вимкнений, якщо у спадкоємця риса CIP!)
     if (player_.hurtFlashTimer > 0.0f && !ctx.CurrentHeirHasTrait(TraitType::CIP)) {
-        DrawRectangle(0, 0, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT, Fade(RED, 0.28f));
+        DrawRectangle(0, 0, Config::ROOM_PIXEL_WIDTH, Config::ROOM_PIXEL_HEIGHT, Fade(RED, 0.28f));
     }
 
     if (ctx.shaders) {
-        std::vector<Vector2> torches = curRoom.GetActiveTorchScreenPositions();
+        std::vector<Vector2> worldTorches = curRoom.GetActiveTorchScreenPositions();
+        std::vector<Vector2> screenTorches;
+        screenTorches.reserve(worldTorches.size());
+        for (const auto& tw : worldTorches) {
+            Vector2 tScreen = GetWorldToScreen2D(tw, worldCam_);
+            screenTorches.push_back({ tScreen.x / Config::SCALE_FACTOR, tScreen.y / Config::SCALE_FACTOR });
+        }
+
+        Vector2 pScreen = GetWorldToScreen2D(player_.GetCenter(), worldCam_);
+        Vector2 pShaderPos = { pScreen.x / Config::SCALE_FACTOR, pScreen.y / Config::SCALE_FACTOR };
+
         bool isDarkBiome = (curRoom.biome == BiomeType::LandOfDarkness);
         ctx.shaders->EndSceneAndPresent(
             ctx,
-            player_.GetCenter(),
+            pShaderPos,
             isDarkBiome,
             player_.headlampOn,
             player_.facingDir,
             player_.IsTimeStopActive(),
-            torches
+            screenTorches
         );
     }
 
-    // 2. Рендер HUD поверх шейдерів (щоб при Vertigo світ був догори дриґом, але HUD залишався читабельним!)
+    // 2. Рендер автентичного HUD Rogue Legacy поверх шейдерів
     Camera2D hudCam{};
     hudCam.zoom = Config::SCALE_FACTOR;
     BeginMode2D(hudCam);
@@ -266,58 +452,122 @@ void CastlePlayState::Draw(GameContext& ctx) {
     EndMode2D();
 }
 
-void CastlePlayState::DrawHud(const GameContext& ctx, const Room& curRoom) const {
+void CastlePlayState::DrawHud(const GameContext& ctx, [[maybe_unused]] const Room& curRoom) const {
     bool hasCip = ctx.CurrentHeirHasTrait(TraitType::CIP);
 
-    int panelX = 16;
-    int panelY = 14;
-    int panelW = 390;
-    int panelH = 112;
-    DrawRectangle(panelX, panelY, panelW, panelH, Color{ 12, 14, 24, 215 });
-    DrawRectangleLines(panelX, panelY, panelW, panelH, GOLD);
+    int hudX = 24;
+    int hudY = 16;
 
-    // Ім'я героя, покоління та клас
-    std::string titleLine = ctx.activeHeir.name + "  [" + Registry::GetClass(ctx.activeHeir.classType).name + "]";
-    Ui::Text(titleLine, panelX + 12, panelY + 9, 16, GOLD);
+    // 1. Рівень гравця (Золотий автентичний текст "Lv 101" з тінню)
+    int playerLevel = ctx.GetTotalManorLevels() + 1;
+    Ui::Text("Lv", hudX, hudY + 4, 15, Color{ 245, 195, 30, 255 });
+    int lvLabelW = Ui::Measure("Lv", 15);
 
-    // Смужка HP (при рисі CIP прихована і відображає "??? / ???")
-    int hpBarX = panelX + 12;
-    int hpBarY = panelY + 34;
-    int barW = 210;
-    int barH = 18;
-    DrawRectangle(hpBarX, hpBarY, barW, barH, BLACK);
+    std::string lvlNum = std::to_string(playerLevel);
+    Ui::Text(lvlNum, hudX + lvLabelW + 6 + 1, hudY + 1, 22, Color{ 15, 15, 20, 255 });
+    Ui::Text(lvlNum, hudX + lvLabelW + 6, hudY, 22, Color{ 255, 215, 25, 255 });
+
+    // 2. Смужка HP (Автентична зелена смужка з металевою рамкою)
+    int barX = hudX;
+    int barY = hudY + 28;
+    int barW = 180;
+    int barH = 16;
+
+    // Сріблясто-металева рамка зі скосом
+    DrawRectangle(barX - 2, barY - 2, barW + 4, barH + 4, Color{ 20, 24, 32, 255 });
+    DrawRectangle(barX - 1, barY - 1, barW + 2, barH + 2, Color{ 145, 155, 175, 255 });
+    DrawLine(barX - 1, barY - 1, barX + barW, barY - 1, Color{ 225, 235, 250, 255 });
+    DrawLine(barX - 1, barY + barH, barX + barW, barY + barH, Color{ 70, 75, 90, 255 });
+    DrawRectangle(barX, barY, barW, barH, Color{ 16, 20, 16, 255 });
+
     if (hasCip) {
-        DrawRectangle(hpBarX, hpBarY, barW, barH, Color{ 95, 45, 115, 255 });
-        Ui::Text("HP: ??? / ???", hpBarX + 44, hpBarY + 2, 13, WHITE);
+        DrawRectangle(barX, barY, barW, barH, Color{ 85, 35, 105, 255 });
+        const char* cipHp = "??? / ???";
+        int chw = Ui::Measure(cipHp, 11);
+        Ui::Text(cipHp, barX + (barW - chw) / 2 + 1, barY + 2 + 1, 11, BLACK);
+        Ui::Text(cipHp, barX + (barW - chw) / 2, barY + 2, 11, WHITE);
     } else {
         float hpRatio = std::clamp(static_cast<float>(player_.hp) / static_cast<float>(std::max(1, player_.maxHp)), 0.0f, 1.0f);
-        DrawRectangle(hpBarX, hpBarY, static_cast<int>(barW * hpRatio), barH, Color{ 205, 35, 45, 255 });
-        std::string hpStr = "HP: " + std::to_string(player_.hp) + " / " + std::to_string(player_.maxHp);
-        Ui::Text(hpStr, hpBarX + 10, hpBarY + 2, 13, WHITE);
+        int fillW = static_cast<int>(barW * hpRatio);
+        if (fillW > 0) {
+            DrawRectangle(barX, barY, fillW, barH, Color{ 48, 218, 52, 255 });
+            DrawRectangle(barX, barY, fillW, barH / 2, Color{ 115, 245, 115, 255 });
+        }
+        std::string hpStr = std::to_string(player_.hp) + "/" + std::to_string(player_.maxHp);
+        int thw = Ui::Measure(hpStr, 11);
+        Ui::Text(hpStr, barX + (barW - thw) / 2 + 1, barY + 2 + 1, 11, Color{ 15, 15, 20, 255 });
+        Ui::Text(hpStr, barX + (barW - thw) / 2, barY + 2, 11, WHITE);
     }
-    DrawRectangleLines(hpBarX, hpBarY, barW, barH, LIGHTGRAY);
 
-    // Смужка MP
-    int mpBarY = panelY + 58;
-    DrawRectangle(hpBarX, mpBarY, barW, barH, BLACK);
+    // 3. Смужка MP (Блакитна смужка мани з металевою рамкою)
+    int mpBarY = barY + barH + 4;
+    int mpBarH = 14;
+
+    DrawRectangle(barX - 2, mpBarY - 2, barW + 4, mpBarH + 4, Color{ 20, 24, 32, 255 });
+    DrawRectangle(barX - 1, mpBarY - 1, barW + 2, mpBarH + 2, Color{ 145, 155, 175, 255 });
+    DrawLine(barX - 1, mpBarY - 1, barX + barW, mpBarY - 1, Color{ 225, 235, 250, 255 });
+    DrawLine(barX - 1, mpBarY + mpBarH, barX + barW, mpBarY + mpBarH, Color{ 70, 75, 90, 255 });
+    DrawRectangle(barX, mpBarY, barW, mpBarH, Color{ 14, 18, 28, 255 });
+
     float mpRatio = std::clamp(static_cast<float>(player_.mp) / static_cast<float>(std::max(1, player_.stats.maxMp)), 0.0f, 1.0f);
-    DrawRectangle(hpBarX, mpBarY, static_cast<int>(barW * mpRatio), barH, Color{ 45, 130, 225, 255 });
-    std::string mpStr = "MP: " + std::to_string(player_.mp) + " / " + std::to_string(player_.stats.maxMp);
-    Ui::Text(mpStr, hpBarX + 10, mpBarY + 2, 13, WHITE);
-    DrawRectangleLines(hpBarX, mpBarY, barW, barH, LIGHTGRAY);
+    int mpFillW = static_cast<int>(barW * mpRatio);
+    if (mpFillW > 0) {
+        DrawRectangle(barX, mpBarY, mpFillW, mpBarH, Color{ 45, 135, 250, 255 });
+        DrawRectangle(barX, mpBarY, mpFillW, mpBarH / 2, Color{ 110, 185, 255, 255 });
+    }
+    std::string mpStr = std::to_string(player_.mp) + "/" + std::to_string(player_.stats.maxMp);
+    int tmw = Ui::Measure(mpStr, 11);
+    Ui::Text(mpStr, barX + (barW - tmw) / 2 + 1, mpBarY + 1 + 1, 11, Color{ 15, 15, 20, 255 });
+    Ui::Text(mpStr, barX + (barW - tmw) / 2, mpBarY + 1, 11, WHITE);
 
-    // Золото та рівень
-    std::string goldStr = "GOLD: " + std::to_string(ctx.gold);
-    Ui::Text(goldStr, panelX + 236, panelY + 34, 15, YELLOW);
+    // 4. Лічильник Золота (Об'ємна золота монета + яскраве число)
+    int goldY = mpBarY + mpBarH + 7;
+    int coinCx = hudX + 9;
+    int coinCy = goldY + 10;
+    DrawCircle(coinCx, coinCy, 9.5f, Color{ 90, 65, 10, 255 });
+    DrawCircle(coinCx, coinCy, 8.5f, Color{ 255, 210, 30, 255 });
+    DrawCircle(coinCx, coinCy, 6.5f, Color{ 225, 175, 15, 255 });
+    DrawCircle(coinCx, coinCy, 2.5f, Color{ 255, 235, 100, 255 });
 
-    std::string ngStr = "NG+" + std::to_string(ctx.ngPlusLevel) + "  Lv." + std::to_string(curRoom.roomLevel);
-    Ui::Text(ngStr, panelX + 236, panelY + 58, 14, SKYBLUE);
+    std::string goldStr = std::to_string(ctx.gold);
+    Ui::Text(goldStr, hudX + 24 + 1, goldY + 1, 20, Color{ 15, 15, 20, 255 });
+    Ui::Text(goldStr, hudX + 24, goldY, 20, Color{ 255, 225, 35, 255 });
 
-    // Активне закляття та талант
+    // 5. Дві металеві комірки здібностей (Spell [L] та Talent [Q])
+    int slotY = goldY + 28;
+    int slotSize = 34;
+
     const SpellDef& sp = Registry::GetSpell(player_.activeSpell);
-    const ClassDef& cl = Registry::GetClass(ctx.activeHeir.classType);
-    std::string abilLine = "[L] " + sp.name + " (" + std::to_string(sp.manaCost) + "MP)   [Q] " + cl.talentName;
-    Ui::Text(abilLine, panelX + 12, panelY + 84, 13, Color{ 220, 225, 235, 255 });
+
+    // Комірка 1: Активне закляття
+    int slot1X = hudX;
+    DrawRectangle(slot1X - 2, slotY - 2, slotSize + 4, slotSize + 4, Color{ 20, 24, 32, 255 });
+    DrawRectangle(slot1X - 1, slotY - 1, slotSize + 2, slotSize + 2, Color{ 145, 155, 175, 255 });
+    DrawLine(slot1X - 1, slotY - 1, slot1X + slotSize, slotY - 1, Color{ 225, 235, 250, 255 });
+    DrawLine(slot1X - 1, slotY + slotSize, slot1X + slotSize, slotY + slotSize, Color{ 70, 75, 90, 255 });
+    DrawRectangle(slot1X, slotY, slotSize, slotSize, Color{ 16, 20, 30, 255 });
+
+    DrawSpellIcon(player_.activeSpell, slot1X + slotSize / 2, slotY + slotSize / 2, static_cast<float>(slotSize - 6));
+
+    std::string costText = std::to_string(sp.manaCost) + " mp";
+    int ctw = Ui::Measure(costText, 11);
+    Ui::Text(costText, slot1X + (slotSize - ctw) / 2 + 1, slotY + slotSize + 3 + 1, 11, BLACK);
+    Ui::Text(costText, slot1X + (slotSize - ctw) / 2, slotY + slotSize + 3, 11, Color{ 220, 230, 245, 255 });
+
+    // Комірка 2: Класовий талант
+    int slot2X = slot1X + slotSize + 8;
+    DrawRectangle(slot2X - 2, slotY - 2, slotSize + 4, slotSize + 4, Color{ 20, 24, 32, 255 });
+    DrawRectangle(slot2X - 1, slotY - 1, slotSize + 2, slotSize + 2, Color{ 145, 155, 175, 255 });
+    DrawLine(slot2X - 1, slotY - 1, slot2X + slotSize, slotY - 1, Color{ 225, 235, 250, 255 });
+    DrawLine(slot2X - 1, slotY + slotSize, slot2X + slotSize, slotY + slotSize, Color{ 70, 75, 90, 255 });
+    DrawRectangle(slot2X, slotY, slotSize, slotSize, Color{ 16, 20, 30, 255 });
+
+    DrawTalentIcon(ctx.activeHeir.classType, slot2X + slotSize / 2, slotY + slotSize / 2, static_cast<float>(slotSize - 6));
+
+    const char* talentKey = "[Q]";
+    int tkw = Ui::Measure(talentKey, 11);
+    Ui::Text(talentKey, slot2X + (slotSize - tkw) / 2 + 1, slotY + slotSize + 3 + 1, 11, BLACK);
+    Ui::Text(talentKey, slot2X + (slotSize - tkw) / 2, slotY + slotSize + 3, 11, Color{ 220, 230, 245, 255 });
 }
 
 void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) const {

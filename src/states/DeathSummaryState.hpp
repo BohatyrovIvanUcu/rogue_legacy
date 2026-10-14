@@ -17,6 +17,8 @@ private:
     float animTimer_ = 0.0f;
     float fireworkTimer_ = 0.0f;
     int galleryIndex_ = -1; // -1 = current run summary, >= 0 = ancestral painting index
+    float galleryScrollX_ = 0.0f;
+    float targetScrollX_ = 0.0f;
 
     void DrawCastleCorridorBackground(float time) const;
     void DrawRunOverviewModal(GameContext& ctx);

@@ -929,6 +929,7 @@ void Player::Draw(const GameContext& ctx) const {
     rp.velocity = vel;
     rp.scaleX = stats.scaleX;
     rp.scaleY = stats.scaleY;
+    rp.height = height;
     rp.facingDir = facingDir;
     rp.classType = ctx.activeHeir.classType;
     rp.swordTier = static_cast<EquipTier>(ctx.equippedTier[static_cast<size_t>(EquipSlot::Sword)]);

@@ -243,10 +243,14 @@ void ShaderManager::Shutdown() {
 }
 
 void ShaderManager::BeginSceneCapture() {
-    BeginTextureMode(pingTarget_);
-    ClearBackground(BLACK);
     Camera2D cam{};
     cam.zoom = Config::SCALE_FACTOR;
+    BeginSceneCapture(cam);
+}
+
+void ShaderManager::BeginSceneCapture(const Camera2D& cam) {
+    BeginTextureMode(pingTarget_);
+    ClearBackground(BLACK);
     BeginMode2D(cam);
 }
 

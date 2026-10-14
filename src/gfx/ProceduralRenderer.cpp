@@ -50,19 +50,20 @@ namespace {
         Vector2 u = { dirVec.x / len, dirVec.y / len };  // одиничний вектор вздовж клинка
         Vector2 n = { -u.y, u.x };                      // нормаль
 
-        // Розміри елементів меча
-        float guardHalfW = 12.0f * sx;
+        // Розміри елементів меча (Автентичний широкий палаш Rogue Legacy)
+        float guardHalfW = 14.5f * sx;
         float pommelDist = 7.5f * sx;
-        float bladeWidth = (tier == EquipTier::Royal || tier == EquipTier::Imperial) ? (7.2f * sy) : (6.0f * sy);
-        float fullerLen  = len * 0.74f;
+        float bladeWidth = 13.8f * sy;
+        float fullerLen  = len * 0.72f;
 
         Vector2 pommelPos = { handPos.x - u.x * pommelDist, handPos.y - u.y * pommelDist };
         Vector2 guardPos  = { handPos.x + u.x * (2.0f * sx), handPos.y + u.y * (2.0f * sx) };
 
         // 1. Навершя (Pommel)
-        float pommelR = 4.2f * sx;
-        DrawCircleV(pommelPos, pommelR + 0.6f, Fade(BLACK, alpha));
+        float pommelR = 4.4f * sx;
+        DrawCircleV(pommelPos, pommelR + 0.8f, Fade(BLACK, alpha));
         DrawCircleV(pommelPos, pommelR, Fade(hiltCol, alpha));
+        DrawCircleV({ pommelPos.x - 1.0f * sx, pommelPos.y - 1.0f * sy }, 1.4f * sx, Fade(WHITE, alpha * 0.8f));
         // Самоцвіт у наверші залежно від тиру
         if (tier == EquipTier::Silver) {
             DrawCircleV(pommelPos, pommelR * 0.55f, Fade(SKYBLUE, alpha));
@@ -72,78 +73,110 @@ namespace {
             DrawCircleV(pommelPos, pommelR * 0.55f, Fade(MAGENTA, alpha));
         } else if (tier == EquipTier::Dark) {
             DrawCircleV(pommelPos, pommelR * 0.55f, Fade(Color{ 255, 40, 80, 255 }, alpha));
-        } else {
-            DrawCircleV(pommelPos, pommelR * 0.45f, Fade(WHITE, alpha * 0.7f));
         }
 
         // 2. Руків'я (Grip)
-        Color gripCol = Color{ 58, 38, 28, 255 }; // темна шкіра
-        DrawLineEx(pommelPos, guardPos, 4.2f * sy, Fade(gripCol, alpha));
+        Color gripCol = Color{ 48, 32, 22, 255 }; // темна шкіра
+        DrawLineEx(pommelPos, guardPos, 4.5f * sy, Fade(BLACK, alpha));
+        DrawLineEx(pommelPos, guardPos, 3.2f * sy, Fade(gripCol, alpha));
         for (int g = 1; g <= 3; ++g) {
             float gt = g * 0.25f;
             Vector2 gPt = { pommelPos.x + (guardPos.x - pommelPos.x) * gt, pommelPos.y + (guardPos.y - pommelPos.y) * gt };
             DrawLineEx({ gPt.x - n.x * 2.2f * sx, gPt.y - n.y * 2.2f * sx },
-                       { gPt.x + n.x * 2.2f * sx, gPt.y + n.y * 2.2f * sx }, 1.5f, Fade(hiltCol, alpha));
+                       { gPt.x + n.x * 2.2f * sx, gPt.y + n.y * 2.2f * sx }, 1.5f, Fade(GOLD, alpha));
         }
 
-        // 3. Гарда (Crossguard)
+        // 3. Гарда (Crossguard) із золотими крилами та рубіном по центру
         Vector2 gL = { guardPos.x - n.x * guardHalfW, guardPos.y - n.y * guardHalfW };
         Vector2 gR = { guardPos.x + n.x * guardHalfW, guardPos.y + n.y * guardHalfW };
+        DrawLineEx({ gL.x - u.x * 0.8f, gL.y - u.y * 0.8f }, { gR.x - u.x * 0.8f, gR.y - u.y * 0.8f }, 5.2f * sy, Fade(BLACK, alpha));
         DrawLineEx(gL, gR, 4.2f * sy, Fade(hiltCol, alpha));
-        DrawLineEx({ gL.x - u.x * 1.5f * sx, gL.y - u.y * 1.5f * sx },
-                   { gR.x - u.x * 1.5f * sx, gR.y - u.y * 1.5f * sx }, 2.0f * sy, Fade(Color{ 40, 30, 20, 255 }, alpha));
-        DrawCircleV(gL, 2.8f * sx, Fade(hiltCol, alpha));
-        DrawCircleV(gR, 2.8f * sx, Fade(hiltCol, alpha));
+        DrawCircleV(gL, 3.0f * sx, Fade(hiltCol, alpha));
+        DrawCircleV(gR, 3.0f * sx, Fade(hiltCol, alpha));
 
-        // 4. Клинок (Blade) з подвійним скосом (Light edge / Shaded edge)
+        // 4. Клинок (Blade) — широкий силует, подвійний скіс та вістря
         Vector2 bBaseL = { guardPos.x - n.x * (bladeWidth * 0.5f), guardPos.y - n.y * (bladeWidth * 0.5f) };
         Vector2 bBaseR = { guardPos.x + n.x * (bladeWidth * 0.5f), guardPos.y + n.y * (bladeWidth * 0.5f) };
 
-        float midDist = len * 0.78f;
-        Vector2 bMidL = { guardPos.x + u.x * midDist - n.x * (bladeWidth * 0.42f), guardPos.y + u.y * midDist - n.y * (bladeWidth * 0.42f) };
-        Vector2 bMidR = { guardPos.x + u.x * midDist + n.x * (bladeWidth * 0.42f), guardPos.y + u.y * midDist + n.y * (bladeWidth * 0.42f) };
+        float taperStart = len * 0.80f;
+        Vector2 bTaperL = { guardPos.x + u.x * taperStart - n.x * (bladeWidth * 0.5f), guardPos.y + u.y * taperStart - n.y * (bladeWidth * 0.5f) };
+        Vector2 bTaperR = { guardPos.x + u.x * taperStart + n.x * (bladeWidth * 0.5f), guardPos.y + u.y * taperStart + n.y * (bladeWidth * 0.5f) };
 
         Color lightEdge  = ColorTint(bladeBaseCol, WHITE);
-        Color shadedEdge = ColorTint(bladeBaseCol, Color{ 175, 185, 205, 255 });
+        Color shadedEdge = ColorTint(bladeBaseCol, Color{ 180, 192, 215, 255 });
         if (tier == EquipTier::Dark) {
             lightEdge  = Color{ 62, 42, 85, 255 };
             shadedEdge = Color{ 28, 18, 42, 255 };
         }
 
-        // Ліва грань клинка
-        DrawTriangle(bBaseL, bMidL, tipPos, Fade(lightEdge, alpha));
-        // Права грань клинка
-        DrawTriangle(bBaseR, tipPos, bMidR, Fade(shadedEdge, alpha));
+        // Темний контур леза
+        Color outlineCol = Color{ 32, 36, 48, 255 };
+        DrawLineEx(bBaseL, bTaperL, 2.0f * sx, Fade(outlineCol, alpha));
+        DrawLineEx(bTaperL, tipPos, 2.0f * sx, Fade(outlineCol, alpha));
+        DrawLineEx(bBaseR, bTaperR, 2.0f * sx, Fade(outlineCol, alpha));
+        DrawLineEx(bTaperR, tipPos, 2.0f * sx, Fade(outlineCol, alpha));
 
-        // Центральний дол (Fuller)
-        Vector2 fullerEnd = { guardPos.x + u.x * fullerLen, guardPos.y + u.y * fullerLen };
-        DrawLineEx(guardPos, fullerEnd, 1.8f * sx, Fade(Color{ 95, 105, 125, 255 }, alpha * 0.75f));
-        DrawLineEx({ guardPos.x - n.x * 0.7f, guardPos.y - n.y * 0.7f },
-                   { fullerEnd.x - n.x * 0.7f, fullerEnd.y - n.y * 0.7f }, 1.0f, Fade(WHITE, alpha * 0.85f));
+        // Тіло клинка: прямокутна частина та трикутне вістря
+        Vector2 midCore = { guardPos.x + u.x * taperStart, guardPos.y + u.y * taperStart };
+        // Ліва грань
+        DrawTriangle(bBaseL, bTaperL, guardPos, Fade(lightEdge, alpha));
+        DrawTriangle(guardPos, bTaperL, midCore, Fade(lightEdge, alpha));
+        DrawTriangle(midCore, bTaperL, tipPos, Fade(lightEdge, alpha));
+        // Права грань
+        DrawTriangle(guardPos, bBaseR, bTaperR, Fade(shadedEdge, alpha));
+        DrawTriangle(guardPos, bTaperR, midCore, Fade(shadedEdge, alpha));
+        DrawTriangle(midCore, tipPos, bTaperR, Fade(shadedEdge, alpha));
+
+        // 5. Автентичний сяючий блакитний дол меча (Cyan glowing fuller beam)
+        Vector2 fullerStart = { guardPos.x + u.x * (3.0f * sx), guardPos.y + u.y * (3.0f * sx) };
+        Vector2 fullerEnd   = { guardPos.x + u.x * fullerLen,   guardPos.y + u.y * fullerLen };
+        
+        Color fullerGlow = Color{ 0, 195, 255, 255 };
+        if (tier == EquipTier::Imperial) fullerGlow = Color{ 255, 95, 25, 255 };
+        else if (tier == EquipTier::Royal) fullerGlow = Color{ 215, 60, 255, 255 };
+        else if (tier == EquipTier::Dark) fullerGlow = Color{ 255, 25, 65, 255 };
+
+        // Темний жолобок долу
+        DrawLineEx(fullerStart, fullerEnd, 5.0f * sy, Fade(Color{ 18, 36, 64, 255 }, alpha * 0.95f));
+        // Яскравий неоновий промінь долу
+        DrawLineEx(fullerStart, fullerEnd, 3.4f * sy, Fade(fullerGlow, alpha * 0.95f));
+        // Біло-блакитне ядро сяйва
+        DrawLineEx(fullerStart, fullerEnd, 1.5f * sy, Fade(Color{ 225, 250, 255, 255 }, alpha * 0.95f));
+
+        // Загострений кінець долу
+        Vector2 fTipL = { fullerEnd.x - n.x * 2.0f * sy - u.x * 2.0f * sx, fullerEnd.y - n.y * 2.0f * sy - u.y * 2.0f * sx };
+        Vector2 fTipR = { fullerEnd.x + n.x * 2.0f * sy - u.x * 2.0f * sx, fullerEnd.y + n.y * 2.0f * sy - u.y * 2.0f * sx };
+        Vector2 fApex = { fullerEnd.x + u.x * 3.5f * sx, fullerEnd.y + u.y * 3.5f * sx };
+        DrawTriangle(fTipL, fApex, fTipR, Fade(fullerGlow, alpha));
+
+        // 6. Червоний рубін по центру гарди (Crimson Red Ruby with glint)
+        DrawCircleV(guardPos, 4.4f * sx, Fade(BLACK, alpha));
+        DrawCircleV(guardPos, 3.6f * sx, Fade(Color{ 235, 25, 45, 255 }, alpha));
+        DrawCircleV({ guardPos.x - 1.0f * sx, guardPos.y - 1.0f * sy }, 1.3f * sx, Fade(WHITE, alpha * 0.9f));
 
         // Спецефекти клинка за тирами
         if (tier == EquipTier::Silver) {
             float rPulse = 0.5f + 0.5f * std::sin(animTime * 6.0f);
-            DrawLineEx(guardPos, fullerEnd, 1.6f * sx, Fade(SKYBLUE, alpha * 0.7f * rPulse));
+            DrawLineEx(guardPos, fullerEnd, 2.2f * sx, Fade(SKYBLUE, alpha * 0.7f * rPulse));
         } else if (tier == EquipTier::Imperial) {
             float fPulse = 0.6f + 0.4f * std::sin(animTime * 14.0f);
-            DrawLineEx(bBaseL, tipPos, 2.0f, Fade(ORANGE, alpha * 0.7f * fPulse));
-            DrawLineEx(bBaseR, tipPos, 2.0f, Fade(RED, alpha * 0.7f * fPulse));
+            DrawLineEx(bBaseL, tipPos, 2.2f * sx, Fade(ORANGE, alpha * 0.7f * fPulse));
+            DrawLineEx(bBaseR, tipPos, 2.2f * sx, Fade(RED, alpha * 0.7f * fPulse));
         } else if (tier == EquipTier::Royal) {
             float rPulse = 0.55f + 0.45f * std::sin(animTime * 8.0f);
-            DrawLineEx(guardPos, fullerEnd, 2.0f * sx, Fade(PURPLE, alpha * 0.85f * rPulse));
-            DrawCircleV({ guardPos.x + u.x * (len * 0.4f), guardPos.y + u.y * (len * 0.4f) }, 2.5f * sx, Fade(GOLD, alpha));
+            DrawLineEx(guardPos, fullerEnd, 2.5f * sx, Fade(PURPLE, alpha * 0.85f * rPulse));
+            DrawCircleV({ guardPos.x + u.x * (len * 0.4f), guardPos.y + u.y * (len * 0.4f) }, 2.8f * sx, Fade(GOLD, alpha));
         } else if (tier == EquipTier::Dark) {
-            DrawLineEx(bBaseL, tipPos, 2.0f, Fade(RED, alpha * 0.85f));
-            DrawLineEx(bBaseR, tipPos, 2.0f, Fade(Color{ 255, 30, 80, 255 }, alpha * 0.85f));
+            DrawLineEx(bBaseL, tipPos, 2.2f * sx, Fade(RED, alpha * 0.85f));
+            DrawLineEx(bBaseR, tipPos, 2.2f * sx, Fade(Color{ 255, 30, 80, 255 }, alpha * 0.85f));
         }
 
-        DrawCircleV(tipPos, 2.4f * sx, Fade(WHITE, alpha * 0.95f));
+        DrawCircleV(tipPos, 2.2f * sx, Fade(WHITE, alpha * 0.95f));
 
         // Аеродинамічні лінії вітру при pogo downstrike
         if (isDownStriking) {
-            DrawLineEx({ bMidL.x - 4.0f * sx, bMidL.y - 14.0f * sy }, { bMidL.x - 4.0f * sx, bMidL.y + 6.0f * sy }, 2.0f, Fade(WHITE, 0.65f));
-            DrawLineEx({ bMidR.x + 4.0f * sx, bMidR.y - 14.0f * sy }, { bMidR.x + 4.0f * sx, bMidR.y + 6.0f * sy }, 2.0f, Fade(WHITE, 0.65f));
+            DrawLineEx({ bTaperL.x - 4.0f * sx, bTaperL.y - 14.0f * sy }, { bTaperL.x - 4.0f * sx, bTaperL.y + 6.0f * sy }, 2.0f, Fade(WHITE, 0.65f));
+            DrawLineEx({ bTaperR.x + 4.0f * sx, bTaperR.y - 14.0f * sy }, { bTaperR.x + 4.0f * sx, bTaperR.y + 6.0f * sy }, 2.0f, Fade(WHITE, 0.65f));
             DrawCircleV(tipPos, 5.0f * sx, Fade(WHITE, 0.8f));
         }
     }
@@ -219,6 +252,10 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
     float headR = 11.5f * ((sx + sy) * 0.5f);
 
     Vector2 c = p.centerPos;
+    if (p.height > 0.0f) {
+        float bottomY = p.centerPos.y + p.height * 0.5f;
+        c.y = bottomY - 27.0f * sy;
+    }
     Vector2 headPos = { c.x + dir * 2.0f * sx, c.y - 14.0f * sy };
     Vector2 shoulderPos = { c.x - dir * 6.0f * sx, c.y - 6.0f * sy };
 
