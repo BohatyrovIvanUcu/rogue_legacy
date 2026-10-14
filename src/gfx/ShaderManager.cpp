@@ -259,6 +259,7 @@ in vec2 fragTexCoord;
 in vec4 fragColor;
 out vec4 finalColor;
 uniform sampler2D texture0;
+uniform sampler2D u_lightTexture;
 uniform int u_lightEnabled;
 
 void main() {
@@ -267,7 +268,108 @@ void main() {
         finalColor = sceneCol;
         return;
     }
-    finalColor = sceneCol;
+    vec4 lightCol = texture(u_lightTexture, fragTexCoord);
+    vec3 effectiveLight = max(lightCol.rgb, vec3(0.20));
+    vec3 lit = sceneCol.rgb * effectiveLight * 1.30;
+    finalColor = vec4(clamp(lit, 0.0, 1.0), sceneCol.a);
+}
+)";
+
+    const char* FS_BLOOM_EXTRACT = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+uniform float u_threshold;
+
+void main() {
+    vec4 c = texture(texture0, fragTexCoord) * fragColor;
+    float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    float factor = clamp((lum - u_threshold) / max(0.001, 1.0 - u_threshold), 0.0, 1.0);
+    factor = factor * factor;
+    finalColor = vec4(c.rgb * factor, c.a);
+}
+)";
+
+    const char* FS_BLOOM_BLUR = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+uniform vec2 u_dir;
+
+void main() {
+    vec4 sum = texture(texture0, fragTexCoord) * 0.227027;
+    sum += texture(texture0, fragTexCoord + u_dir * 1.384615) * 0.316216;
+    sum += texture(texture0, fragTexCoord - u_dir * 1.384615) * 0.316216;
+    sum += texture(texture0, fragTexCoord + u_dir * 3.230769) * 0.070270;
+    sum += texture(texture0, fragTexCoord - u_dir * 3.230769) * 0.070270;
+    finalColor = sum * fragColor;
+}
+)";
+
+    const char* FS_FINAL_GRADING = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+
+uniform float u_time;
+uniform int u_isNostalgic;
+uniform int u_isGrayscale;
+uniform int u_isSilhouette;
+
+void main() {
+    vec2 uv = fragTexCoord;
+    vec4 c = texture(texture0, uv) * fragColor;
+
+    if (u_isSilhouette == 1) {
+        if (c.a > 0.05) {
+            finalColor = vec4(0.047, 0.039, 0.071, c.a);
+        } else {
+            finalColor = vec4(0.0);
+        }
+        return;
+    }
+
+    vec3 col = c.rgb;
+
+    if (u_isNostalgic == 1) {
+        vec3 sepia;
+        sepia.r = dot(col, vec3(0.393, 0.769, 0.189));
+        sepia.g = dot(col, vec3(0.349, 0.686, 0.168));
+        sepia.b = dot(col, vec3(0.272, 0.534, 0.131));
+
+        float grain = fract(sin(dot(uv * (u_time + 1.37), vec2(12.9898, 78.233))) * 43758.5453);
+        sepia += (grain - 0.5) * 0.085;
+
+        float scratchSeed = floor(uv.x * 380.0 + sin(u_time * 7.0) * 15.0);
+        float scratchHash = fract(sin(scratchSeed * 91.7 + floor(u_time * 11.0) * 17.3) * 43758.5453);
+        if (scratchHash > 0.993) {
+            sepia += vec3(0.22);
+        }
+
+        vec2 centered = uv - vec2(0.5);
+        float vig = 1.0 - dot(centered, centered) * 1.15;
+        col = clamp(sepia * clamp(vig, 0.25, 1.0), 0.0, 1.0);
+    } else {
+        float grain = fract(sin(dot(uv * (u_time * 0.35 + 1.2), vec2(12.9898, 78.233))) * 43758.5453);
+        col += (grain - 0.5) * 0.022;
+
+        vec2 centered = uv - vec2(0.5);
+        float vig = 1.0 - dot(centered, centered) * 0.62;
+        col *= clamp(vig, 0.50, 1.0);
+    }
+
+    if (u_isGrayscale == 1) {
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = vec3(lum);
+    }
+
+    finalColor = vec4(clamp(col, 0.0, 1.0), c.a);
 }
 )";
 
@@ -331,6 +433,9 @@ void ShaderManager::Init() {
     shSilhouette_     = LoadShaderFromMemory(nullptr, FS_SILHOUETTE);
     shGrayscale_      = LoadShaderFromMemory(nullptr, FS_GRAYSCALE);
     shLightComposite_ = LoadShaderFromMemory(nullptr, FS_LIGHT_COMPOSITE);
+    shBloomExtract_   = LoadShaderFromMemory(nullptr, FS_BLOOM_EXTRACT);
+    shBloomBlur_      = LoadShaderFromMemory(nullptr, FS_BLOOM_BLUR);
+    shGrading_        = LoadShaderFromMemory(nullptr, FS_FINAL_GRADING);
 
     shColorblind_ = LoadShaderFromMemory(nullptr, FS_COLORBLIND);
     shNostalgic_  = LoadShaderFromMemory(nullptr, FS_NOSTALGIC);
@@ -340,7 +445,16 @@ void ShaderManager::Init() {
 
     locOutlineTexelSize_      = GetShaderLocation(shOutline_, "u_texelSize");
     locOutlineEnabled_        = GetShaderLocation(shOutline_, "u_enabled");
+    locLightTexture_          = GetShaderLocation(shLightComposite_, "u_lightTexture");
     locLightCompositeEnabled_ = GetShaderLocation(shLightComposite_, "u_lightEnabled");
+
+    locBloomThreshold_ = GetShaderLocation(shBloomExtract_, "u_threshold");
+    locBloomBlurDir_   = GetShaderLocation(shBloomBlur_, "u_dir");
+
+    locGradingTime_       = GetShaderLocation(shGrading_, "u_time");
+    locGradingNostalgic_  = GetShaderLocation(shGrading_, "u_isNostalgic");
+    locGradingGrayscale_  = GetShaderLocation(shGrading_, "u_isGrayscale");
+    locGradingSilhouette_ = GetShaderLocation(shGrading_, "u_isSilhouette");
 
     locNostalgicTime_       = GetShaderLocation(shNostalgic_, "u_time");
 
@@ -380,6 +494,9 @@ void ShaderManager::Shutdown() {
     UnloadShader(shSilhouette_);
     UnloadShader(shGrayscale_);
     UnloadShader(shLightComposite_);
+    UnloadShader(shBloomExtract_);
+    UnloadShader(shBloomBlur_);
+    UnloadShader(shGrading_);
     UnloadShader(shColorblind_);
     UnloadShader(shNostalgic_);
     UnloadShader(shMyopia_);
@@ -509,17 +626,35 @@ void ShaderManager::CompositeEntitiesToScene() {
     EndTextureMode();
 }
 
-void ShaderManager::BeginLightPass(const Camera2D& worldCam) {
+void ShaderManager::BeginLightPass(const Camera2D& worldCam, BiomeType biome) {
     currentInternalCam_ = GetInternalCamera(worldCam);
     BeginTextureMode(lightRT_);
-    ClearBackground(WHITE); // На Фазі 1: pass-through біле світло
+    if (!debugLight_) {
+        ClearBackground(WHITE);
+    } else {
+        Color ambient;
+        switch (biome) {
+            case BiomeType::CastleHamson:    ambient = Color{ 85, 100, 145, 255 }; break; // Темно-синій замок
+            case BiomeType::ForestAbkhazia:  ambient = Color{ 75, 110, 85, 255 };  break; // Брудно-зелений сад
+            case BiomeType::TheMaya:         ambient = Color{ 105, 80, 130, 255 }; break; // Пурпурова вежа
+            case BiomeType::LandOfDarkness:  ambient = Color{ 48, 52, 85, 255 };   break; // Глибокий індиго
+            default:                         ambient = Color{ 90, 95, 120, 255 };  break;
+        }
+        ClearBackground(ambient);
+    }
     Camera2D lightCam = currentInternalCam_;
     lightCam.offset = { lightCam.offset.x * 0.5f, lightCam.offset.y * 0.5f };
     lightCam.zoom = lightCam.zoom * 0.5f;
     BeginMode2D(lightCam);
+    if (debugLight_) {
+        BeginBlendMode(BLEND_ADDITIVE);
+    }
 }
 
 void ShaderManager::EndLightPass() {
+    if (debugLight_) {
+        EndBlendMode();
+    }
     EndMode2D();
     EndTextureMode();
 }
@@ -531,6 +666,7 @@ void ShaderManager::CompositeSceneAndLight() {
         BeginShaderMode(shLightComposite_);
         int lightFlag = 1;
         SetShaderValue(shLightComposite_, locLightCompositeEnabled_, &lightFlag, SHADER_UNIFORM_INT);
+        SetShaderValueTexture(shLightComposite_, locLightTexture_, lightRT_.texture);
     }
 
     Rectangle srcRec = {
@@ -561,7 +697,73 @@ void ShaderManager::EndEmissivePass() {
 
 void ShaderManager::ApplyBloom() {
     if (!debugBloom_) return;
-    // На Фазі 1 — pass-through. Буфери bloomRT1_ та bloomRT2_ підготовлені для Фази 3.
+
+    // 1. Витягуємо яскраві пікселі з litRT_ у bloomRT1_ (1/4 роздільності)
+    BeginTextureMode(bloomRT1_);
+    ClearBackground(BLANK);
+    BeginShaderMode(shBloomExtract_);
+    float threshold = 0.60f;
+    SetShaderValue(shBloomExtract_, locBloomThreshold_, &threshold, SHADER_UNIFORM_FLOAT);
+    Rectangle srcRec = {
+        0.0f, 0.0f,
+        static_cast<float>(litRT_.texture.width),
+        -static_cast<float>(litRT_.texture.height)
+    };
+    Rectangle dstRec = {
+        0.0f, 0.0f,
+        static_cast<float>(bloomRT1_.texture.width),
+        static_cast<float>(bloomRT1_.texture.height)
+    };
+    DrawTexturePro(litRT_.texture, srcRec, dstRec, { 0.0f, 0.0f }, 0.0f, WHITE);
+    EndShaderMode();
+    EndTextureMode();
+
+    // 2. Горизонтальне гаусівське розмиття: bloomRT1_ -> bloomRT2_
+    BeginTextureMode(bloomRT2_);
+    ClearBackground(BLANK);
+    BeginShaderMode(shBloomBlur_);
+    float dirH[2] = { 1.85f / static_cast<float>(bloomRT1_.texture.width), 0.0f };
+    SetShaderValue(shBloomBlur_, locBloomBlurDir_, dirH, SHADER_UNIFORM_VEC2);
+    Rectangle bRec = {
+        0.0f, 0.0f,
+        static_cast<float>(bloomRT1_.texture.width),
+        -static_cast<float>(bloomRT1_.texture.height)
+    };
+    DrawTextureRec(bloomRT1_.texture, bRec, { 0.0f, 0.0f }, WHITE);
+    EndShaderMode();
+    EndTextureMode();
+
+    // 3. Вертикальне гаусівське розмиття: bloomRT2_ -> bloomRT1_
+    BeginTextureMode(bloomRT1_);
+    ClearBackground(BLANK);
+    BeginShaderMode(shBloomBlur_);
+    float dirV[2] = { 0.0f, 1.85f / static_cast<float>(bloomRT2_.texture.height) };
+    SetShaderValue(shBloomBlur_, locBloomBlurDir_, dirV, SHADER_UNIFORM_VEC2);
+    Rectangle bRec2 = {
+        0.0f, 0.0f,
+        static_cast<float>(bloomRT2_.texture.width),
+        -static_cast<float>(bloomRT2_.texture.height)
+    };
+    DrawTextureRec(bloomRT2_.texture, bRec2, { 0.0f, 0.0f }, WHITE);
+    EndShaderMode();
+    EndTextureMode();
+
+    // 4. М'яке накладання Bloom адитивно на litRT_
+    BeginTextureMode(litRT_);
+    BeginBlendMode(BLEND_ADDITIVE);
+    Rectangle bSrcRec = {
+        0.0f, 0.0f,
+        static_cast<float>(bloomRT1_.texture.width),
+        -static_cast<float>(bloomRT1_.texture.height)
+    };
+    Rectangle bDstRec = {
+        0.0f, 0.0f,
+        static_cast<float>(litRT_.texture.width),
+        static_cast<float>(litRT_.texture.height)
+    };
+    DrawTexturePro(bloomRT1_.texture, bSrcRec, bDstRec, { 0.0f, 0.0f }, 0.0f, Color{ 105, 105, 105, 255 });
+    EndBlendMode();
+    EndTextureMode();
 }
 
 void ShaderManager::PresentFinalScene(
@@ -650,17 +852,17 @@ void ShaderManager::PresentFinalScene(
         ApplyPass(shHyperopia_);
     }
 
-    if (ctx.CurrentHeirHasTrait(TraitType::Colorblind)) {
-        ApplyPass(shColorblind_);
-    } else if (ctx.CurrentHeirHasTrait(TraitType::Nostalgic)) {
-        float timeVal = static_cast<float>(GetTime());
-        SetShaderValue(shNostalgic_, locNostalgicTime_, &timeVal, SHADER_UNIFORM_FLOAT);
-        ApplyPass(shNostalgic_);
-    }
+    // Фінальний грейдинг-шейдер (віньєтка, зернистість, Nostalgic sepia/scratches, F10 grayscale, F8 silhouette)
+    float curTime = static_cast<float>(GetTime());
+    int isNostalgic = ctx.CurrentHeirHasTrait(TraitType::Nostalgic) ? 1 : 0;
+    int isGrayscale = (debugGrayscale_ || ctx.CurrentHeirHasTrait(TraitType::Colorblind)) ? 1 : 0;
+    int isSilhouette = debugSilhouette_ ? 1 : 0;
 
-    if (debugGrayscale_) {
-        ApplyPass(shGrayscale_);
-    }
+    SetShaderValue(shGrading_, locGradingTime_, &curTime, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(shGrading_, locGradingNostalgic_, &isNostalgic, SHADER_UNIFORM_INT);
+    SetShaderValue(shGrading_, locGradingGrayscale_, &isGrayscale, SHADER_UNIFORM_INT);
+    SetShaderValue(shGrading_, locGradingSilhouette_, &isSilhouette, SHADER_UNIFORM_INT);
+    ApplyPass(shGrading_);
 
     bool hasVertigo = ctx.CurrentHeirHasTrait(TraitType::Vertigo);
     Rectangle finalSrcRec = {

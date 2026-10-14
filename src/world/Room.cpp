@@ -868,8 +868,106 @@ void Room::DrawEntities(const GameContext& ctx, const Player& player) const {
     }
 }
 
-void Room::DrawEmissive([[maybe_unused]] const GameContext& ctx) const {
+void Room::DrawLights([[maybe_unused]] const GameContext& ctx, const Player& player) const {
+    // 1. Смолоскипи кімнати: м'які золотисто-бурштинові радіальні градієнти світла
+    for (const auto& it : interactables) {
+        if (!it.active || it.kind != InteractableKind::Torch) continue;
+        Vector2 c = it.GetCenter();
+        float flicker = std::sin(it.animTimer * 14.0f + static_cast<float>(it.id) * 2.37f) * 6.5f;
+        float r = 165.0f + flicker;
+        DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 12.0f), r, Color{ 255, 195, 105, 235 }, BLANK);
+        DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 12.0f), r * 0.45f, Color{ 255, 235, 165, 255 }, BLANK);
+    }
+
+    // 2. Двері та портали: світлові ареали
+    if (roomType == RoomType::Entrance && !isBossArenaActive) {
+        Vector2 doorCenter = { Config::VIRTUAL_WIDTH * 0.5f, static_cast<float>((Config::ROOM_ROWS - 1) * Config::TILE_SIZE - 40.0f) };
+        DrawCircleGradient(static_cast<int>(doorCenter.x), static_cast<int>(doorCenter.y), 210.0f, Color{ 255, 215, 120, 210 }, BLANK);
+    }
+    for (const auto& it : interactables) {
+        if (!it.active) continue;
+        if (it.kind == InteractableKind::BossDoor) {
+            DrawCircleGradient(static_cast<int>(it.pos.x), static_cast<int>(it.pos.y - 40.0f), 170.0f, Color{ 240, 85, 65, 200 }, BLANK);
+        } else if (it.kind == InteractableKind::Teleporter) {
+            DrawCircleGradient(static_cast<int>(it.pos.x), static_cast<int>(it.pos.y - 20.0f), 140.0f, Color{ 120, 205, 255, 210 }, BLANK);
+        } else if (it.kind == InteractableKind::FairyChest) {
+            DrawCircleGradient(static_cast<int>(it.pos.x), static_cast<int>(it.pos.y - 10.0f), 95.0f, Color{ 150, 225, 255, 185 }, BLANK);
+        }
+    }
+
+    // 3. Аура навколо героя (гравець завжди читається у темних кутах)
+    Vector2 pCenter = player.GetCenter();
+    DrawCircleGradient(static_cast<int>(pCenter.x), static_cast<int>(pCenter.y), 125.0f, Color{ 220, 230, 255, 180 }, BLANK);
+
+    // Шахтарський ліхтар героя
+    if (player.headlampOn) {
+        float dir = player.facingDir;
+        DrawCircleGradient(static_cast<int>(pCenter.x + dir * 85.0f), static_cast<int>(pCenter.y), 195.0f, Color{ 255, 245, 180, 235 }, BLANK);
+    }
+
+    // Спалах світла від меча під час атаки
+    if (player.isAttacking) {
+        Rectangle swBox = player.GetSwordHitbox();
+        Vector2 swCenter = { swBox.x + swBox.width * 0.5f, swBox.y + swBox.height * 0.5f };
+        DrawCircleGradient(static_cast<int>(swCenter.x), static_cast<int>(swCenter.y), 85.0f, Color{ 235, 245, 255, 230 }, BLANK);
+    }
+
+    // 4. Світло від снарядів
+    for (const auto& proj : projectiles) {
+        if (!proj.active) continue;
+        switch (proj.kind) {
+            case ProjectileKind::PlayerFlameOrb:
+            case ProjectileKind::PlayerDragonFireball:
+            case ProjectileKind::BossFlameTrail: {
+                float r = proj.radius * proj.scale * 3.8f;
+                DrawCircleGradient(static_cast<int>(proj.pos.x), static_cast<int>(proj.pos.y), r, Color{ 255, 155, 45, 220 }, BLANK);
+                break;
+            }
+            case ProjectileKind::EnemyFirePillar: {
+                DrawCircleGradient(static_cast<int>(proj.pos.x), static_cast<int>(proj.pos.y - 45.0f), 150.0f * proj.scale, Color{ 255, 125, 30, 240 }, BLANK);
+                break;
+            }
+            case ProjectileKind::PlayerConflux:
+            case ProjectileKind::PlayerPaladinLightning:
+            case ProjectileKind::PlayerAncestorBlade: {
+                float r = proj.radius * proj.scale * 3.5f;
+                DrawCircleGradient(static_cast<int>(proj.pos.x), static_cast<int>(proj.pos.y), r, Color{ 120, 210, 255, 220 }, BLANK);
+                break;
+            }
+            case ProjectileKind::BossAcidDrop: {
+                DrawCircleGradient(static_cast<int>(proj.pos.x), static_cast<int>(proj.pos.y), 70.0f, Color{ 130, 255, 90, 200 }, BLANK);
+                break;
+            }
+            case ProjectileKind::EnemyEyeBolt:
+            case ProjectileKind::BossSwordWave: {
+                DrawCircleGradient(static_cast<int>(proj.pos.x), static_cast<int>(proj.pos.y), 65.0f, Color{ 245, 70, 90, 200 }, BLANK);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    // 5. Світло від вогняних та магічних ворогів
+    for (const auto& en : enemies) {
+        if (!en.active) continue;
+        if (en.type == EnemyType::FireMage) {
+            DrawCircleGradient(static_cast<int>(en.pos.x), static_cast<int>(en.pos.y - 15.0f), 85.0f, Color{ 255, 140, 40, 185 }, BLANK);
+        } else if (en.type == EnemyType::FloatingEye) {
+            DrawCircleGradient(static_cast<int>(en.pos.x), static_cast<int>(en.pos.y), 65.0f, Color{ 220, 60, 90, 160 }, BLANK);
+        }
+    }
+
+    // 6. Світло від активного боса
+    if (hasActiveBoss && activeBoss.active) {
+        DrawCircleGradient(static_cast<int>(activeBoss.pos.x), static_cast<int>(activeBoss.pos.y), 190.0f, Color{ 220, 160, 255, 180 }, BLANK);
+    }
+}
+
+void Room::DrawEmissive([[maybe_unused]] const GameContext& ctx, const Player& player) const {
     const auto& pal = GetPalette();
+
+    // 1. Полум'я смолоскипів та руни порталів
     for (const auto& it : interactables) {
         if (it.active && it.kind == InteractableKind::Torch) {
             Vector2 c = it.GetCenter();
@@ -879,7 +977,62 @@ void Room::DrawEmissive([[maybe_unused]] const GameContext& ctx) const {
             DrawTriangle({ c.x - 7.0f, c.y - 5.0f }, { c.x + 7.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH }, pal.fireGold[0]);
             DrawTriangle({ c.x - 5.0f, c.y - 5.0f }, { c.x + 5.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.75f }, pal.fireGold[2]);
             DrawTriangle({ c.x - 2.5f, c.y - 5.0f }, { c.x + 2.5f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.45f }, pal.fireGold[4]);
-            DrawCircleV({ c.x, c.y - 5.0f - fH * 0.25f }, 2.0f, Color{ 255, 255, 240, 255 });
+            DrawCircleV({ c.x, c.y - 5.0f - fH * 0.25f }, 2.0f, pal.fireGold[4]);
+        } else if (it.active && it.kind == InteractableKind::Teleporter) {
+            Vector2 c = it.GetCenter();
+            float pulse = std::sin(it.animTimer * 6.0f) * 3.0f;
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(it.pos.y - 20.0f), 28.0f + pulse, Fade(pal.moonMagic[2], 0.65f), BLANK);
+        }
+    }
+
+    // 2. Очі ворогів та магічні сфери
+    for (const auto& en : enemies) {
+        if (!en.active) continue;
+        if (en.type == EnemyType::FloatingEye) {
+            Vector2 eyeCore = { en.pos.x + en.facingDir * 4.0f, en.pos.y - 1.0f };
+            DrawCircleV(eyeCore, 3.5f, pal.danger[3]);
+            DrawCircleV(eyeCore, 1.5f, Color{ 255, 255, 230, 255 });
+        } else if (en.type == EnemyType::Skeleton) {
+            DrawCircle(static_cast<int>(en.pos.x - 3.0f + en.facingDir * 2.0f), static_cast<int>(en.pos.y - 32.0f), 2.0f, pal.fireGold[3]);
+            DrawCircle(static_cast<int>(en.pos.x + 3.0f + en.facingDir * 2.0f), static_cast<int>(en.pos.y - 32.0f), 2.0f, pal.fireGold[3]);
+        } else if (en.type == EnemyType::FireMage) {
+            Vector2 staffTip = { en.pos.x + en.facingDir * 16.0f, en.pos.y - 22.0f };
+            DrawCircleV(staffTip, 7.0f, pal.fireGold[2]);
+            DrawCircleV(staffTip, 3.5f, pal.fireGold[4]);
+        }
+    }
+
+    // 3. Емісивні леза та магія героя під час атаки
+    if (player.isAttacking) {
+        Rectangle swBox = player.GetSwordHitbox();
+        Vector2 swCenter = { swBox.x + swBox.width * 0.5f, swBox.y + swBox.height * 0.5f };
+        DrawCircleGradient(static_cast<int>(swCenter.x), static_cast<int>(swCenter.y), 36.0f, Fade(pal.moonMagic[3], 0.75f), BLANK);
+    }
+
+    // 4. Сяючі ядра снарядів
+    for (const auto& proj : projectiles) {
+        if (!proj.active) continue;
+        switch (proj.kind) {
+            case ProjectileKind::PlayerFlameOrb:
+            case ProjectileKind::PlayerDragonFireball:
+            case ProjectileKind::BossFlameTrail: {
+                DrawCircleV(proj.pos, proj.radius * proj.scale * 1.15f, Fade(pal.fireGold[3], 0.85f));
+                DrawCircleV(proj.pos, proj.radius * proj.scale * 0.55f, pal.fireGold[4]);
+                break;
+            }
+            case ProjectileKind::PlayerConflux:
+            case ProjectileKind::PlayerPaladinLightning:
+            case ProjectileKind::PlayerAncestorBlade: {
+                DrawCircleV(proj.pos, proj.radius * proj.scale * 1.15f, Fade(pal.moonMagic[3], 0.85f));
+                DrawCircleV(proj.pos, proj.radius * proj.scale * 0.55f, pal.moonMagic[4]);
+                break;
+            }
+            case ProjectileKind::BossAcidDrop: {
+                DrawCircleV(proj.pos, proj.radius * proj.scale * 0.95f, Fade(pal.poisonSlime[3], 0.8f));
+                break;
+            }
+            default:
+                break;
         }
     }
 }

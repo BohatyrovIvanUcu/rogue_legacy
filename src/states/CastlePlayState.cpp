@@ -425,7 +425,8 @@ void CastlePlayState::Draw(GameContext& ctx) {
         ctx.shaders->CompositeEntitiesToScene();
 
         // 4. Прохід освітлення: генерація карти світла
-        ctx.shaders->BeginLightPass(worldCam_);
+        ctx.shaders->BeginLightPass(worldCam_, curRoom.biome);
+        curRoom.DrawLights(ctx, player_);
         ctx.shaders->EndLightPass();
 
         // 5. Композит sceneRT_ * lightRT_ у litRT_
@@ -433,7 +434,7 @@ void CastlePlayState::Draw(GameContext& ctx) {
 
         // 6. Емісивні ефекти (вогонь, очі, магія, частинки) у BLEND_ADDITIVE поверх litRT_
         ctx.shaders->BeginEmissivePass(worldCam_);
-        curRoom.DrawEmissive(ctx);
+        curRoom.DrawEmissive(ctx, player_);
         if (ctx.particles) {
             ctx.particles->Draw();
         }

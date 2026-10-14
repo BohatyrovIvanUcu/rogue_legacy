@@ -48,7 +48,7 @@ public:
     void CompositeEntitiesToScene();
 
     // Pass 4: Light map generation -> lightRT_
-    void BeginLightPass(const Camera2D& worldCam);
+    void BeginLightPass(const Camera2D& worldCam, BiomeType biome = BiomeType::CastleHamson);
     void EndLightPass();
 
     // Pass 5: Composite sceneRT_ * lightRT_ -> litRT_
@@ -115,6 +115,9 @@ private:
     Shader shSilhouette_{};
     Shader shGrayscale_{};
     Shader shLightComposite_{};
+    Shader shBloomExtract_{};
+    Shader shBloomBlur_{};
+    Shader shGrading_{};
     Shader shColorblind_{};
     Shader shNostalgic_{};
     Shader shMyopia_{};
@@ -124,7 +127,16 @@ private:
     // Uniform locations
     int locOutlineTexelSize_ = -1;
     int locOutlineEnabled_ = -1;
+    int locLightTexture_ = -1;
     int locLightCompositeEnabled_ = -1;
+
+    int locBloomThreshold_ = -1;
+    int locBloomBlurDir_ = -1;
+
+    int locGradingTime_ = -1;
+    int locGradingNostalgic_ = -1;
+    int locGradingGrayscale_ = -1;
+    int locGradingSilhouette_ = -1;
 
     int locNostalgicTime_ = -1;
     int locMyopiaPlayerPos_ = -1;
