@@ -32,6 +32,7 @@ struct HeroRenderParams {
 class ProceduralRenderer {
 public:
     ProceduralRenderer() = default;
+    ~ProceduralRenderer();
 
     void DrawHero(const HeroRenderParams& p) const;
     void DrawHeroPreview(
@@ -54,6 +55,14 @@ public:
     ) const;
     void DrawGoldenBossDoor(Vector2 bottomCenter, const std::array<bool, 5>& bossDefeated, float time) const;
     void DrawManorCastle(const GameContext& ctx, float time) const;
+    void DrawOutskirtsLandscape(const GameContext& ctx, float time) const;
+    void DrawBlacksmithForge(Vector2 pos, float time, bool nearHero) const;
+    void DrawEnchantressTent(Vector2 pos, float time, bool nearHero) const;
+    void DrawArchitectGazebo(Vector2 pos, float time, bool isLocked, bool nearHero) const;
+    void DrawCastleGate(Vector2 pos, float portcullisH, float time, bool nearHero) const;
+
+    void Cleanup();
+    void InvalidateBackdrops();
 
     // UI & Icon procedural rendering
     void DrawTraitIcon(Vector2 center, TraitType trait, float size, Color col) const;
@@ -70,4 +79,14 @@ public:
 
     static Color GetTierPrimaryColor(EquipTier tier, Color defaultCol);
     static Color GetTierSecondaryColor(EquipTier tier, Color defaultCol);
+
+private:
+    mutable RenderTexture2D manorBackdrop_{};
+    mutable RenderTexture2D outskirtsBackdrop_{};
+    mutable bool manorBaked_ = false;
+    mutable bool outskirtsBaked_ = false;
+    mutable int lastManorHash_ = -1;
+
+    void EnsureManorBackdrop(const GameContext& ctx) const;
+    void EnsureOutskirtsBackdrop(const GameContext& ctx) const;
 };

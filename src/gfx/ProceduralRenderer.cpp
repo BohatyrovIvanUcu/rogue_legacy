@@ -1158,274 +1158,987 @@ void ProceduralRenderer::DrawGoldenBossDoor(Vector2 bottomCenter, const std::arr
     }
 }
 
+namespace {
+    inline uint32_t SeedHash(uint32_t x) {
+        x = ((x >> 16) ^ x) * 0x45d9f3b;
+        x = ((x >> 16) ^ x) * 0x45d9f3b;
+        x = (x >> 16) ^ x;
+        return x;
+    }
+
+    inline float Noise1D(float x) {
+        int i0 = static_cast<int>(std::floor(x));
+        int i1 = i0 + 1;
+        float f = x - static_cast<float>(i0);
+        float u = f * f * (3.0f - 2.0f * f);
+        float h0 = static_cast<float>(SeedHash(static_cast<uint32_t>(i0)) & 0xFFFF) / 65535.0f;
+        float h1 = static_cast<float>(SeedHash(static_cast<uint32_t>(i1)) & 0xFFFF) / 65535.0f;
+        return (1.0f - u) * h0 + u * h1;
+    }
+
+    inline float Fbm1D(float x, int octaves = 4) {
+        float val = 0.0f;
+        float amp = 0.5f;
+        float freq = 1.0f;
+        for (int i = 0; i < octaves; ++i) {
+            val += Noise1D(x * freq) * amp;
+            freq *= 2.0f;
+            amp *= 0.5f;
+        }
+        return val;
+    }
+
+    struct StarDef {
+        float x;
+        float y;
+        float size;
+        float speed;
+        float seed;
+    };
+
+    const std::vector<StarDef>& GetGothicSkyStars() {
+        static std::vector<StarDef> stars = []() {
+            std::vector<StarDef> res;
+            res.reserve(120);
+            for (int i = 0; i < 120; ++i) {
+                uint32_t h = TileHash(i * 37 + 101, i * 83 + 47, 9823);
+                float x = static_cast<float>(h % 1270 + 5);
+                float y = static_cast<float>((h >> 11) % 360 + 15);
+                float size = ((h >> 4) % 10 < 3) ? 2.0f : 1.0f;
+                float speed = 1.8f + static_cast<float>((h >> 7) % 30) * 0.1f;
+                float seed = static_cast<float>((h >> 15) % 628) * 0.01f;
+                res.push_back({ x, y, size, speed, seed });
+            }
+            return res;
+        }();
+        return stars;
+    }
+
+    void DrawGothicMoonDisk(float moonX, float moonY) {
+        float rDisk = 32.0f;
+        Color moonBase = Color{ 232, 240, 255, 255 };
+        DrawCircle(static_cast<int>(moonX), static_cast<int>(moonY), rDisk, moonBase);
+
+        // Crater details
+        struct Crater { float ox; float oy; float r; };
+        const Crater craters[] = {
+            { -10.0f, -6.0f, 6.0f },
+            {  12.0f, -4.0f, 7.5f },
+            {  -4.0f, 10.0f, 5.0f },
+            {   8.0f, 12.0f, 4.0f },
+            {   2.0f, -14.0f, 4.5f },
+            { -14.0f,  8.0f, 3.5f }
+        };
+        for (const auto& c : craters) {
+            Vector2 cp = { moonX + c.ox, moonY + c.oy };
+            DrawCircleV(cp, c.r, Color{ 176, 194, 232, 190 });
+            DrawCircleSector(cp, c.r, 135.0f, 315.0f, 8, Color{ 255, 255, 255, 140 });
+        }
+
+        // Crescent shadow on lower-right edge
+        DrawCircleSector({ moonX + 3.0f, moonY + 3.0f }, rDisk - 1.0f, 330.0f, 110.0f, 16, Color{ 32, 38, 65, 80 });
+    }
+
+    void DrawGothicClouds(float time) {
+        Color cloudBody = Color{ 28, 34, 60, 220 };
+        Color rimLight  = Color{ 127, 176, 240, 190 };
+
+        struct CloudStrand {
+            float y;
+            float speed;
+            float width;
+            float height;
+            float offset;
+        };
+        const CloudStrand strands[] = {
+            {  55.0f,  6.0f, 240.0f, 14.0f,   80.0f },
+            {  85.0f,  8.0f, 310.0f, 18.0f,  650.0f },
+            { 130.0f, 12.0f, 260.0f, 16.0f,  200.0f },
+            { 165.0f, 11.0f, 360.0f, 22.0f,  980.0f },
+            { 205.0f, 15.0f, 280.0f, 18.0f,  450.0f },
+            { 245.0f, 18.0f, 340.0f, 24.0f, 1200.0f }
+        };
+
+        for (const auto& cs : strands) {
+            float cx = std::fmod(time * cs.speed + cs.offset, 1600.0f) - 250.0f;
+            Rectangle r = { cx, cs.y, cs.width, cs.height };
+            DrawRectangleRounded(r, 0.45f, 6, cloudBody);
+            DrawRectangleRounded({ cx + cs.width * 0.15f, cs.y - cs.height * 0.25f, cs.width * 0.5f, cs.height * 0.8f }, 0.45f, 6, cloudBody);
+            // Cold moonlight rim light along upper contour
+            DrawLineEx({ cx + 12.0f, cs.y - 1.0f }, { cx + cs.width - 12.0f, cs.y - 1.0f }, 1.5f, rimLight);
+            DrawLineEx({ cx + cs.width * 0.18f, cs.y - cs.height * 0.25f }, { cx + cs.width * 0.62f, cs.y - cs.height * 0.25f }, 1.5f, rimLight);
+        }
+    }
+
+    void DrawGothicFog(float time) {
+        Color fog1 = Color{ 65, 75, 125, 24 };
+        Color fog2 = Color{ 50, 58, 100, 34 };
+        Color fog3 = Color{ 42, 35,  75, 30 };
+
+        float off1 = std::fmod(time * 14.0f, 1280.0f);
+        DrawRectangleGradientV(0, 420, 1280, 80, BLANK, fog1);
+        DrawRectangle(0, 450, 1280, 40, fog1);
+        for (int i = -1; i < 3; ++i) {
+            float fx = i * 600.0f + off1;
+            DrawEllipse(static_cast<int>(fx), 480, 300.0f, 35.0f, fog1);
+        }
+
+        float off2 = std::fmod(time * 22.0f, 1280.0f);
+        for (int i = -1; i < 3; ++i) {
+            float fx = i * 480.0f + off2;
+            DrawEllipse(static_cast<int>(fx), 515, 220.0f, 26.0f, fog2);
+        }
+
+        float off3 = std::fmod(time * 34.0f, 1280.0f);
+        for (int i = -1; i < 3; ++i) {
+            float fx = i * 520.0f + off3;
+            DrawEllipse(static_cast<int>(fx), 555, 260.0f, 30.0f, fog3);
+        }
+    }
+
+    void DrawGothicPine(float x, float baseY, float h, float w) {
+        Color woodDark = Color{ 12, 15, 29, 255 };
+        DrawRectangle(static_cast<int>(x - 3.0f), static_cast<int>(baseY - 14.0f), 6, 14, woodDark);
+        int tiers = 4;
+        float tierH = (h - 14.0f) / tiers;
+        for (int i = 0; i < tiers; ++i) {
+            float frac = static_cast<float>(i) / (tiers - 1);
+            float tw = w * (1.0f - frac * 0.5f);
+            float by = baseY - 10.0f - i * tierH * 0.75f;
+            float ty = by - tierH * 1.35f;
+            DrawTriangle({ x, ty }, { x - tw * 0.5f, by }, { x + tw * 0.5f, by }, woodDark);
+        }
+    }
+
+    void DrawGothicTwistedTree(float x, float baseY, float h, float w) {
+        Color woodDark = Color{ 12, 15, 29, 255 };
+        Vector2 p0 = { x, baseY };
+        Vector2 p1 = { x - 4.0f, baseY - h * 0.35f };
+        Vector2 p2 = { x + 6.0f, baseY - h * 0.70f };
+        Vector2 p3 = { x + 2.0f, baseY - h };
+        DrawLineEx(p0, p1, 7.0f, woodDark);
+        DrawLineEx(p1, p2, 5.0f, woodDark);
+        DrawLineEx(p2, p3, 3.5f, woodDark);
+
+        DrawLineEx(p1, { p1.x - w * 0.45f, p1.y - h * 0.25f }, 3.5f, woodDark);
+        DrawLineEx({ p1.x - w * 0.45f, p1.y - h * 0.25f }, { p1.x - w * 0.65f, p1.y - h * 0.40f }, 2.0f, woodDark);
+
+        DrawLineEx(p2, { p2.x + w * 0.5f, p2.y - h * 0.2f }, 3.0f, woodDark);
+        DrawLineEx({ p2.x + w * 0.5f, p2.y - h * 0.2f }, { p2.x + w * 0.75f, p2.y - h * 0.35f }, 1.8f, woodDark);
+
+        DrawLineEx(p3, { p3.x - w * 0.25f, p3.y - h * 0.15f }, 2.0f, woodDark);
+        DrawLineEx(p3, { p3.x + w * 0.3f, p3.y - h * 0.18f }, 2.0f, woodDark);
+    }
+
+    void DrawSwayingGrass(float groundY, float time) {
+        Color grassDark1 = Color{ 22, 29, 26, 255 };
+        Color grassDark2 = Color{ 14, 20, 18, 255 };
+        for (int gx = 8; gx < Config::VIRTUAL_WIDTH; gx += 16) {
+            float sway = std::sin(time * 3.5f + gx * 0.08f) * 4.5f;
+            DrawLine(gx, static_cast<int>(groundY), static_cast<int>(gx + sway - 3.0f), static_cast<int>(groundY - 10.0f), grassDark1);
+            DrawLine(gx + 3, static_cast<int>(groundY), static_cast<int>(gx + sway + 4.0f), static_cast<int>(groundY - 14.0f), grassDark2);
+            DrawLine(gx + 6, static_cast<int>(groundY), static_cast<int>(gx + sway + 1.0f), static_cast<int>(groundY - 8.0f), grassDark1);
+        }
+    }
+
+    void DrawGothicLantern(float x, float groundY, float time) {
+        Color ironCol = Color{ 36, 40, 52, 255 };
+        Color ironHi  = Color{ 68, 75, 96, 255 };
+
+        DrawRectangle(static_cast<int>(x - 3.0f), static_cast<int>(groundY - 88.0f), 6, 88, ironCol);
+        DrawLine(static_cast<int>(x - 3.0f), static_cast<int>(groundY - 88.0f), static_cast<int>(x - 3.0f), static_cast<int>(groundY), ironHi);
+        DrawTriangle({ x - 9.0f, groundY }, { x, groundY - 14.0f }, { x + 9.0f, groundY }, ironCol);
+
+        int ly = static_cast<int>(groundY - 102.0f);
+        DrawRectangle(static_cast<int>(x - 9.0f), ly, 18, 16, Color{ 25, 20, 15, 230 });
+        DrawRectangleLines(static_cast<int>(x - 9.0f), ly, 18, 16, ironCol);
+        DrawLine(static_cast<int>(x), ly, static_cast<int>(x), ly + 16, ironCol);
+
+        DrawTriangle({ x - 11.0f, static_cast<float>(ly) }, { x, static_cast<float>(ly - 8) }, { x + 11.0f, static_cast<float>(ly) }, ironCol);
+        DrawCircle(static_cast<int>(x), ly - 9, 2.0f, ironHi);
+
+        float flicker = 0.85f + 0.15f * std::sin(time * 11.0f + x);
+        DrawCircle(static_cast<int>(x), ly + 8, 4.5f * flicker, Color{ 255, 179, 71, 255 });
+        DrawCircle(static_cast<int>(x), ly + 8, 2.0f * flicker, Color{ 255, 240, 180, 255 });
+
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient(static_cast<int>(x), ly + 8, 72.0f * flicker, Color{ 255, 179, 71, 52 }, Color{ 255, 179, 71, 0 });
+        EndBlendMode();
+    }
+
+    void DrawGothicFenceAndGraves(float groundY) {
+        Color ironCol   = Color{ 27, 29, 38, 255 };
+        Color ironHi    = Color{ 46, 49, 63, 255 };
+        Color stoneHead = Color{ 23, 29, 54, 255 };
+        Color stoneRim  = Color{ 38, 45, 71, 255 };
+
+        auto DrawFenceSection = [&](int startX, int endX) {
+            DrawLineEx({ static_cast<float>(startX), groundY - 28.0f }, { static_cast<float>(endX), groundY - 28.0f }, 2.5f, ironCol);
+            DrawLineEx({ static_cast<float>(startX), groundY - 10.0f }, { static_cast<float>(endX), groundY - 10.0f }, 2.5f, ironCol);
+            for (int fx = startX + 6; fx < endX; fx += 14) {
+                DrawLine(fx, static_cast<int>(groundY), fx, static_cast<int>(groundY - 38.0f), ironCol);
+                DrawLine(fx + 1, static_cast<int>(groundY), fx + 1, static_cast<int>(groundY - 38.0f), ironHi);
+                DrawTriangle({ static_cast<float>(fx - 3), groundY - 38.0f },
+                             { static_cast<float>(fx), groundY - 45.0f },
+                             { static_cast<float>(fx + 3), groundY - 38.0f }, ironHi);
+            }
+        };
+
+        DrawFenceSection(40, 240);
+        DrawFenceSection(620, 750);
+
+        auto DrawCross = [&](float cx, float cy, float h) {
+            float w = h * 0.65f;
+            DrawRectangle(static_cast<int>(cx - 3.0f), static_cast<int>(cy - h), 6, static_cast<int>(h), stoneHead);
+            DrawRectangle(static_cast<int>(cx - w * 0.5f), static_cast<int>(cy - h * 0.72f), static_cast<int>(w), 5, stoneHead);
+            DrawLine(static_cast<int>(cx - 3.0f), static_cast<int>(cy - h), static_cast<int>(cx - 3.0f), static_cast<int>(cy), stoneRim);
+            DrawLine(static_cast<int>(cx - w * 0.5f), static_cast<int>(cy - h * 0.72f), static_cast<int>(cx + w * 0.5f), static_cast<int>(cy - h * 0.72f), stoneRim);
+        };
+        auto DrawStele = [&](float sx, float sy, float w, float h) {
+            DrawRectangle(static_cast<int>(sx - w * 0.5f), static_cast<int>(sy - h + w * 0.5f), static_cast<int>(w), static_cast<int>(h - w * 0.5f), stoneHead);
+            DrawCircle(static_cast<int>(sx), static_cast<int>(sy - h + w * 0.5f), w * 0.5f, stoneHead);
+            DrawCircleLines(static_cast<int>(sx), static_cast<int>(sy - h + w * 0.5f), w * 0.5f, stoneRim);
+            DrawLine(static_cast<int>(sx - w * 0.5f), static_cast<int>(sy - h + w * 0.5f), static_cast<int>(sx - w * 0.5f), static_cast<int>(sy), stoneRim);
+        };
+
+        DrawCross(280.0f, groundY, 42.0f);
+        DrawStele(325.0f, groundY, 18.0f, 32.0f);
+        DrawCross(570.0f, groundY, 36.0f);
+        DrawStele(790.0f, groundY, 22.0f, 38.0f);
+    }
+
+    void DrawStaticCastleStructure(const GameContext& ctx, float castleCenterX, int baseY) {
+        const auto& pal = GetPalette();
+        Color stoneShadow  = Color{ 22, 25, 40, 255 }; // #161928
+        Color stoneMoonlit = Color{ 56, 65, 97, 255 }; // #384161
+        Color outlineCol   = pal.outline;
+        Color roofBase     = Color{ 23, 28, 46, 255 }; // #171C2E
+        Color roofMoonlit  = Color{ 52, 62, 96, 255 }; // #343E60
+        Color goldAccent   = Color{ 255, 184, 77, 255 };
+
+        int keepLvl = ctx.GetManorLevel(ManorNodeId::Stat_Health) + ctx.GetManorLevel(ManorNodeId::Stat_Mana);
+        int keepH = 175 + std::min(160, keepLvl * 6);
+        int keepW = 150;
+        int keepLeft = static_cast<int>(castleCenterX - keepW * 0.5f);
+
+        // 1. Цоколь (Flared base plinth)
+        DrawRectangle(keepLeft - 8, baseY - 16, keepW + 16, 16, stoneShadow);
+        DrawLine(keepLeft - 8, baseY - 16, keepLeft + keepW + 8, baseY - 16, stoneMoonlit);
+        DrawLine(keepLeft - 8, baseY - 16, keepLeft - 8, baseY, stoneMoonlit);
+
+        // 2. Головна Цитадель (Central Keep): ліва місячна грань, права тіньова
+        int halfW = keepW / 2;
+        DrawRectangle(keepLeft, baseY - keepH, halfW, keepH, stoneMoonlit);
+        DrawRectangle(keepLeft + halfW, baseY - keepH, halfW, keepH, stoneShadow);
+        DrawRectangleLines(keepLeft, baseY - keepH, keepW, keepH, outlineCol);
+        DrawLine(keepLeft + halfW, baseY - keepH, keepLeft + halfW, baseY, outlineCol);
+
+        // Контрфорси (Buttresses)
+        int buttH = keepH / 2;
+        DrawTriangle({ static_cast<float>(keepLeft - 18), static_cast<float>(baseY) },
+                     { static_cast<float>(keepLeft), static_cast<float>(baseY - buttH) },
+                     { static_cast<float>(keepLeft), static_cast<float>(baseY) }, stoneMoonlit);
+        DrawLine(keepLeft - 18, baseY, keepLeft, baseY - buttH, stoneMoonlit);
+
+        DrawTriangle({ static_cast<float>(keepLeft + keepW), static_cast<float>(baseY) },
+                     { static_cast<float>(keepLeft + keepW), static_cast<float>(baseY - buttH) },
+                     { static_cast<float>(keepLeft + keepW + 18), static_cast<float>(baseY) }, stoneShadow);
+        DrawLine(keepLeft + keepW + 18, baseY, keepLeft + keepW, baseY - buttH, outlineCol);
+
+        // Горизонтальні шви кам'яної кладки
+        for (int y = baseY - keepH + 20; y < baseY; y += 22) {
+            DrawLine(keepLeft, y, keepLeft + keepW, y, outlineCol);
+            DrawLine(keepLeft, y + 1, keepLeft + halfW, y + 1, ColorAlpha(stoneMoonlit, 0.4f));
+        }
+
+        // Зубці з машикулями (Machicolated Battlements)
+        // Машикулі (консольний ряд під парапетом)
+        int machY = baseY - keepH;
+        DrawRectangle(keepLeft - 6, machY, keepW + 12, 6, stoneShadow);
+        DrawLine(keepLeft - 6, machY, keepLeft + keepW + 6, machY, stoneMoonlit);
+        for (int bx = keepLeft - 6; bx < keepLeft + keepW + 6; bx += 14) {
+            DrawRectangle(bx, machY + 2, 4, 8, stoneShadow);
+            DrawLine(bx, machY + 2, bx, machY + 10, outlineCol);
+        }
+
+        // Зубці парапету
+        for (int bx = keepLeft - 6; bx < keepLeft + keepW + 6; bx += 20) {
+            DrawRectangle(bx, machY - 14, 13, 14, (bx < keepLeft + halfW) ? stoneMoonlit : stoneShadow);
+            DrawRectangleLines(bx, machY - 14, 13, 14, outlineCol);
+            // Темна бійниця (arrow slit)
+            DrawRectangle(bx + 5, machY - 10, 3, 7, outlineCol);
+        }
+
+        // Гостроверхий готичний дах
+        Vector2 roofApex = { castleCenterX, static_cast<float>(machY - 95) };
+        DrawTriangle({ static_cast<float>(keepLeft - 8), static_cast<float>(machY - 14) },
+                     roofApex,
+                     { static_cast<float>(castleCenterX), static_cast<float>(machY - 14) }, roofMoonlit);
+        DrawTriangle({ static_cast<float>(castleCenterX), static_cast<float>(machY - 14) },
+                     roofApex,
+                     { static_cast<float>(keepLeft + keepW + 8), static_cast<float>(machY - 14) }, roofBase);
+        DrawLineEx({ static_cast<float>(keepLeft - 8), static_cast<float>(machY - 14) }, roofApex, 2.0f, stoneMoonlit);
+        DrawLineEx({ static_cast<float>(keepLeft + keepW + 8), static_cast<float>(machY - 14) }, roofApex, 2.0f, outlineCol);
+
+        // Шпиль і флюгер (Weathervane)
+        Vector2 spireTop = { roofApex.x, roofApex.y - 28.0f };
+        DrawLineEx(roofApex, spireTop, 3.0f, goldAccent);
+        DrawCircleV(spireTop, 3.5f, goldAccent);
+
+        // 3. Стрілчасті вікна (Lancet Windows)
+        for (int wy = baseY - 50; wy > baseY - keepH + 35; wy -= 44) {
+            for (float wx : { castleCenterX - 45.0f, castleCenterX + 25.0f }) {
+                int ix = static_cast<int>(wx);
+                DrawRectangle(ix, wy, 16, 24, goldAccent);
+                DrawCircle(ix + 8, wy, 8.0f, goldAccent);
+                DrawRectangleLines(ix, wy, 16, 24, outlineCol);
+                DrawLine(ix + 8, wy - 8, ix + 8, wy + 24, outlineCol);
+                DrawLine(ix, wy + 10, ix + 16, wy + 10, outlineCol);
+            }
+        }
+
+        // 4. Ліве військове крило (Left Wing)
+        int leftLvl = ctx.GetManorLevel(ManorNodeId::Stat_Attack)
+                    + ctx.GetManorLevel(ManorNodeId::Stat_Armor)
+                    + ctx.GetManorLevel(ManorNodeId::Class_Barbarian) * 5
+                    + ctx.GetManorLevel(ManorNodeId::Class_Shinobi) * 5;
+        if (leftLvl > 0) {
+            int lH = 120 + std::min(180, leftLvl * 7);
+            int lW = 100;
+            int lLeft = keepLeft - lW + 8;
+            DrawRectangle(lLeft, baseY - lH, lW, lH, stoneMoonlit);
+            DrawRectangleLines(lLeft, baseY - lH, lW, lH, outlineCol);
+
+            // Контрфорс
+            DrawTriangle({ static_cast<float>(lLeft - 16), static_cast<float>(baseY) },
+                         { static_cast<float>(lLeft), static_cast<float>(baseY - lH / 2) },
+                         { static_cast<float>(lLeft), static_cast<float>(baseY) }, stoneMoonlit);
+
+            // Зубці
+            for (int bx = lLeft; bx < lLeft + lW; bx += 18) {
+                DrawRectangle(bx, baseY - lH - 12, 12, 12, stoneMoonlit);
+                DrawRectangleLines(bx, baseY - lH - 12, 12, 12, outlineCol);
+            }
+            // Вікна
+            for (int wy = baseY - 55; wy > baseY - lH + 25; wy -= 45) {
+                DrawRectangle(lLeft + 42, wy, 14, 22, goldAccent);
+                DrawCircle(lLeft + 49, wy, 7.0f, goldAccent);
+                DrawRectangleLines(lLeft + 42, wy, 14, 22, outlineCol);
+            }
+        }
+
+        // 5. Праве магічне крило (Right Wing)
+        int rightLvl = ctx.GetManorLevel(ManorNodeId::Stat_MagicDmg)
+                     + ctx.GetManorLevel(ManorNodeId::Class_Mage) * 5
+                     + ctx.GetManorLevel(ManorNodeId::Class_Lich) * 5;
+        if (rightLvl > 0) {
+            int rH = 130 + std::min(190, rightLvl * 7);
+            int rW = 95;
+            int rLeft = keepLeft + keepW - 8;
+            DrawRectangle(rLeft, baseY - rH, rW, rH, stoneShadow);
+            DrawRectangleLines(rLeft, baseY - rH, rW, rH, outlineCol);
+
+            // Готичний шатровий дах вежі магів
+            Vector2 rApex = { static_cast<float>(rLeft + rW / 2), static_cast<float>(baseY - rH - 85) };
+            DrawTriangle({ static_cast<float>(rLeft - 4), static_cast<float>(baseY - rH) },
+                         rApex,
+                         { static_cast<float>(rLeft + rW + 4), static_cast<float>(baseY - rH) }, roofBase);
+            DrawLineEx({ static_cast<float>(rLeft - 4), static_cast<float>(baseY - rH) }, rApex, 1.5f, stoneMoonlit);
+
+            // Вікна
+            for (int wy = baseY - 55; wy > baseY - rH + 25; wy -= 45) {
+                DrawRectangle(rLeft + 38, wy, 14, 22, Color{ 140, 220, 255, 255 });
+                DrawCircle(rLeft + 45, wy, 7.0f, Color{ 140, 220, 255, 255 });
+                DrawRectangleLines(rLeft + 38, wy, 14, 22, outlineCol);
+            }
+        }
+
+        // 6. Обсерваторія Зірок (Master Observatory)
+        if (ctx.GetManorLevel(ManorNodeId::Upgrade_AllBasicClasses) > 0) {
+            int topY = machY - 95;
+            DrawCircle(static_cast<int>(castleCenterX), topY, 32.0f, Color{ 35, 45, 75, 255 });
+            DrawCircleLines(static_cast<int>(castleCenterX), topY, 32.0f, goldAccent);
+            DrawLineEx({ castleCenterX, static_cast<float>(topY) },
+                       { castleCenterX + 38.0f, static_cast<float>(topY - 32) }, 6.0f, goldAccent);
+            DrawCircle(static_cast<int>(castleCenterX + 40.0f), topY - 34, 5.0f, Color{ 140, 220, 255, 255 });
+        }
+
+        // 7. Гніздо Дракона (Dragon Aerie)
+        if (ctx.GetManorLevel(ManorNodeId::Class_Dragon) > 0) {
+            int topY = machY - 130;
+            DrawTriangle({ castleCenterX - 28.0f, static_cast<float>(topY + 14) },
+                         { castleCenterX, static_cast<float>(topY - 18) },
+                         { castleCenterX + 28.0f, static_cast<float>(topY + 14) }, Color{ 48, 18, 22, 255 });
+            DrawCircle(static_cast<int>(castleCenterX), topY, 14.0f, Color{ 145, 30, 36, 255 });
+            DrawCircleLines(static_cast<int>(castleCenterX), topY, 14.0f, goldAccent);
+        }
+    }
+
+    void DrawAnimatedCastleGlows(const GameContext& ctx, float castleCenterX, int baseY, float time) {
+        int keepLvl = ctx.GetManorLevel(ManorNodeId::Stat_Health) + ctx.GetManorLevel(ManorNodeId::Stat_Mana);
+        int keepH = 175 + std::min(160, keepLvl * 6);
+        int keepW = 150;
+        int keepLeft = static_cast<int>(castleCenterX - keepW * 0.5f);
+        int machY = baseY - keepH;
+
+        // Прапор на шпилі цитаделі
+        Vector2 spireTop = { castleCenterX, static_cast<float>(machY - 123) };
+        float flagWave = std::sin(time * 6.5f) * 6.0f;
+        DrawTriangle(spireTop,
+                     { spireTop.x + 28.0f + flagWave, spireTop.y + 6.0f },
+                     { spireTop.x, spireTop.y + 16.0f }, Color{ 180, 30, 42, 255 });
+
+        // Адитивне тепле сяйво вікон замку
+        BeginBlendMode(BLEND_ADDITIVE);
+        float winFlicker = 0.88f + 0.12f * std::sin(time * 8.0f + 1.2f);
+        for (int wy = baseY - 50; wy > baseY - keepH + 35; wy -= 44) {
+            for (float wx : { castleCenterX - 45.0f, castleCenterX + 25.0f }) {
+                DrawCircleGradient(static_cast<int>(wx + 8.0f), wy + 10, 28.0f * winFlicker,
+                                   Color{ 255, 184, 77, 45 }, Color{ 255, 184, 77, 0 });
+            }
+        }
+
+        // Адитивне сяйво магічного кришталя вежі магів
+        int rightLvl = ctx.GetManorLevel(ManorNodeId::Stat_MagicDmg)
+                     + ctx.GetManorLevel(ManorNodeId::Class_Mage) * 5
+                     + ctx.GetManorLevel(ManorNodeId::Class_Lich) * 5;
+        if (rightLvl > 0) {
+            int rH = 130 + std::min(190, rightLvl * 7);
+            int rW = 95;
+            int rLeft = keepLeft + keepW - 8;
+            Vector2 gemPos = { static_cast<float>(rLeft + rW / 2), static_cast<float>(baseY - rH - 90) };
+            float gemPulse = 1.0f + 0.25f * std::sin(time * 4.5f);
+            DrawCircleGradient(static_cast<int>(gemPos.x), static_cast<int>(gemPos.y), 26.0f * gemPulse,
+                               Color{ 120, 200, 255, 95 }, Color{ 120, 200, 255, 0 });
+            DrawCircleV(gemPos, 4.0f, WHITE);
+        }
+        EndBlendMode();
+    }
+
+    void DrawDistantCastleSilhouette(float cx, float groundY) {
+        Color castSil = Color{ 14, 17, 30, 255 };
+        Color castRim = Color{ 38, 45, 71, 255 };
+
+        // Цитадель
+        DrawRectangle(static_cast<int>(cx - 50.0f), static_cast<int>(groundY - 210.0f), 100, 210, castSil);
+        DrawLine(static_cast<int>(cx - 50.0f), static_cast<int>(groundY - 210.0f), static_cast<int>(cx - 50.0f), static_cast<int>(groundY), castRim);
+        // Гостроверхий дах
+        DrawTriangle({ cx - 55.0f, groundY - 210.0f }, { cx, groundY - 275.0f }, { cx + 55.0f, groundY - 210.0f }, castSil);
+        DrawLine(static_cast<int>(cx - 55.0f), static_cast<int>(groundY - 210.0f), static_cast<int>(cx), static_cast<int>(groundY - 275.0f), castRim);
+
+        // Бічні вежі
+        DrawRectangle(static_cast<int>(cx - 105.0f), static_cast<int>(groundY - 170.0f), 50, 170, castSil);
+        DrawTriangle({ cx - 110.0f, groundY - 170.0f }, { cx - 80.0f, groundY - 225.0f }, { cx - 50.0f, groundY - 170.0f }, castSil);
+
+        DrawRectangle(static_cast<int>(cx + 55.0f), static_cast<int>(groundY - 180.0f), 55, 180, castSil);
+        DrawTriangle({ cx + 50.0f, groundY - 180.0f }, { cx + 82.0f, groundY - 240.0f }, { cx + 115.0f, groundY - 180.0f }, castSil);
+    }
+}
+
+ProceduralRenderer::~ProceduralRenderer() {
+    Cleanup();
+}
+
+void ProceduralRenderer::Cleanup() {
+    if (manorBackdrop_.id > 0) {
+        UnloadRenderTexture(manorBackdrop_);
+        manorBackdrop_ = {};
+    }
+    if (outskirtsBackdrop_.id > 0) {
+        UnloadRenderTexture(outskirtsBackdrop_);
+        outskirtsBackdrop_ = {};
+    }
+    manorBaked_ = false;
+    outskirtsBaked_ = false;
+    lastManorHash_ = -1;
+}
+
+void ProceduralRenderer::InvalidateBackdrops() {
+    manorBaked_ = false;
+    outskirtsBaked_ = false;
+    lastManorHash_ = -1;
+}
+
+void ProceduralRenderer::EnsureManorBackdrop(const GameContext& ctx) const {
+    int curHash = ctx.GetTotalManorLevels()
+                + ctx.GetManorLevel(ManorNodeId::Unlock_Blacksmith) * 100
+                + ctx.GetManorLevel(ManorNodeId::Unlock_Enchantress) * 200
+                + ctx.GetManorLevel(ManorNodeId::Unlock_Architect) * 400
+                + ctx.GetManorLevel(ManorNodeId::Class_Barbarian) * 50
+                + ctx.GetManorLevel(ManorNodeId::Class_Mage) * 50;
+
+    if (manorBaked_ && manorBackdrop_.id > 0 && curHash == lastManorHash_) {
+        return;
+    }
+
+    if (manorBackdrop_.id == 0) {
+        manorBackdrop_ = LoadRenderTexture(Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT);
+        SetTextureFilter(manorBackdrop_.texture, TEXTURE_FILTER_POINT);
+    }
+
+    lastManorHash_ = curHash;
+    manorBaked_ = true;
+
+    BeginTextureMode(manorBackdrop_);
+    ClearBackground(BLACK);
+
+    // 1. Небо: вертикальний градієнт з 3 зон (#070913 -> #161B33 -> #2A1E3F)
+    DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, 260, Color{ 7, 9, 19, 255 }, Color{ 22, 27, 51, 255 });
+    DrawRectangleGradientV(0, 260, Config::VIRTUAL_WIDTH, 300, Color{ 22, 27, 51, 255 }, Color{ 42, 30, 63, 255 });
+
+    // 2. Гори: ламана лінія з 1D шуму (4 октави), силует #111426, світліша 1px лінія хребта #262D47
+    Color mtnSilhouette = Color{ 17, 20, 38, 255 };
+    Color mtnRidge      = Color{ 38, 45, 71, 255 };
+    for (int x = 0; x < Config::VIRTUAL_WIDTH; ++x) {
+        float yRidge = 260.0f + Fbm1D(static_cast<float>(x) * 0.0038f + 14.2f, 4) * 165.0f;
+        DrawLine(x, static_cast<int>(yRidge), x, 560, mtnSilhouette);
+        DrawPixel(x, static_cast<int>(yRidge), mtnRidge);
+    }
+
+    // 3. Ліс: силуети ялин і голих покручених дерев #0C0F1D
+    for (int x = 20; x < Config::VIRTUAL_WIDTH; x += 38) {
+        uint32_t th = TileHash(x, 129);
+        float baseY = 480.0f + static_cast<float>(th % 60);
+        if ((th % 3) == 0) {
+            DrawGothicTwistedTree(static_cast<float>(x), baseY, 55.0f + static_cast<float>((th >> 3) % 25), 34.0f);
+        } else {
+            DrawGothicPine(static_cast<float>(x), baseY, 70.0f + static_cast<float>((th >> 4) % 30), 38.0f);
+        }
+    }
+
+    // 4. Місяць: запечений диск з кратерами (moonX = 740, moonY = 130)
+    DrawGothicMoonDisk(740.0f, 130.0f);
+
+    // 5. Замок: база #23283D, тіньова сторона #161928, місячний блік зліва #384161
+    DrawStaticCastleStructure(ctx, 920.0f, 560);
+
+    // 6. Передній план: кам'яний насип #141824, кована огорожа з піками, надгробки
+    DrawRectangle(0, 560, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT - 560, Color{ 20, 24, 36, 255 });
+    DrawLine(0, 560, Config::VIRTUAL_WIDTH, 560, Color{ 38, 45, 71, 255 });
+    DrawGothicFenceAndGraves(560.0f);
+
+    EndTextureMode();
+}
+
+void ProceduralRenderer::EnsureOutskirtsBackdrop(const GameContext& /*ctx*/) const {
+    if (outskirtsBaked_ && outskirtsBackdrop_.id > 0) {
+        return;
+    }
+
+    if (outskirtsBackdrop_.id == 0) {
+        outskirtsBackdrop_ = LoadRenderTexture(Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT);
+        SetTextureFilter(outskirtsBackdrop_.texture, TEXTURE_FILTER_POINT);
+    }
+    outskirtsBaked_ = true;
+
+    BeginTextureMode(outskirtsBackdrop_);
+    ClearBackground(BLACK);
+
+    // 1. Небо: вертикальний градієнт з 3 зон (#070913 -> #161B33 -> #2A1E3F)
+    DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, 270, Color{ 7, 9, 19, 255 }, Color{ 22, 27, 51, 255 });
+    DrawRectangleGradientV(0, 270, Config::VIRTUAL_WIDTH, 310, Color{ 22, 27, 51, 255 }, Color{ 42, 30, 63, 255 });
+
+    // 2. Гори: ламана лінія з 1D шуму (4 октави), силует #111426, світліша 1px лінія хребта
+    Color mtnSilhouette = Color{ 17, 20, 38, 255 };
+    Color mtnRidge      = Color{ 38, 45, 71, 255 };
+    for (int x = 0; x < Config::VIRTUAL_WIDTH; ++x) {
+        float yRidge = 275.0f + Fbm1D(static_cast<float>(x) * 0.0035f + 8.7f, 4) * 160.0f;
+        DrawLine(x, static_cast<int>(yRidge), x, 580, mtnSilhouette);
+        DrawPixel(x, static_cast<int>(yRidge), mtnRidge);
+    }
+
+    // 3. Ліс: силуети ялин і голих покручених дерев #0C0F1D
+    for (int x = 15; x < Config::VIRTUAL_WIDTH; x += 36) {
+        uint32_t th = TileHash(x, 241);
+        float baseY = 510.0f + static_cast<float>(th % 55);
+        if ((th % 3) == 1) {
+            DrawGothicTwistedTree(static_cast<float>(x), baseY, 58.0f + static_cast<float>((th >> 3) % 25), 36.0f);
+        } else {
+            DrawGothicPine(static_cast<float>(x), baseY, 75.0f + static_cast<float>((th >> 4) % 30), 40.0f);
+        }
+    }
+
+    // 4. Далекий силует Замку Гамсон
+    DrawDistantCastleSilhouette(1020.0f, 580.0f);
+
+    // 5. Місяць
+    DrawGothicMoonDisk(1040.0f, 125.0f);
+
+    // 6. Дорога та бруківка #141824
+    DrawRectangle(0, 580, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT - 580, Color{ 20, 24, 36, 255 });
+    DrawLine(0, 580, Config::VIRTUAL_WIDTH, 580, Color{ 46, 49, 63, 255 });
+    for (int r = 0; r < 4; ++r) {
+        int ry = 588 + r * 30;
+        int off = (r % 2 == 1) ? 36 : 0;
+        for (int c = -1; c < (Config::VIRTUAL_WIDTH / 72) + 2; ++c) {
+            int cx = c * 72 + off;
+            DrawRectangle(cx + 2, ry + 2, 68, 26, Color{ 27, 31, 46, 255 });
+            DrawRectangleLines(cx + 2, ry + 2, 68, 26, Color{ 12, 10, 18, 255 });
+        }
+    }
+
+    // 7. Огорожа та надгробки обабіч дороги
+    DrawGothicFenceAndGraves(580.0f);
+
+    EndTextureMode();
+}
+
 void ProceduralRenderer::DrawManorCastle(const GameContext& ctx, float time) const {
-    // 1. Яскраве денне лазурне небо (Daytime azure gradient sky)
-    DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT, Color{ 58, 136, 235, 255 }, Color{ 185, 225, 252, 255 });
+    EnsureManorBackdrop(ctx);
 
-    // 2. Сяюче тепле сонце з ореолом та променями (Glowing golden sun)
-    Vector2 sunPos = { 960.0f, 115.0f };
-    DrawCircleGradient(static_cast<int>(sunPos.x), static_cast<int>(sunPos.y), 130.0f, Fade(Color{ 255, 245, 170, 255 }, 0.35f), BLANK);
-    DrawCircleGradient(static_cast<int>(sunPos.x), static_cast<int>(sunPos.y), 75.0f, Fade(Color{ 255, 225, 110, 255 }, 0.55f), BLANK);
-    DrawCircleV(sunPos, 38.0f, Color{ 255, 252, 215, 255 });
-    DrawCircleV(sunPos, 26.0f, WHITE);
+    // 1. Виводимо запечений бекдроп
+    Rectangle srcRec = { 0.0f, 0.0f, static_cast<float>(manorBackdrop_.texture.width), -static_cast<float>(manorBackdrop_.texture.height) };
+    Rectangle dstRec = { 0.0f, 0.0f, static_cast<float>(Config::VIRTUAL_WIDTH), static_cast<float>(Config::VIRTUAL_HEIGHT) };
+    DrawTexturePro(manorBackdrop_.texture, srcRec, dstRec, { 0.0f, 0.0f }, 0.0f, WHITE);
 
-    // М'які сонячні промені
-    for (int r = 0; r < 8; ++r) {
-        float rayAng = time * 0.15f + r * (3.14159f / 4.0f);
-        Vector2 rEnd = { sunPos.x + std::cos(rayAng) * 95.0f, sunPos.y + std::sin(rayAng) * 95.0f };
-        DrawLineEx(sunPos, rEnd, 2.5f, Fade(Color{ 255, 250, 190, 255 }, 0.22f));
-    }
-
-    // 3. Пишні білосніжні хмари, що пливуть небокраєм (Cumulus clouds)
-    for (int i = 0; i < 5; ++i) {
-        float speed = 8.0f + i * 5.0f;
-        float cx = std::fmod(time * speed + i * 290.0f, 1500.0f) - 120.0f;
-        float cy = 60.0f + i * 36.0f;
-        float cscale = 0.85f + (i % 3) * 0.25f;
-
-        Color cloudShadow = Color{ 220, 232, 248, 220 };
-        Color cloudTop    = Color{ 255, 255, 255, 245 };
-
-        // Тіньова основа хмари
-        DrawEllipse(static_cast<int>(cx), static_cast<int>(cy + 10.0f * cscale), 80.0f * cscale, 24.0f * cscale, cloudShadow);
-        // Об'ємні білі куполи
-        DrawCircle(static_cast<int>(cx - 38.0f * cscale), static_cast<int>(cy + 2.0f), 28.0f * cscale, cloudTop);
-        DrawCircle(static_cast<int>(cx + 36.0f * cscale), static_cast<int>(cy + 4.0f), 26.0f * cscale, cloudTop);
-        DrawCircle(static_cast<int>(cx), static_cast<int>(cy - 12.0f * cscale), 36.0f * cscale, cloudTop);
-        DrawCircle(static_cast<int>(cx + 18.0f * cscale), static_cast<int>(cy - 6.0f * cscale), 30.0f * cscale, cloudTop);
-    }
-
-    // 4. Величний далекий гірський хребет з білими засніженими піками
-    Color farMtnCol  = Color{ 120, 145, 185, 255 };
-    Color snowCol    = Color{ 245, 250, 255, 255 };
-
-    // Далекі піки
-    struct MountainPeak { float x; float y; float w; };
-    const MountainPeak peaks[4] = {
-        { 160.0f, 260.0f, 280.0f },
-        { 480.0f, 290.0f, 320.0f },
-        { 820.0f, 250.0f, 340.0f },
-        { 1160.0f, 275.0f, 300.0f }
-    };
-    for (const auto& pk : peaks) {
-        DrawTriangle({ pk.x - pk.w * 0.5f, 560.0f }, { pk.x, pk.y }, { pk.x + pk.w * 0.5f, 560.0f }, farMtnCol);
-        // Снігова шапка на вершині
-        float snowH = (560.0f - pk.y) * 0.32f;
-        DrawTriangle(
-            { pk.x - pk.w * 0.16f, pk.y + snowH },
-            { pk.x, pk.y },
-            { pk.x + pk.w * 0.16f, pk.y + snowH },
-            snowCol
-        );
-    }
-
-    // Середній хребет лісистих пагорбів
-    Color midHillsCol = Color{ 58, 118, 78, 255 };
-    DrawTriangle({ -80.0f, 560.0f }, { 220.0f, 370.0f }, { 520.0f, 560.0f }, midHillsCol);
-    DrawTriangle({ 320.0f, 560.0f }, { 680.0f, 390.0f }, { 1040.0f, 560.0f }, midHillsCol);
-    DrawTriangle({ 780.0f, 560.0f }, { 1100.0f, 360.0f }, { 1400.0f, 560.0f }, midHillsCol);
-
-    // 5. Зелені смарагдові пагорби переднього плану (Lush rolling green hills)
-    DrawCircle(180, 810, 350.0f, Color{ 68, 155, 62, 255 });
-    DrawCircle(1100, 820, 360.0f, Color{ 68, 155, 62, 255 });
-    DrawCircle(640, 1020, 520.0f, Color{ 82, 175, 74, 255 });
-
-    // Окремі мальовничі сосни та смереки на схилах пагорбів
-    auto DrawHillPine = [](float x, float y, float h, float w, Color col) {
-        DrawRectangle(static_cast<int>(x - 3.0f), static_cast<int>(y - 12.0f), 6, 12, Color{ 85, 55, 38, 255 });
-        DrawTriangle({ x - w * 0.5f, y - 8.0f }, { x, y - h * 0.5f }, { x + w * 0.5f, y - 8.0f }, col);
-        DrawTriangle({ x - w * 0.42f, y - h * 0.38f }, { x, y - h * 0.78f }, { x + w * 0.42f, y - h * 0.38f }, col);
-        DrawTriangle({ x - w * 0.32f, y - h * 0.65f }, { x, y - h }, { x + w * 0.32f, y - h * 0.65f }, ColorTint(col, Color{ 220, 245, 220, 255 }));
-    };
-
-    DrawHillPine(80.0f, 520.0f, 85.0f, 44.0f, Color{ 32, 95, 48, 255 });
-    DrawHillPine(140.0f, 535.0f, 105.0f, 52.0f, Color{ 28, 85, 42, 255 });
-    DrawHillPine(210.0f, 545.0f, 75.0f, 38.0f, Color{ 35, 105, 52, 255 });
-    DrawHillPine(1060.0f, 540.0f, 95.0f, 48.0f, Color{ 28, 85, 42, 255 });
-    DrawHillPine(1140.0f, 525.0f, 115.0f, 56.0f, Color{ 32, 95, 48, 255 });
-    DrawHillPine(1210.0f, 535.0f, 80.0f, 40.0f, Color{ 35, 105, 52, 255 });
-
-    // Квіти та травинки на лузі
-    for (int fx = 40; fx < Config::VIRTUAL_WIDTH; fx += 55) {
-        float fy = 540.0f + std::sin(fx * 0.08f) * 12.0f;
-        DrawCircle(fx, static_cast<int>(fy), 2.5f, (fx % 110 == 0) ? GOLD : (fx % 165 == 0 ? WHITE : Color{ 255, 120, 160, 255 }));
-    }
-
-    // 6. Величний Родовий Замок (Ancestral Manor Keep) у денному освітленні
-    int baseY = 550;
-    Color stoneLight = Color{ 192, 190, 185, 255 }; // Теплий вапняк під сонцем
-    Color stoneDark  = Color{ 148, 145, 142, 255 }; // Затінена сторона кладки
-    Color stoneMrt   = Color{ 120, 118, 115, 255 }; // Шви кам'яної кладки
-    Color roofCol    = Color{ 188, 64, 48, 255 };   // Сонячна теракотова черепиця
-    Color roofDark   = Color{ 145, 45, 34, 255 };
-    Color winGlass   = Color{ 120, 210, 255, 230 }; // Небесно-блакитне скло з відблисками
-    Color winFrame   = Color{ 68, 55, 45, 255 };
-
-    int keepLvl = ctx.GetManorLevel(ManorNodeId::Stat_Health) + ctx.GetManorLevel(ManorNodeId::Stat_Mana);
-    int keepH = 165 + std::min(160, keepLvl * 6);
-
-    // Головна Цитадель (Central Keep)
-    DrawRectangle(560, baseY - keepH, 160, keepH, stoneLight);
-    DrawRectangle(640, baseY - keepH, 80, keepH, stoneDark); // легка тінь праворуч
-    DrawRectangleLines(560, baseY - keepH, 160, keepH, stoneMrt);
-
-    // Горизонтальні шви кам'яних блоків
-    for (int y = baseY - keepH + 20; y < baseY; y += 22) {
-        DrawLine(560, y, 720, y, stoneMrt);
-    }
-
-    // Зубці вежі цитаделі (Battlements)
-    for (int bx = 560; bx < 720; bx += 20) {
-        DrawRectangle(bx, baseY - keepH - 12, 14, 12, stoneLight);
-        DrawRectangleLines(bx, baseY - keepH - 12, 14, 12, stoneMrt);
-    }
-
-    // Головний теракотовий дах
-    DrawTriangle(
-        { 735.0f, static_cast<float>(baseY - keepH) },
-        { 640.0f, static_cast<float>(baseY - keepH - 85) },
-        { 545.0f, static_cast<float>(baseY - keepH) },
-        roofCol
-    );
-    DrawTriangle(
-        { 735.0f, static_cast<float>(baseY - keepH) },
-        { 640.0f, static_cast<float>(baseY - keepH - 85) },
-        { 640.0f, static_cast<float>(baseY - keepH) },
-        roofDark
-    );
-
-    // Золотий шпиль та червоний прапор, що майорить на вітрі
-    Vector2 spireTop = { 640.0f, static_cast<float>(baseY - keepH - 110) };
-    DrawLineEx({ 640.0f, static_cast<float>(baseY - keepH - 85) }, spireTop, 3.0f, GOLD);
-    float flagWave = std::sin(time * 6.5f) * 6.0f;
-    DrawTriangle(
-        spireTop,
-        { spireTop.x + 28.0f + flagWave, spireTop.y + 6.0f },
-        { spireTop.x, spireTop.y + 16.0f },
-        Color{ 220, 38, 48, 255 }
-    );
-
-    // Арочні вікна цитаделі з перехресними палітурками
-    for (int wy = baseY - 50; wy > baseY - keepH + 30; wy -= 44) {
-        for (int wx : { 600, 665 }) {
-            DrawRectangle(wx, wy, 16, 26, winGlass);
-            DrawCircle(wx + 8, wy, 8.0f, winGlass);
-            DrawRectangleLines(wx, wy, 16, 26, winFrame);
-            DrawLine(wx + 8, wy - 8, wx + 8, wy + 26, winFrame);
-            DrawLine(wx, wy + 10, wx + 16, wy + 10, winFrame);
+    // 2. Анімовані зірки (120 зірок, ~40% мерехтять)
+    const auto& stars = GetGothicSkyStars();
+    for (size_t i = 0; i < stars.size(); ++i) {
+        const auto& s = stars[i];
+        if (i < 72) {
+            DrawRectangle(static_cast<int>(s.x), static_cast<int>(s.y), static_cast<int>(s.size), static_cast<int>(s.size), Color{ 190, 210, 245, 200 });
+        } else {
+            float pulse = 0.6f + 0.4f * std::sin(time * s.speed + s.seed);
+            DrawRectangle(static_cast<int>(s.x), static_cast<int>(s.y), static_cast<int>(s.size), static_cast<int>(s.size), ColorAlpha(Color{ 220, 235, 255, 255 }, pulse));
         }
     }
 
-    // Ліве військове крило (Left Wing - Attack / Armor / Barbarian / Shinobi)
-    int leftLvl = ctx.GetManorLevel(ManorNodeId::Stat_Attack)
-                + ctx.GetManorLevel(ManorNodeId::Stat_Armor)
-                + ctx.GetManorLevel(ManorNodeId::Class_Barbarian) * 5
-                + ctx.GetManorLevel(ManorNodeId::Class_Shinobi) * 5;
-    if (leftLvl > 0) {
-        int lH = 110 + std::min(190, leftLvl * 7);
-        DrawRectangle(455, baseY - lH, 105, lH, stoneDark);
-        DrawRectangleLines(455, baseY - lH, 105, lH, stoneMrt);
-        for (int bx = 455; bx < 560; bx += 22) {
-            DrawRectangle(bx, baseY - lH - 14, 14, 14, stoneLight);
-            DrawRectangleLines(bx, baseY - lH - 14, 14, 14, stoneMrt);
+    // 3. Адитивне гало місяця (R ≈ 180, color {120,160,255}, alpha 0.22)
+    BeginBlendMode(BLEND_ADDITIVE);
+    float pulse = 1.0f + 0.03f * std::sin(time * 2.2f);
+    DrawCircleGradient(740, 130, 180.0f * pulse, Color{ 120, 160, 255, 56 }, Color{ 120, 160, 255, 0 });
+    DrawCircleGradient(740, 130, 75.0f * pulse, Color{ 150, 180, 255, 75 }, Color{ 150, 180, 255, 0 });
+    EndBlendMode();
+
+    // 4. Хмари: витягнуті багатошарові пасма з місячним rim light
+    DrawGothicClouds(time);
+
+    // 5. 3 шари фіолетово-блакитного туману
+    DrawGothicFog(time);
+
+    // 6. Анімовані ефекти замку (сяйво вікон, прапор на вітрі)
+    DrawAnimatedCastleGlows(ctx, 920.0f, 560, time);
+
+    // 7. Вуличні ліхтарі з теплим світлом
+    DrawGothicLantern(240.0f, 560.0f, time);
+    DrawGothicLantern(620.0f, 560.0f, time);
+    DrawGothicLantern(1180.0f, 560.0f, time);
+
+    // 8. Темна трава, що гнеться від вітру
+    DrawSwayingGrass(560.0f, time);
+}
+
+void ProceduralRenderer::DrawOutskirtsLandscape(const GameContext& ctx, float time) const {
+    EnsureOutskirtsBackdrop(ctx);
+
+    // 1. Виводимо запечений бекдроп
+    Rectangle srcRec = { 0.0f, 0.0f, static_cast<float>(outskirtsBackdrop_.texture.width), -static_cast<float>(outskirtsBackdrop_.texture.height) };
+    Rectangle dstRec = { 0.0f, 0.0f, static_cast<float>(Config::VIRTUAL_WIDTH), static_cast<float>(Config::VIRTUAL_HEIGHT) };
+    DrawTexturePro(outskirtsBackdrop_.texture, srcRec, dstRec, { 0.0f, 0.0f }, 0.0f, WHITE);
+
+    // 2. Анімовані зірки
+    const auto& stars = GetGothicSkyStars();
+    for (size_t i = 0; i < stars.size(); ++i) {
+        const auto& s = stars[i];
+        if (i < 72) {
+            DrawRectangle(static_cast<int>(s.x), static_cast<int>(s.y), static_cast<int>(s.size), static_cast<int>(s.size), Color{ 190, 210, 245, 200 });
+        } else {
+            float pulse = 0.6f + 0.4f * std::sin(time * s.speed + s.seed);
+            DrawRectangle(static_cast<int>(s.x), static_cast<int>(s.y), static_cast<int>(s.size), static_cast<int>(s.size), ColorAlpha(Color{ 220, 235, 255, 255 }, pulse));
         }
-        for (int wy = baseY - 55; wy > baseY - lH + 20; wy -= 45) {
-            DrawRectangle(498, wy, 16, 24, winGlass);
-            DrawRectangleLines(498, wy, 16, 24, winFrame);
-        }
     }
 
-    // Праве магічне крило (Right Wing - Magic / Mage / Lich)
-    int rightLvl = ctx.GetManorLevel(ManorNodeId::Stat_MagicDmg)
-                 + ctx.GetManorLevel(ManorNodeId::Class_Mage) * 5
-                 + ctx.GetManorLevel(ManorNodeId::Class_Lich) * 5;
-    if (rightLvl > 0) {
-        int rH = 120 + std::min(200, rightLvl * 7);
-        DrawRectangle(720, baseY - rH, 100, rH, stoneDark);
-        DrawRectangleLines(720, baseY - rH, 100, rH, stoneMrt);
-        DrawTriangle(
-            { 828.0f, static_cast<float>(baseY - rH) },
-            { 770.0f, static_cast<float>(baseY - rH - 90) },
-            { 712.0f, static_cast<float>(baseY - rH) },
-            Color{ 85, 48, 145, 255 }
-        );
-        // Магічний кришталь на верхівці
-        float gemPulse = 1.0f + 0.2f * std::sin(time * 5.0f);
-        DrawCircleV({ 770.0f, static_cast<float>(baseY - rH - 96) }, 7.0f * gemPulse, SKYBLUE);
-        DrawCircleV({ 770.0f, static_cast<float>(baseY - rH - 96) }, 3.5f, WHITE);
+    // 3. Адитивне гало місяця
+    BeginBlendMode(BLEND_ADDITIVE);
+    float pulse = 1.0f + 0.03f * std::sin(time * 2.2f);
+    DrawCircleGradient(1040, 125, 180.0f * pulse, Color{ 120, 160, 255, 56 }, Color{ 120, 160, 255, 0 });
+    DrawCircleGradient(1040, 125, 75.0f * pulse, Color{ 150, 180, 255, 75 }, Color{ 150, 180, 255, 0 });
+    EndBlendMode();
 
-        for (int wy = baseY - 55; wy > baseY - rH + 20; wy -= 45) {
-            DrawRectangle(762, wy, 16, 24, Color{ 140, 220, 255, 255 });
-            DrawRectangleLines(762, wy, 16, 24, winFrame);
-        }
+    // 4. Хмари
+    DrawGothicClouds(time);
+
+    // 5. Туман
+    DrawGothicFog(time);
+
+    // 6. Ліхтарі з теплим світлом
+    DrawGothicLantern(180.0f, 580.0f, time);
+    DrawGothicLantern(450.0f, 580.0f, time);
+    DrawGothicLantern(730.0f, 580.0f, time);
+    DrawGothicLantern(1015.0f, 580.0f, time);
+
+    // 7. Темна трава, що колишеться
+    DrawSwayingGrass(580.0f, time);
+}
+
+void ProceduralRenderer::DrawBlacksmithForge(Vector2 pos, float time, bool nearHero) const {
+    const auto& pal = GetPalette();
+    int bx = static_cast<int>(pos.x - 85.0f);
+    int by = static_cast<int>(pos.y - 150.0f);
+
+    Color stoneWall   = Color{ 35, 40, 61, 255 };
+    Color stoneMrt    = pal.outline;
+    Color roofSlate   = Color{ 23, 28, 46, 255 };
+    Color ironCol     = pal.metal[2];
+    Color ironHi      = pal.metal[4];
+
+    // Кам'яна споруда кузні
+    DrawRectangle(bx, by, 170, 150, stoneWall);
+    DrawRectangleLinesEx({ static_cast<float>(bx), static_cast<float>(by), 170.0f, 150.0f }, 2.0f, stoneMrt);
+    for (int y = by + 25; y < static_cast<int>(pos.y); y += 25) {
+        DrawLine(bx, y, bx + 170, y, stoneMrt);
     }
 
-    // Майстерня Коваля (Blacksmith Forge)
-    if (ctx.GetManorLevel(ManorNodeId::Unlock_Blacksmith) > 0) {
-        DrawRectangle(345, baseY - 95, 110, 95, Color{ 110, 85, 75, 255 });
-        DrawRectangleLines(345, baseY - 95, 110, 95, Color{ 75, 55, 48, 255 });
-        DrawRectangle(365, baseY - 138, 28, 43, Color{ 85, 68, 62, 255 });
-        // Дим з димаря кузні
-        for (int p = 0; p < 3; ++p) {
-            float py = (baseY - 145) - std::fmod(time * 25.0f + p * 18.0f, 50.0f);
-            float px = 379.0f + std::sin(time * 3.0f + p) * 10.0f;
-            DrawCircle(static_cast<int>(px), static_cast<int>(py), 7.0f + p * 3.0f, Fade(Color{ 180, 190, 205, 255 }, 0.45f));
-        }
-        // Вогняний відблиск горна
-        float flamePulse = 14.0f + std::sin(time * 12.0f) * 4.0f;
-        DrawCircle(400, baseY - 28, flamePulse, ORANGE);
-        DrawCircle(400, baseY - 28, flamePulse * 0.6f, YELLOW);
+    // Гостроверхий навіс
+    DrawTriangle({ static_cast<float>(bx - 12), static_cast<float>(by) },
+                 { static_cast<float>(bx + 85), static_cast<float>(by - 32) },
+                 { static_cast<float>(bx + 182), static_cast<float>(by) }, roofSlate);
+    DrawLine(bx - 12, by, bx + 85, by - 32, pal.metal[4]);
+
+    // Димохід
+    DrawRectangle(bx + 130, by - 48, 24, 48, Color{ 28, 32, 48, 255 });
+    DrawRectangleLines(bx + 130, by - 48, 24, 48, stoneMrt);
+
+    // Дим з димаря
+    for (int p = 0; p < 4; ++p) {
+        float py = (by - 55.0f) - std::fmod(time * 30.0f + p * 20.0f, 65.0f);
+        float px = (bx + 142.0f) + std::sin(time * 3.0f + p * 1.5f) * 12.0f;
+        DrawCircle(static_cast<int>(px), static_cast<int>(py), 6.0f + p * 2.5f, Fade(Color{ 160, 175, 195, 255 }, 0.35f));
     }
 
-    // Намет Чарівниці (Enchantress Tent)
-    if (ctx.GetManorLevel(ManorNodeId::Unlock_Enchantress) > 0) {
-        DrawTriangle(
-            { 928.0f, static_cast<float>(baseY) },
-            { 870.0f, static_cast<float>(baseY - 100) },
-            { 812.0f, static_cast<float>(baseY) },
-            Color{ 145, 42, 165, 255 }
-        );
-        DrawCircle(870, baseY - 48, 13.0f + std::sin(time * 5.0f) * 2.5f, MAGENTA);
-        DrawCircle(870, baseY - 48, 6.0f, WHITE);
+    // Горно з палаючим вогнем та жаринами
+    int hearthX = bx + 42;
+    int hearthY = static_cast<int>(pos.y - 42.0f);
+    DrawRectangle(hearthX - 24, hearthY - 14, 48, 42, Color{ 18, 14, 16, 255 });
+    DrawRectangleLines(hearthX - 24, hearthY - 14, 48, 42, stoneMrt);
+
+    float flamePulse = 1.0f + 0.15f * std::sin(time * 12.0f);
+    DrawCircle(hearthX, hearthY + 6, 16.0f * flamePulse, Color{ 232, 115, 28, 255 });
+    DrawCircle(hearthX, hearthY + 4, 10.0f * flamePulse, Color{ 255, 179, 71, 255 });
+    DrawCircle(hearthX, hearthY + 2, 5.0f * flamePulse, Color{ 255, 240, 180, 255 });
+
+    // Адитивне відблискування полум'я горна
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient(hearthX, hearthY + 4, 60.0f * flamePulse, Color{ 232, 115, 28, 65 }, Color{ 232, 115, 28, 0 });
+    EndBlendMode();
+
+    // Важке ковадло
+    int anvilX = bx + 105;
+    int anvilY = static_cast<int>(pos.y - 26.0f);
+    DrawRectangle(anvilX - 6, anvilY + 12, 28, 14, Color{ 58, 42, 32, 255 });
+    DrawRectangle(anvilX - 10, anvilY, 36, 12, ironCol);
+    DrawTriangle({ static_cast<float>(anvilX - 18), static_cast<float>(anvilY) },
+                 { static_cast<float>(anvilX - 10), static_cast<float>(anvilY) },
+                 { static_cast<float>(anvilX - 10), static_cast<float>(anvilY + 12) }, ironCol);
+    DrawRectangle(anvilX + 4, anvilY - 8, 12, 4, ironHi);
+
+    // Стійка зі зброєю
+    DrawLineEx({ static_cast<float>(bx + 152), pos.y - 42.0f }, { static_cast<float>(bx + 152), pos.y }, 3.0f, ironHi);
+    DrawCircle(bx + 152, static_cast<int>(pos.y - 24.0f), 10.0f, Color{ 48, 52, 68, 255 });
+    DrawCircleLines(bx + 152, static_cast<int>(pos.y - 24.0f), 10.0f, pal.fireGold[3]);
+
+    // Вивіска
+    DrawRectangleRounded({ static_cast<float>(bx + 25), static_cast<float>(by - 42), 120.0f, 26.0f }, 0.25f, 4, Color{ 20, 24, 36, 230 });
+    DrawRectangleRoundedLines({ static_cast<float>(bx + 25), static_cast<float>(by - 42), 120.0f, 26.0f }, 0.25f, 4, 1.5f, pal.fireGold[3]);
+
+    if (nearHero) {
+        DrawRectangleRounded({ static_cast<float>(bx + 10), static_cast<float>(by - 72), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
+        DrawRectangleRoundedLines({ static_cast<float>(bx + 10), static_cast<float>(by - 72), 150.0f, 24.0f }, 0.25f, 4, 1.5f, Color{ 140, 235, 100, 255 });
+    }
+}
+
+void ProceduralRenderer::DrawEnchantressTent(Vector2 pos, float time, bool nearHero) const {
+    const auto& pal = GetPalette();
+    int ex = static_cast<int>(pos.x);
+    int ey = static_cast<int>(pos.y);
+
+    Color tentVelvet = Color{ 42, 14, 55, 255 }; // #2A0E37
+    Color tentShadow = Color{ 24, 8, 34, 255 };
+    Color goldTassel = pal.fireGold[3];
+    Color woodPillar = Color{ 82, 54, 38, 255 };
+
+    // 1. Різьблені спіральні стовпи намету
+    DrawRectangle(ex - 82, ey - 150, 7, 150, woodPillar);
+    DrawRectangle(ex + 75, ey - 150, 7, 150, woodPillar);
+    for (int sy = ey - 140; sy < ey; sy += 18) {
+        DrawLine(ex - 82, sy, ex - 75, sy + 8, pal.metal[3]);
+        DrawLine(ex + 75, sy, ex + 82, sy + 8, pal.metal[3]);
     }
 
-    // Ротонда Архітектора (Architect Dome)
-    if (ctx.GetManorLevel(ManorNodeId::Unlock_Architect) > 0) {
-        DrawRectangle(930, baseY - 115, 78, 115, stoneLight);
-        DrawRectangleLines(930, baseY - 115, 78, 115, stoneMrt);
-        DrawCircle(969, baseY - 115, 39.0f, Color{ 85, 145, 168, 255 });
-        DrawCircleLines(969, baseY - 115, 39.0f, GOLD);
+    // 2. Шатро з провислими схилами даху (Drooped catenary roofline)
+    // Малюємо через вигнуті полігони
+    Vector2 peak = { static_cast<float>(ex), static_cast<float>(ey - 165) };
+    Vector2 leftCorner = { static_cast<float>(ex - 92), static_cast<float>(ey - 15) };
+    Vector2 rightCorner = { static_cast<float>(ex + 92), static_cast<float>(ey - 15) };
+
+    DrawTriangle(leftCorner, peak, { static_cast<float>(ex), static_cast<float>(ey - 15) }, tentVelvet);
+    DrawTriangle({ static_cast<float>(ex), static_cast<float>(ey - 15) }, peak, rightCorner, tentShadow);
+
+    // Провислі дуги схилу даху
+    DrawLineBezier(peak, leftCorner, 3.5f, goldTassel);
+    DrawLineBezier(peak, rightCorner, 3.5f, goldTassel);
+
+    // Золоті китиці по карнизу (Golden tassels)
+    for (int tx = ex - 84; tx <= ex + 84; tx += 14) {
+        float frac = std::abs(static_cast<float>(tx - ex)) / 84.0f;
+        float ty = (ey - 15) - (1.0f - frac) * 6.0f;
+        DrawLine(tx, static_cast<int>(ty), tx, static_cast<int>(ty + 8), goldTassel);
+        DrawCircle(tx, static_cast<int>(ty + 9), 1.8f, goldTassel);
     }
 
-    // Обсерваторія Зірок (Master Observatory)
-    if (ctx.GetManorLevel(ManorNodeId::Upgrade_AllBasicClasses) > 0) {
-        int topY = baseY - keepH - 85;
-        DrawCircle(640, topY, 44.0f, Color{ 215, 185, 85, 255 });
-        DrawCircleLines(640, topY, 44.0f, GOLD);
-        DrawLineEx(
-            { 640.0f, static_cast<float>(topY - 10) },
-            { 688.0f, static_cast<float>(topY - 50) },
-            8.0f, GOLD
-        );
-        DrawCircle(692, topY - 54, 7.0f, SKYBLUE);
+    // Внутрішній розріз шатра
+    DrawTriangle({ static_cast<float>(ex - 42), static_cast<float>(ey) },
+                 { static_cast<float>(ex), static_cast<float>(ey - 105) },
+                 { static_cast<float>(ex + 42), static_cast<float>(ey) }, Color{ 14, 5, 20, 255 });
+
+    // 3. Магічний ліхтар / жаровня (синьо-фіолетове світло)
+    Vector2 lanternPos = { static_cast<float>(ex), static_cast<float>(ey - 110) };
+    float orbWave = std::sin(time * 3.5f) * 5.0f;
+    Vector2 orbPos = { lanternPos.x, lanternPos.y + orbWave };
+
+    // Підвісний ланцюг
+    DrawLine(ex, ey - 165, static_cast<int>(orbPos.x), static_cast<int>(orbPos.y - 14), pal.metal[2]);
+
+    // Магічна сфера з пульсуючим сяйвом
+    float pulse = 1.0f + 0.18f * std::sin(time * 5.0f);
+    DrawCircleV(orbPos, 12.0f * pulse, Color{ 160, 60, 220, 200 });
+    DrawCircleV(orbPos, 7.0f * pulse, Color{ 120, 200, 255, 240 });
+    DrawCircleV(orbPos, 3.0f, WHITE);
+
+    // Адитивне синьо-фіолетове світло
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient(static_cast<int>(orbPos.x), static_cast<int>(orbPos.y), 75.0f * pulse,
+                       Color{ 140, 70, 235, 75 }, Color{ 140, 70, 235, 0 });
+    EndBlendMode();
+
+    // Казан зі зіллям
+    DrawCircle(ex, ey - 22, 18.0f, Color{ 28, 30, 42, 255 });
+    DrawCircle(ex, ey - 25, 13.0f, Color{ 150, 40, 180, 255 });
+    DrawCircle(ex - 4, ey - 27, 3.5f, Color{ 220, 160, 255, 255 });
+
+    // Вивіска
+    DrawRectangleRounded({ static_cast<float>(ex - 65), static_cast<float>(ey - 188), 130.0f, 26.0f }, 0.25f, 4, Color{ 26, 14, 38, 230 });
+    DrawRectangleRoundedLines({ static_cast<float>(ex - 65), static_cast<float>(ey - 188), 130.0f, 26.0f }, 0.25f, 4, 1.5f, Color{ 180, 70, 235, 255 });
+
+    if (nearHero) {
+        DrawRectangleRounded({ static_cast<float>(ex - 75), static_cast<float>(ey - 218), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
+        DrawRectangleRoundedLines({ static_cast<float>(ex - 75), static_cast<float>(ey - 218), 150.0f, 24.0f }, 0.25f, 4, 1.5f, Color{ 140, 235, 100, 255 });
+    }
+}
+
+void ProceduralRenderer::DrawArchitectGazebo(Vector2 pos, float /*time*/, bool isLocked, bool nearHero) const {
+    const auto& pal = GetPalette();
+    int ax = static_cast<int>(pos.x - 55.0f);
+    int ay = static_cast<int>(pos.y - 145.0f);
+
+    Color marbleDark = Color{ 45, 50, 68, 255 };
+    Color marbleHi   = Color{ 75, 85, 110, 255 };
+    Color outlineCol = pal.outline;
+
+    // Мармурові колони з канелюрами
+    DrawRectangle(ax + 8, ay + 26, 14, 119, marbleDark);
+    DrawLine(ax + 8, ay + 26, ax + 8, ay + 145, marbleHi);
+    DrawLine(ax + 15, ay + 26, ax + 15, ay + 145, outlineCol);
+
+    DrawRectangle(ax + 88, ay + 26, 14, 119, marbleDark);
+    DrawLine(ax + 88, ay + 26, ax + 88, ay + 145, marbleHi);
+    DrawLine(ax + 95, ay + 26, ax + 95, ay + 145, outlineCol);
+
+    // Капітелі
+    DrawRectangle(ax + 5, ay + 20, 20, 6, marbleHi);
+    DrawRectangle(ax + 85, ay + 20, 20, 6, marbleHi);
+
+    // Фронтон з різьбленим архітравом
+    DrawTriangle({ static_cast<float>(ax - 8), static_cast<float>(ay + 20) },
+                 { static_cast<float>(ax + 55), static_cast<float>(ay - 18) },
+                 { static_cast<float>(ax + 118), static_cast<float>(ay + 20) }, marbleDark);
+    DrawLineEx({ static_cast<float>(ax - 8), static_cast<float>(ay + 20) },
+               { static_cast<float>(ax + 55), static_cast<float>(ay - 18) }, 2.0f, marbleHi);
+    DrawLineEx({ static_cast<float>(ax + 118), static_cast<float>(ay + 20) },
+               { static_cast<float>(ax + 55), static_cast<float>(ay - 18) }, 2.0f, outlineCol);
+
+    // Стіл архітектора з кресленнями
+    int deskX = ax + 24;
+    int deskY = static_cast<int>(pos.y - 36.0f);
+    DrawRectangle(deskX, deskY, 62, 36, Color{ 48, 36, 28, 255 });
+    DrawRectangle(deskX + 6, deskY + 2, 50, 14, Color{ 210, 200, 175, 255 });
+    DrawLine(deskX + 10, deskY + 6, deskX + 50, deskY + 6, Color{ 70, 120, 180, 255 });
+
+    if (isLocked) {
+        DrawCircle(deskX + 31, deskY - 14, 10.0f, Color{ 232, 115, 28, 255 });
+        DrawCircleLines(deskX + 31, deskY - 14, 10.0f, pal.fireGold[3]);
     }
 
-    // Гніздо Дракона (Dragon Aerie)
-    if (ctx.GetManorLevel(ManorNodeId::Class_Dragon) > 0) {
-        int topY = baseY - keepH - 125;
-        DrawCircle(640, topY, 20.0f, RED);
-        DrawTriangle(
-            { 640.0f, static_cast<float>(topY) },
-            { 592.0f, static_cast<float>(topY - 34) },
-            { 615.0f, static_cast<float>(topY + 10) },
-            ORANGE
-        );
-        DrawTriangle(
-            { 640.0f, static_cast<float>(topY) },
-            { 665.0f, static_cast<float>(topY + 10) },
-            { 688.0f, static_cast<float>(topY - 34) },
-            ORANGE
-        );
+    // Вивіска
+    DrawRectangleRounded({ static_cast<float>(ax), static_cast<float>(ay - 44), 110.0f, 26.0f }, 0.25f, 4, Color{ 20, 28, 42, 230 });
+    DrawRectangleRoundedLines({ static_cast<float>(ax), static_cast<float>(ay - 44), 110.0f, 26.0f }, 0.25f, 4, 1.5f, Color{ 120, 180, 240, 255 });
+
+    if (nearHero) {
+        DrawRectangleRounded({ static_cast<float>(ax - 20), static_cast<float>(ay - 96), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
+        DrawRectangleRoundedLines({ static_cast<float>(ax - 20), static_cast<float>(ay - 96), 150.0f, 24.0f }, 0.25f, 4, 1.5f, Color{ 140, 235, 100, 255 });
+    }
+}
+
+void ProceduralRenderer::DrawCastleGate(Vector2 pos, float portcullisH, float time, bool nearHero) const {
+    const auto& pal = GetPalette();
+    int gx = static_cast<int>(pos.x);
+    int gy = static_cast<int>(pos.y);
+
+    Color stoneWall   = Color{ 35, 40, 61, 255 };
+    Color stoneShadow = Color{ 22, 25, 40, 255 };
+    Color outlineCol  = pal.outline;
+
+    // 1. Масивна кам'яна брама замку
+    DrawRectangle(gx - 25, gy - 230, 175, 230, stoneWall);
+    DrawRectangle(gx + 62, gy - 230, 88, 230, stoneShadow);
+    DrawRectangleLinesEx({ static_cast<float>(gx - 25), static_cast<float>(gy - 230), 175.0f, 230.0f }, 3.0f, outlineCol);
+
+    // Зубці брами з машикулями
+    for (int bx = gx - 25; bx < gx + 150; bx += 28) {
+        DrawRectangle(bx, gy - 246, 18, 16, stoneWall);
+        DrawRectangleLines(bx, gy - 246, 18, 16, outlineCol);
+    }
+
+    // 2. Вхідна арка: ТЕПЛЕ СВІТЛО ЗСЕРЕДИНИ (Dungeon hearth glow), а не чорна діра!
+    int archW = 114;
+    int archH = 175;
+    int archX = gx + 12;
+    int archY = gy - archH;
+
+    // Внутрішнє тепле сяйво замкових факелів
+    DrawRectangle(archX, archY, archW, archH, Color{ 32, 18, 14, 255 });
+    DrawCircleSector({ static_cast<float>(archX + archW / 2), static_cast<float>(archY) },
+                     static_cast<float>(archW / 2), 180.0f, 360.0f, 16, Color{ 32, 18, 14, 255 });
+
+    // Теплий внутрішній градієнт вогню
+    float glowFlicker = 0.85f + 0.15f * std::sin(time * 7.5f);
+    DrawCircleGradient(archX + archW / 2, gy - 80, 75.0f * glowFlicker, Color{ 232, 115, 28, 130 }, Color{ 232, 115, 28, 0 });
+    DrawCircleGradient(archX + archW / 2, gy - 50, 45.0f * glowFlicker, Color{ 255, 179, 71, 160 }, Color{ 255, 179, 71, 0 });
+
+    // Клиноподібне склепіння арки (Voussoirs)
+    DrawCircleSectorLines({ static_cast<float>(archX + archW / 2), static_cast<float>(archY) },
+                          static_cast<float>(archW / 2), 180.0f, 360.0f, 16, outlineCol);
+    DrawLine(archX, archY, archX, gy, outlineCol);
+    DrawLine(archX + archW, archY, archX + archW, gy, outlineCol);
+
+    // 3. Підйомна залізна решітка (Portcullis)
+    int portY = gy - 175;
+    int pH = static_cast<int>(portcullisH);
+    for (int px = gx + 22; px < gx + 120; px += 16) {
+        DrawLineEx({ static_cast<float>(px), static_cast<float>(portY) },
+                   { static_cast<float>(px), static_cast<float>(portY + pH) }, 4.0f, pal.metal[3]);
+        DrawTriangle({ static_cast<float>(px - 4), static_cast<float>(portY + pH) },
+                     { static_cast<float>(px + 4), static_cast<float>(portY + pH) },
+                     { static_cast<float>(px),     static_cast<float>(portY + pH + 8) }, pal.metal[4]);
+    }
+
+    // Смолоскипи обабіч брами
+    DrawGothicLantern(gx - 12.0f, gy - 40.0f, time);
+    DrawGothicLantern(gx + 142.0f, gy - 40.0f, time + 1.2f);
+
+    if (nearHero) {
+        DrawRectangleRounded({ static_cast<float>(gx - 14), static_cast<float>(gy - 200), 168.0f, 26.0f }, 0.25f, 4, Fade(BLACK, 0.85f));
+        DrawRectangleRoundedLines({ static_cast<float>(gx - 14), static_cast<float>(gy - 200), 168.0f, 26.0f }, 0.25f, 4, 1.5f, pal.fireGold[3]);
     }
 }
 

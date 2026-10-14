@@ -19,105 +19,6 @@ namespace {
     constexpr float ARCHITECT_X   = 860.0f;
     constexpr float CHARON_GATE_X = 1110.0f;
     constexpr float GROUND_Y      = 580.0f;
-
-    struct StarInfo {
-        float x;
-        float y;
-        float size;
-        float speed;
-        float phase;
-    };
-
-    const StarInfo SKY_STARS[] = {
-        { 55.0f, 42.0f, 1.8f, 3.2f, 0.4f },
-        { 110.0f, 85.0f, 1.2f, 2.5f, 1.1f },
-        { 175.0f, 32.0f, 2.0f, 4.0f, 2.3f },
-        { 235.0f, 105.0f, 1.4f, 2.8f, 0.7f },
-        { 305.0f, 60.0f, 1.6f, 3.5f, 1.8f },
-        { 375.0f, 38.0f, 2.2f, 2.1f, 3.1f },
-        { 435.0f, 90.0f, 1.3f, 4.2f, 0.9f },
-        { 505.0f, 48.0f, 1.8f, 3.0f, 2.5f },
-        { 570.0f, 115.0f, 1.1f, 2.7f, 1.4f },
-        { 625.0f, 65.0f, 2.0f, 3.8f, 0.2f },
-        { 705.0f, 42.0f, 1.5f, 2.3f, 2.9f },
-        { 765.0f, 100.0f, 1.9f, 3.6f, 1.6f },
-        { 830.0f, 52.0f, 1.3f, 2.9f, 0.5f },
-        { 885.0f, 82.0f, 2.1f, 4.1f, 2.1f },
-        { 1075.0f, 55.0f, 1.7f, 3.3f, 1.3f },
-        { 1135.0f, 110.0f, 1.4f, 2.4f, 2.7f },
-        { 1205.0f, 38.0f, 2.0f, 3.7f, 0.8f },
-        { 1250.0f, 90.0f, 1.2f, 2.2f, 1.9f },
-        { 145.0f, 155.0f, 1.5f, 3.1f, 3.4f },
-        { 335.0f, 145.0f, 1.3f, 2.6f, 0.3f },
-        { 515.0f, 170.0f, 1.8f, 3.9f, 2.2f },
-        { 695.0f, 155.0f, 1.2f, 2.8f, 1.7f },
-        { 855.0f, 175.0f, 1.6f, 3.4f, 0.6f },
-        { 1105.0f, 165.0f, 1.4f, 2.5f, 2.8f },
-    };
-
-    void DrawPineTree(float x, float baseY, float height, float width, Color col) {
-        Color trunkCol = Color{ 26, 18, 16, 255 };
-        float trunkW = width * 0.16f;
-        float trunkH = height * 0.22f;
-        DrawRectangleRec({ x - trunkW * 0.5f, baseY - trunkH, trunkW, trunkH }, trunkCol);
-
-        int tiers = 4;
-        float tierH = (height - trunkH * 0.4f) / tiers;
-        for (int i = 0; i < tiers; ++i) {
-            float frac = static_cast<float>(i) / (tiers - 1);
-            float tw = width * (1.0f - frac * 0.55f);
-            float by = baseY - trunkH * 0.4f - i * tierH * 0.72f;
-            float ty = by - tierH * 1.35f;
-            DrawTriangle(
-                { x, ty },
-                { x - tw * 0.5f, by },
-                { x + tw * 0.5f, by },
-                col
-            );
-        }
-    }
-
-    void DrawStreetTorch(float x, float groundY, float time) {
-        Color ironCol = Color{ 40, 42, 50, 255 };
-        DrawRectangle(static_cast<int>(x - 3.0f), static_cast<int>(groundY - 84.0f), 6, 84, ironCol);
-        DrawTriangle(
-            { x - 10.0f, groundY },
-            { x, groundY - 18.0f },
-            { x + 10.0f, groundY },
-            ironCol
-        );
-
-        DrawRectangle(static_cast<int>(x - 9.0f), static_cast<int>(groundY - 90.0f), 18, 7, Color{ 60, 64, 76, 255 });
-        DrawTriangle(
-            { x - 9.0f, groundY - 90.0f },
-            { x, groundY - 80.0f },
-            { x + 9.0f, groundY - 90.0f },
-            ironCol
-        );
-
-        float flicker = 0.82f + 0.18f * std::sin(time * 11.0f + x);
-        DrawCircleGradient(static_cast<int>(x), static_cast<int>(groundY - 94.0f), 68.0f * flicker, Fade(ORANGE, 0.28f * flicker), Fade(ORANGE, 0.0f));
-
-        float flameH = 20.0f + 4.0f * std::sin(time * 15.0f + x * 2.0f);
-        DrawTriangle(
-            { x - 7.0f, groundY - 90.0f },
-            { x, groundY - 90.0f - flameH },
-            { x + 7.0f, groundY - 90.0f },
-            RED
-        );
-        DrawTriangle(
-            { x - 5.0f, groundY - 90.0f },
-            { x, groundY - 90.0f - flameH * 0.75f },
-            { x + 5.0f, groundY - 90.0f },
-            ORANGE
-        );
-        DrawTriangle(
-            { x - 2.5f, groundY - 90.0f },
-            { x, groundY - 90.0f - flameH * 0.5f },
-            { x + 2.5f, groundY - 90.0f },
-            YELLOW
-        );
-    }
 }
 
 void OutskirtsState::OnEnter(GameContext& /*ctx*/) {
@@ -475,341 +376,50 @@ void OutskirtsState::Draw(GameContext& ctx) {
     worldCam.zoom = Config::SCALE_FACTOR;
     BeginMode2D(worldCam);
 
-    // 1. Яскраве денне небо (Daytime azure gradient sky)
-    DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, static_cast<int>(GROUND_Y + 40.0f), Color{ 62, 138, 235, 255 }, Color{ 185, 222, 252, 255 });
-
-    // Сяюче тепле сонце з ореолом та сонячними променями
-    Vector2 sunPos = { 980.0f, 115.0f };
-    DrawCircleGradient(static_cast<int>(sunPos.x), static_cast<int>(sunPos.y), 125.0f, Fade(Color{ 255, 240, 160, 255 }, 0.35f), BLANK);
-    DrawCircleGradient(static_cast<int>(sunPos.x), static_cast<int>(sunPos.y), 70.0f, Fade(Color{ 255, 225, 110, 255 }, 0.55f), BLANK);
-    DrawCircleV(sunPos, 36.0f, Color{ 255, 250, 210, 255 });
-    DrawCircleV(sunPos, 24.0f, WHITE);
-
-    for (int r = 0; r < 8; ++r) {
-        float rayAng = animTimer_ * 0.15f + r * (3.14159f / 4.0f);
-        Vector2 rEnd = { sunPos.x + std::cos(rayAng) * 90.0f, sunPos.y + std::sin(rayAng) * 90.0f };
-        DrawLineEx(sunPos, rEnd, 2.5f, Fade(Color{ 255, 245, 180, 255 }, 0.25f));
-    }
-
-    // Денні об'ємні кучові хмари (Cumulus clouds)
-    for (int i = 0; i < 5; ++i) {
-        float cloudSpeed = 10.0f + i * 6.0f;
-        float cx = std::fmod(animTimer_ * cloudSpeed + i * 310.0f, 1500.0f) - 100.0f;
-        float cy = 65.0f + i * 32.0f;
-        float cs = 0.85f + (i % 3) * 0.25f;
-
-        Color cloudShadow = Color{ 220, 232, 248, 220 };
-        Color cloudTop    = Color{ 255, 255, 255, 245 };
-
-        DrawEllipse(static_cast<int>(cx), static_cast<int>(cy + 8.0f * cs), 80.0f * cs, 22.0f * cs, cloudShadow);
-        DrawCircle(static_cast<int>(cx - 36.0f * cs), static_cast<int>(cy + 2.0f), 26.0f * cs, cloudTop);
-        DrawCircle(static_cast<int>(cx + 34.0f * cs), static_cast<int>(cy + 4.0f), 24.0f * cs, cloudTop);
-        DrawCircle(static_cast<int>(cx), static_cast<int>(cy - 10.0f * cs), 34.0f * cs, cloudTop);
-        DrawCircle(static_cast<int>(cx + 16.0f * cs), static_cast<int>(cy - 4.0f * cs), 28.0f * cs, cloudTop);
-    }
-
-    // 2. Далекі синьо-фіолетові гірські хребти з білими сніговими шапками
-    Color farMtnCol = Color{ 122, 145, 185, 255 };
-    Color snowCol   = Color{ 245, 250, 255, 255 };
-
-    DrawTriangle({ -50.0f, GROUND_Y }, { 180.0f, 320.0f }, { 420.0f, GROUND_Y }, farMtnCol);
-    DrawTriangle({ 140.0f, 375.0f }, { 180.0f, 320.0f }, { 220.0f, 375.0f }, snowCol);
-
-    DrawTriangle({ 280.0f, GROUND_Y }, { 520.0f, 340.0f }, { 760.0f, GROUND_Y }, farMtnCol);
-    DrawTriangle({ 485.0f, 390.0f }, { 520.0f, 340.0f }, { 555.0f, 390.0f }, snowCol);
-
-    DrawTriangle({ 640.0f, GROUND_Y }, { 880.0f, 310.0f }, { 1120.0f, GROUND_Y }, farMtnCol);
-    DrawTriangle({ 845.0f, 360.0f }, { 880.0f, 310.0f }, { 915.0f, 360.0f }, snowCol);
-
-    DrawTriangle({ 950.0f, GROUND_Y }, { 1200.0f, 330.0f }, { 1380.0f, GROUND_Y }, farMtnCol);
-    DrawTriangle({ 1170.0f, 380.0f }, { 1200.0f, 330.0f }, { 1230.0f, 380.0f }, snowCol);
-
-    Color midMtnCol = Color{ 65, 125, 88, 255 };
-    DrawTriangle({ 60.0f, GROUND_Y }, { 320.0f, 410.0f }, { 580.0f, GROUND_Y }, midMtnCol);
-    DrawTriangle({ 480.0f, GROUND_Y }, { 700.0f, 430.0f }, { 940.0f, GROUND_Y }, midMtnCol);
-    DrawTriangle({ 800.0f, GROUND_Y }, { 1040.0f, 390.0f }, { 1320.0f, GROUND_Y }, midMtnCol);
-
-    // 3. Величний кам'яний замок Гамсон у денному освітленні
-    Color castleStone = Color{ 175, 172, 165, 255 };
-    Color castleRoof  = Color{ 185, 65, 52, 255 };
-    Color castleMrt   = Color{ 125, 122, 118, 255 };
-
-    // Головна цитадель
-    DrawRectangle(920, 240, 140, static_cast<int>(GROUND_Y - 240), castleStone);
-    DrawRectangleLines(920, 240, 140, static_cast<int>(GROUND_Y - 240), castleMrt);
-    for (int bx = 920; bx < 1060; bx += 24) {
-        DrawRectangle(bx, 226, 14, 14, castleStone);
-        DrawRectangleLines(bx, 226, 14, 14, castleMrt);
-    }
-    DrawTriangle({ 990.0f, 150.0f }, { 1015.0f, 226.0f }, { 965.0f, 226.0f }, castleRoof);
-
-    // Ліва готична вежа замку
-    DrawRectangle(840, 280, 70, static_cast<int>(GROUND_Y - 280), Color{ 155, 152, 146, 255 });
-    DrawRectangleLines(840, 280, 70, static_cast<int>(GROUND_Y - 280), castleMrt);
-    DrawTriangle({ 875.0f, 210.0f }, { 915.0f, 280.0f }, { 835.0f, 280.0f }, castleRoof);
-
-    // Права готична вежа замку
-    DrawRectangle(1070, 290, 80, static_cast<int>(GROUND_Y - 290), Color{ 155, 152, 146, 255 });
-    DrawRectangleLines(1070, 290, 80, static_cast<int>(GROUND_Y - 290), castleMrt);
-    DrawTriangle({ 1110.0f, 220.0f }, { 1155.0f, 290.0f }, { 1065.0f, 290.0f }, castleRoof);
-
-    // Маленька сторожова башта
-    DrawRectangle(770, 340, 55, static_cast<int>(GROUND_Y - 340), Color{ 150, 147, 142, 255 });
-    DrawRectangleLines(770, 340, 55, static_cast<int>(GROUND_Y - 340), castleMrt);
-    DrawTriangle({ 797.0f, 290.0f }, { 830.0f, 340.0f }, { 765.0f, 340.0f }, castleRoof);
-
-    // Віконця замку з денними небесними відблисками
-    struct CastleWindow { int x; int y; };
-    static const CastleWindow C_WINS[] = {
-        { 960, 270 }, { 1020, 270 }, { 990, 320 }, { 960, 380 }, { 1020, 380 },
-        { 865, 310 }, { 885, 360 }, { 1100, 325 }, { 1125, 375 }, { 790, 370 }
-    };
-    for (size_t wi = 0; wi < 10; ++wi) {
-        DrawRectangle(C_WINS[wi].x, C_WINS[wi].y, 6, 12, Color{ 120, 215, 255, 240 });
-        DrawRectangleLines(C_WINS[wi].x, C_WINS[wi].y, 6, 12, Color{ 68, 55, 45, 255 });
-    }
-
-    // 4. Зелені смереки та сосни на узбіччі
-    Color pineDay = Color{ 32, 98, 48, 255 };
-    DrawPineTree(30.0f, GROUND_Y, 140.0f, 65.0f, pineDay);
-    DrawPineTree(75.0f, GROUND_Y, 175.0f, 80.0f, Color{ 26, 88, 42, 255 });
-    DrawPineTree(120.0f, GROUND_Y, 120.0f, 55.0f, pineDay);
-    DrawPineTree(205.0f, GROUND_Y, 110.0f, 50.0f, Color{ 36, 108, 54, 255 });
-    DrawPineTree(460.0f, GROUND_Y, 130.0f, 60.0f, pineDay);
-    DrawPineTree(725.0f, GROUND_Y, 125.0f, 58.0f, pineDay);
-    DrawPineTree(990.0f, GROUND_Y, 145.0f, 68.0f, Color{ 26, 88, 42, 255 });
-
-    // 5. Вуличні чавунні ліхтарі
-    DrawStreetTorch(175.0f, GROUND_Y, animTimer_);
-    DrawStreetTorch(450.0f, GROUND_Y, animTimer_);
-    DrawStreetTorch(730.0f, GROUND_Y, animTimer_);
-    DrawStreetTorch(1015.0f, GROUND_Y, animTimer_);
-
-    // 6. Дорога та бруківка
-    DrawRectangle(0, static_cast<int>(GROUND_Y), Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT - static_cast<int>(GROUND_Y), Color{ 48, 52, 65, 255 });
-    // Верхній бордюр з теплою кам'яною окантовкою
-    DrawRectangle(0, static_cast<int>(GROUND_Y), Config::VIRTUAL_WIDTH, 6, Color{ 145, 140, 132, 255 });
-    DrawRectangle(0, static_cast<int>(GROUND_Y + 6), Config::VIRTUAL_WIDTH, 4, Color{ 90, 88, 85, 255 });
-
-    // Соковита зелена трава та квіти вздовж узбіччя
-    for (int gx = 15; gx < Config::VIRTUAL_WIDTH; gx += 32) {
-        DrawLine(gx, static_cast<int>(GROUND_Y + 1), gx - 3, static_cast<int>(GROUND_Y - 6), Color{ 65, 160, 58, 255 });
-        DrawLine(gx + 2, static_cast<int>(GROUND_Y + 1), gx + 5, static_cast<int>(GROUND_Y - 7), Color{ 82, 185, 72, 255 });
-        if (gx % 64 == 0) {
-            DrawCircle(gx + 1, static_cast<int>(GROUND_Y - 7), 2.0f, (gx % 128 == 0) ? GOLD : (gx % 96 == 0 ? WHITE : Color{ 255, 110, 150, 255 }));
-        }
-    }
-
-    // Шахові плити бруківки
-    for (int row = 0; row < 4; ++row) {
-        int rowY = static_cast<int>(GROUND_Y + 12 + row * 28);
-        int xOffset = (row % 2 == 1) ? 36 : 0;
-        for (int col = -1; col < (Config::VIRTUAL_WIDTH / 72) + 2; ++col) {
-            int stoneX = col * 72 + xOffset;
-            DrawRectangleRounded({ static_cast<float>(stoneX + 3), static_cast<float>(rowY + 2), 66.0f, 24.0f }, 0.25f, 4, Color{ 40, 44, 58, 255 });
-            DrawRectangleLinesEx({ static_cast<float>(stoneX + 3), static_cast<float>(rowY + 2), 66.0f, 24.0f }, 1.5f, Color{ 24, 26, 36, 255 });
-        }
+    // 1. Процедурний нічний готичний пейзаж (Бейканий бекдроп, зорі, місяць, хмари, туман, ліхтарі, трава)
+    if (ctx.renderer) {
+        ctx.renderer->DrawOutskirtsLandscape(ctx, animTimer_);
+    } else {
+        ClearBackground(BLACK);
     }
 
     // Вказівник повернення до Маєтку ліворуч (дерев'яний дороговказ)
     int signX = 28;
     int signY = static_cast<int>(GROUND_Y - 110.0f);
-    DrawRectangle(signX + 44, signY, 8, static_cast<int>(GROUND_Y - signY), Color{ 68, 48, 32, 255 });
-    DrawRectangleRounded({ static_cast<float>(signX), static_cast<float>(signY), 108.0f, 32.0f }, 0.25f, 4, Color{ 95, 68, 46, 255 });
-    DrawRectangleLinesEx({ static_cast<float>(signX), static_cast<float>(signY), 108.0f, 32.0f }, 2.0f, GOLD);
+    DrawRectangle(signX + 44, signY, 8, static_cast<int>(GROUND_Y - signY), Color{ 58, 40, 28, 255 });
+    DrawRectangleRounded({ static_cast<float>(signX), static_cast<float>(signY), 108.0f, 32.0f }, 0.25f, 4, Color{ 36, 26, 22, 240 });
+    DrawRectangleRoundedLines({ static_cast<float>(signX), static_cast<float>(signY), 108.0f, 32.0f }, 0.25f, 4, 1.5f, GOLD);
 
-    // 7. Кузня Коваля
-    if (ctx.GetManorLevel(ManorNodeId::Unlock_Blacksmith) > 0) {
-        int bx = static_cast<int>(BLACKSMITH_X - 85.0f);
-        int by = static_cast<int>(GROUND_Y - 150.0f);
-        // Кам'яна будівля майстерні
-        DrawRectangle(bx, by, 170, 150, Color{ 68, 56, 52, 255 });
-        DrawRectangleLinesEx({ static_cast<float>(bx), static_cast<float>(by), 170.0f, 150.0f }, 2.5f, Color{ 48, 38, 35, 255 });
-        // Горизонтальні шви кам'яної кладки
-        for (int myLine = by + 25; myLine < static_cast<int>(GROUND_Y); myLine += 25) {
-            DrawLine(bx, myLine, bx + 170, myLine, Color{ 48, 38, 35, 255 });
-        }
-        // Дерев'яний навіс даху
-        DrawTriangle(
-            { static_cast<float>(bx - 12), static_cast<float>(by) },
-            { static_cast<float>(bx + 85), static_cast<float>(by - 32) },
-            { static_cast<float>(bx + 182), static_cast<float>(by) },
-            Color{ 105, 48, 42, 255 }
-        );
-        // Димохід кузні
-        DrawRectangle(bx + 130, by - 48, 24, 48, Color{ 54, 44, 42, 255 });
-        DrawRectangleLines(bx + 130, by - 48, 24, 48, BLACK);
-
-        // Горно з палаючим вогнем
-        int hearthX = bx + 42;
-        int hearthY = static_cast<int>(GROUND_Y - 42.0f);
-        DrawRectangle(hearthX - 22, hearthY - 14, 44, 42, Color{ 38, 28, 26, 255 });
-        DrawCircle(hearthX, hearthY + 4, 18.0f + std::sin(animTimer_ * 12.0f) * 3.0f, ORANGE);
-        DrawCircle(hearthX, hearthY + 4, 11.0f + std::sin(animTimer_ * 16.0f) * 2.0f, YELLOW);
-
-        // Важке ковадло
-        int anvilX = bx + 105;
-        int anvilY = static_cast<int>(GROUND_Y - 26.0f);
-        DrawRectangle(anvilX - 6, anvilY + 12, 28, 14, Color{ 75, 52, 38, 255 }); // колода
-        DrawRectangle(anvilX - 10, anvilY, 36, 12, Color{ 45, 48, 55, 255 });
-        DrawTriangle({ static_cast<float>(anvilX - 18), static_cast<float>(anvilY) }, { static_cast<float>(anvilX - 10), static_cast<float>(anvilY) }, { static_cast<float>(anvilX - 10), static_cast<float>(anvilY + 12) }, Color{ 45, 48, 55, 255 }); // ріг ковадла
-        DrawRectangle(anvilX + 4, anvilY - 8, 12, 4, Color{ 140, 145, 155, 255 }); // молот
-
-        // Стійка зі зброєю (меч та щит)
-        DrawLineEx({ static_cast<float>(bx + 152), static_cast<float>(GROUND_Y - 42.0f) }, { static_cast<float>(bx + 152), static_cast<float>(GROUND_Y) }, 3.0f, Color{ 190, 200, 215, 255 });
-        DrawCircle(bx + 152, static_cast<int>(GROUND_Y - 24.0f), 10.0f, Color{ 78, 62, 32, 255 });
-        DrawCircleLines(bx + 152, static_cast<int>(GROUND_Y - 24.0f), 10.0f, GOLD);
-
-        // Вивіска
-        DrawRectangleRounded({ static_cast<float>(bx + 25), static_cast<float>(by - 42), 120.0f, 26.0f }, 0.25f, 4, Color{ 32, 24, 22, 230 });
-        DrawRectangleLinesEx({ static_cast<float>(bx + 25), static_cast<float>(by - 42), 120.0f, 26.0f }, 1.5f, GOLD);
-
-        if (std::abs(heroX_ - BLACKSMITH_X) < 75.0f) {
-            DrawRectangleRounded({ static_cast<float>(bx + 10), static_cast<float>(by - 72), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
-            DrawRectangleLinesEx({ static_cast<float>(bx + 10), static_cast<float>(by - 72), 150.0f, 24.0f }, 1.5f, LIME);
-        }
+    // 2. Кузня Коваля
+    if (ctx.GetManorLevel(ManorNodeId::Unlock_Blacksmith) > 0 && ctx.renderer) {
+        bool nearBs = (std::abs(heroX_ - BLACKSMITH_X) < 75.0f);
+        ctx.renderer->DrawBlacksmithForge({ BLACKSMITH_X, GROUND_Y }, animTimer_, nearBs);
     }
 
-    // 8. Намет Чарівниці (Enchantress Pavilion)
-    if (ctx.GetManorLevel(ManorNodeId::Unlock_Enchantress) > 0) {
-        int ex = static_cast<int>(ENCHANTRESS_X);
-        int ey = static_cast<int>(GROUND_Y);
-
-        // Опорні дерев'яні стовпи намету
-        DrawRectangle(ex - 80, ey - 150, 6, 150, Color{ 82, 54, 38, 255 });
-        DrawRectangle(ex + 74, ey - 150, 6, 150, Color{ 82, 54, 38, 255 });
-
-        // Шовковий фіолетово-малиновий тент
-        DrawTriangle(
-            { static_cast<float>(ex + 88), static_cast<float>(ey) },
-            { static_cast<float>(ex),      static_cast<float>(ey - 155) },
-            { static_cast<float>(ex - 88), static_cast<float>(ey) },
-            Color{ 95, 26, 115, 255 }
-        );
-        // Внутрішній темний розріз шатра
-        DrawTriangle(
-            { static_cast<float>(ex + 45), static_cast<float>(ey) },
-            { static_cast<float>(ex),      static_cast<float>(ey - 105) },
-            { static_cast<float>(ex - 45), static_cast<float>(ey) },
-            Color{ 38, 14, 48, 255 }
-        );
-        // Золота облямівка шатра
-        DrawLineEx({ static_cast<float>(ex - 88), static_cast<float>(ey) }, { static_cast<float>(ex), static_cast<float>(ey - 155) }, 3.0f, GOLD);
-        DrawLineEx({ static_cast<float>(ex + 88), static_cast<float>(ey) }, { static_cast<float>(ex), static_cast<float>(ey - 155) }, 3.0f, GOLD);
-
-        // Магічний котел з зіллям
-        DrawCircle(ex, ey - 22, 18.0f, Color{ 36, 38, 46, 255 });
-        DrawCircle(ex, ey - 26, 13.0f, MAGENTA);
-        DrawCircle(ex - 4, ey - 28, 4.0f, RAYWHITE); // бульбашка
-        DrawCircle(ex + 5, ey - 25, 3.0f, RAYWHITE);
-
-        // Ширяюча магічна рунна сфера
-        float orbWave = std::sin(animTimer_ * 4.0f) * 6.0f;
-        Vector2 orbPos = { static_cast<float>(ex), static_cast<float>(ey - 72.0f) + orbWave };
-        DrawCircleV(orbPos, 14.0f, Fade(PURPLE, 0.45f));
-        DrawCircleV(orbPos, 9.0f, MAGENTA);
-        DrawCircleV(orbPos, 4.0f, RAYWHITE);
-
-        // Вивіска
-        DrawRectangleRounded({ static_cast<float>(ex - 65), static_cast<float>(ey - 188), 130.0f, 26.0f }, 0.25f, 4, Color{ 32, 18, 44, 230 });
-        DrawRectangleLinesEx({ static_cast<float>(ex - 65), static_cast<float>(ey - 188), 130.0f, 26.0f }, 1.5f, MAGENTA);
-
-        if (std::abs(heroX_ - ENCHANTRESS_X) < 75.0f) {
-            DrawRectangleRounded({ static_cast<float>(ex - 75), static_cast<float>(ey - 218), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
-            DrawRectangleLinesEx({ static_cast<float>(ex - 75), static_cast<float>(ey - 218), 150.0f, 24.0f }, 1.5f, LIME);
-        }
+    // 3. Намет Чарівниці (Enchantress Pavilion)
+    if (ctx.GetManorLevel(ManorNodeId::Unlock_Enchantress) > 0 && ctx.renderer) {
+        bool nearEnch = (std::abs(heroX_ - ENCHANTRESS_X) < 75.0f);
+        ctx.renderer->DrawEnchantressTent({ ENCHANTRESS_X, GROUND_Y }, animTimer_, nearEnch);
     }
 
-    // 9. Стовп та альтанка Архітектора (Architect Drafting Gazebo)
-    if (ctx.GetManorLevel(ManorNodeId::Unlock_Architect) > 0) {
-        int ax = static_cast<int>(ARCHITECT_X - 55.0f);
-        int ay = static_cast<int>(GROUND_Y - 145.0f);
-
-        // Мармурові колони
-        DrawRectangle(ax + 8, ay + 26, 12, 119, Color{ 78, 88, 108, 255 });
-        DrawRectangle(ax + 90, ay + 26, 12, 119, Color{ 78, 88, 108, 255 });
-        // Капітелі колон
-        DrawRectangle(ax + 5, ay + 20, 18, 6, Color{ 110, 120, 140, 255 });
-        DrawRectangle(ax + 87, ay + 20, 18, 6, Color{ 110, 120, 140, 255 });
-
-        // Класичний трикутний фронтон
-        DrawTriangle(
-            { static_cast<float>(ax - 8),  static_cast<float>(ay + 20) },
-            { static_cast<float>(ax + 55), static_cast<float>(ay - 18) },
-            { static_cast<float>(ax + 118), static_cast<float>(ay + 20) },
-            Color{ 58, 68, 88, 255 }
-        );
-        DrawTriangleLines(
-            { static_cast<float>(ax - 8),  static_cast<float>(ay + 20) },
-            { static_cast<float>(ax + 55), static_cast<float>(ay - 18) },
-            { static_cast<float>(ax + 118), static_cast<float>(ay + 20) },
-            SKYBLUE
-        );
-
-        // Стіл архітектора з кресленнями та сувоями
-        int deskX = ax + 24;
-        int deskY = static_cast<int>(GROUND_Y - 36.0f);
-        DrawRectangle(deskX, deskY, 62, 36, Color{ 64, 45, 32, 255 });
-        DrawRectangle(deskX + 6, deskY + 2, 50, 14, Color{ 220, 210, 185, 255 }); // розгорнутий сувій
-        DrawLine(deskX + 10, deskY + 6, deskX + 52, deskY + 6, SKYBLUE); // лінії плану
-
-        // Якщо замок замкнено Архітектором — магічний замок на столі
-        if (ctx.isCastleLocked) {
-            DrawCircle(deskX + 31, deskY - 14, 10.0f, ORANGE);
-            DrawCircleLines(deskX + 31, deskY - 14, 10.0f, GOLD);
-            Ui::Text("CASTLE LOCKED (70% GOLD)", ax - 45, ay - 68, 13, ORANGE);
-        }
-
-        // Вивіска
-        DrawRectangleRounded({ static_cast<float>(ax), static_cast<float>(ay - 44), 110.0f, 26.0f }, 0.25f, 4, Color{ 24, 34, 48, 230 });
-        DrawRectangleLinesEx({ static_cast<float>(ax), static_cast<float>(ay - 44), 110.0f, 26.0f }, 1.5f, SKYBLUE);
-        Ui::Text("ARCHITECT", ax + 14, ay - 40, 14, SKYBLUE);
-
-        if (std::abs(heroX_ - ARCHITECT_X) < 75.0f) {
-            DrawRectangleRounded({ static_cast<float>(ax - 20), static_cast<float>(ay - 96), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
-            DrawRectangleLinesEx({ static_cast<float>(ax - 20), static_cast<float>(ay - 96), 150.0f, 24.0f }, 1.5f, LIME);
-            Ui::Text("[W / E] LOCK CASTLE", ax - 12, ay - 92, 13, LIME);
-        }
+    // 4. Стовп та альтанка Архітектора (Architect Drafting Gazebo)
+    if (ctx.GetManorLevel(ManorNodeId::Unlock_Architect) > 0 && ctx.renderer) {
+        bool nearArch = (std::abs(heroX_ - ARCHITECT_X) < 75.0f);
+        ctx.renderer->DrawArchitectGazebo({ ARCHITECT_X, GROUND_Y }, animTimer_, ctx.isCastleLocked, nearArch);
     }
 
-    // 10. Готична брама Замку та Харон
+    // 5. Готична брама Замку та Харон
     int gx = static_cast<int>(CHARON_GATE_X);
     int gy = static_cast<int>(GROUND_Y);
+    bool nearCharon = (std::abs(heroX_ - CHARON_GATE_X) < 85.0f);
 
-    // Масивна кам'яна брама
-    DrawRectangle(gx - 25, gy - 230, 175, 230, Color{ 48, 50, 65, 255 });
-    DrawRectangleLinesEx({ static_cast<float>(gx - 25), static_cast<float>(gy - 230), 175.0f, 230.0f }, 3.0f, Color{ 32, 34, 44, 255 });
-
-    // Зубці брами
-    for (int bx = gx - 25; bx < gx + 150; bx += 28) {
-        DrawRectangle(bx, gy - 246, 18, 16, Color{ 48, 50, 65, 255 });
+    if (ctx.renderer) {
+        ctx.renderer->DrawCastleGate({ CHARON_GATE_X, GROUND_Y }, gatePortcullisY_, animTimer_, nearCharon);
     }
-
-    // Вхідна арка у підземелля
-    DrawRectangle(gx + 12, gy - 175, 115, 175, BLACK);
-    DrawCircleSector({ static_cast<float>(gx + 70), static_cast<float>(gy - 175) }, 58.0f, 180.0f, 360.0f, 16, BLACK);
-
-    // Підйомні залізні ґрати (Portcullis) зі шпичаками
-    int portY = gy - 175;
-    int portH = static_cast<int>(gatePortcullisY_);
-    for (int px = gx + 22; px < gx + 120; px += 16) {
-        DrawLineEx({ static_cast<float>(px), static_cast<float>(portY) }, { static_cast<float>(px), static_cast<float>(portY + portH) }, 4.0f, LIGHTGRAY);
-        DrawTriangle(
-            { static_cast<float>(px - 4), static_cast<float>(portY + portH) },
-            { static_cast<float>(px + 4), static_cast<float>(portY + portH) },
-            { static_cast<float>(px),     static_cast<float>(portY + portH + 8) },
-            LIGHTGRAY
-        );
-    }
-
-    // Смолоскипи обабіч брами
-    DrawStreetTorch(gx - 10.0f, gy - 50.0f, animTimer_);
-    DrawStreetTorch(gx + 140.0f, gy - 50.0f, animTimer_ + 1.2f);
 
     // Постать похмурого перевізника Харона перед входом
     int cx = gx - 45;
     int cy = gy;
-    bool nearCharon = (std::abs(heroX_ - CHARON_GATE_X) < 85.0f);
     if (ctx.renderer) {
         ctx.renderer->DrawDetailedCharon({ static_cast<float>(cx), static_cast<float>(cy) }, animTimer_, nearCharon);
     }

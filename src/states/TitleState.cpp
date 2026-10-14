@@ -33,7 +33,7 @@ void TitleState::Update(float dt, GameContext& ctx) {
         return;
     }
 
-    Vector2 mousePos = GetMousePosition();
+    Vector2 mousePos = SettingsMenu::GetVirtualMousePos();
 
     // Навігація клавіатурою
     if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) {
@@ -55,13 +55,13 @@ void TitleState::Update(float dt, GameContext& ctx) {
         return;
     }
 
-    // Перевірка кліків миші по пунктах меню
-    int boxW = 500;
-    int boxX = (Config::VIRTUAL_WIDTH - boxW) / 2;
-    int boxY = 244;
+    // Перевірка кліків миші по пунктах меню (ліва третина екрана)
+    int boxW = 440;
+    int boxX = 65;
+    int boxY = 215;
     for (int i = 0; i < 4; ++i) {
-        int oy = boxY + 20 + i * 46;
-        Rectangle optRec = { static_cast<float>(boxX + 16), static_cast<float>(oy - 2), static_cast<float>(boxW - 32), 36.0f };
+        int oy = boxY + 18 + i * 48;
+        Rectangle optRec = { static_cast<float>(boxX + 14), static_cast<float>(oy - 2), static_cast<float>(boxW - 28), 38.0f };
         if (CheckCollisionPointRec(mousePos, optRec)) {
             if (selectedIndex_ != i) {
                 selectedIndex_ = i;
@@ -114,34 +114,38 @@ void TitleState::Draw(GameContext& ctx) {
         return;
     }
 
-    // М'який градієнт для читабельності логотипу та меню
-    DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, 220, Fade(BLACK, 0.65f), BLANK);
+    // М'який темний градієнт ліворуч для бездоганної читабельності меню та логотипу
+    DrawRectangleGradientH(0, 0, 560, Config::VIRTUAL_HEIGHT, Fade(BLACK, 0.75f), BLANK);
 
     const char* title = "ROGUE LEGACY C++20";
-    int titleSize = 56;
+    int titleSize = 46;
     int titleW = Ui::Measure(title, titleSize);
-    int titleX = (Config::VIRTUAL_WIDTH - titleW) / 2;
-    int titleY = 56 + static_cast<int>(std::sin(animTimer_ * 2.5f) * 4.0f);
+    int titleX = 65;
+    int titleY = 48 + static_cast<int>(std::sin(animTimer_ * 2.5f) * 3.0f);
 
     // Золотий геральдичний банер під назвою гри
-    Rectangle titleBanner = { static_cast<float>(titleX - 24), static_cast<float>(titleY - 8), static_cast<float>(titleW + 48), 68.0f };
-    DrawRectangleRounded(titleBanner, 0.35f, 4, Color{ 16, 18, 30, 220 });
+    Rectangle titleBanner = { static_cast<float>(titleX - 16), static_cast<float>(titleY - 8), static_cast<float>(titleW + 32), 58.0f };
+    DrawRectangleRounded(titleBanner, 0.35f, 4, Color{ 16, 18, 30, 235 });
     DrawRectangleRoundedLines(titleBanner, 0.35f, 4, 2.5f, GOLD);
 
-    Ui::Text(title, titleX + 3, titleY + 3, titleSize, BLACK);
+    Ui::Text(title, titleX + 2, titleY + 2, titleSize, BLACK);
     Ui::Text(title, titleX, titleY, titleSize, GOLD);
 
+    // Під підзаголовком — темна напівпрозора плашка для читабельності
     const char* subtitle = "PROCEDURAL GOTHIC ACTION-ROGUELITE  *  ZERO EXTERNAL ASSETS";
-    int subW = Ui::Measure(subtitle, 16);
-    Ui::Text(subtitle, (Config::VIRTUAL_WIDTH - subW) / 2, titleY + 74, 16, SKYBLUE);
+    int subW = Ui::Measure(subtitle, 13);
+    Rectangle subPlate = { static_cast<float>(titleX - 12), static_cast<float>(titleY + 54), static_cast<float>(subW + 24), 26.0f };
+    DrawRectangleRounded(subPlate, 0.35f, 4, Color{ 12, 10, 18, 225 });
+    DrawRectangleRoundedLines(subPlate, 0.35f, 4, 1.2f, Color{ 85, 75, 52, 210 });
+    Ui::Text(subtitle, titleX, titleY + 60, 13, SKYBLUE);
 
-    // Панель головного меню
-    int boxW = 500;
-    int boxH = 224;
-    int boxX = (Config::VIRTUAL_WIDTH - boxW) / 2;
-    int boxY = 244;
+    // Панель головного меню (ліва третина екрана)
+    int boxW = 440;
+    int boxH = 245;
+    int boxX = 65;
+    int boxY = 215;
     Rectangle menuRec = { static_cast<float>(boxX), static_cast<float>(boxY), static_cast<float>(boxW), static_cast<float>(boxH) };
-    DrawRectangleRounded(menuRec, 0.08f, 4, Color{ 16, 18, 30, 240 });
+    DrawRectangleRounded(menuRec, 0.08f, 4, Color{ 16, 18, 30, 245 });
     DrawRectangleRoundedLines(menuRec, 0.08f, 4, 3.0f, GOLD);
 
     // Золоті кутові акценти
@@ -160,26 +164,26 @@ void TitleState::Draw(GameContext& ctx) {
     const std::string options[4] = { opt0, opt1, opt2, opt3 };
     for (int i = 0; i < 4; ++i) {
         bool sel = (i == selectedIndex_);
-        int oy = boxY + 20 + i * 46;
-        Rectangle optRec = { static_cast<float>(boxX + 16), static_cast<float>(oy - 2), static_cast<float>(boxW - 32), 36.0f };
+        int oy = boxY + 18 + i * 48;
+        Rectangle optRec = { static_cast<float>(boxX + 14), static_cast<float>(oy - 2), static_cast<float>(boxW - 28), 38.0f };
         if (sel) {
             DrawRectangleRounded(optRec, 0.25f, 4, Color{ 75, 58, 24, 235 });
             DrawRectangleRoundedLines(optRec, 0.25f, 4, 2.0f, GOLD);
         }
         Color col = sel ? GOLD : RAYWHITE;
         std::string label = (sel ? "> " : "  ") + options[i];
-        Ui::Text(label.c_str(), boxX + 28, oy + 6, 17, col);
+        Ui::Text(label.c_str(), boxX + 24, oy + 7, 16, col);
     }
 
-    // Акуратний лаконічний футер керування внизу екрана
-    int footW = 860;
-    int footX = (Config::VIRTUAL_WIDTH - footW) / 2;
-    int footY = 610;
-    Rectangle footRec = { static_cast<float>(footX), static_cast<float>(footY), static_cast<float>(footW), 36.0f };
+    // Акуратний лаконічний футер керування
+    int footW = 440;
+    int footX = 65;
+    int footY = 475;
+    Rectangle footRec = { static_cast<float>(footX), static_cast<float>(footY), static_cast<float>(footW), 32.0f };
     DrawRectangleRounded(footRec, 0.3f, 4, Color{ 14, 16, 26, 210 });
-    DrawRectangleRoundedLines(footRec, 0.3f, 4, 1.5f, Color{ 80, 90, 115, 200 });
+    DrawRectangleRoundedLines(footRec, 0.3f, 4, 1.2f, Color{ 80, 90, 115, 200 });
 
-    const char* footText = "[ENTER / SPACE] Select       [W / S / ARROWS] Navigate       [M] Manor Tree       [ESC] Quit";
-    int ftw = Ui::Measure(footText, 14);
-    Ui::Text(footText, footX + (footW - ftw) / 2, footY + 10, 14, Color{ 200, 215, 240, 255 });
+    const char* footText = "[ENTER] Select   [W/S] Navigate   [M] Manor   [ESC] Quit";
+    int ftw = Ui::Measure(footText, 13);
+    Ui::Text(footText, footX + (footW - ftw) / 2, footY + 9, 13, Color{ 190, 210, 235, 255 });
 }

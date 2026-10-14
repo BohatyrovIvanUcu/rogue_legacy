@@ -195,6 +195,7 @@ int main() {
     shaderManager.Shutdown();
     soundSynth.Shutdown();
     Ui::Shutdown();
+    proceduralRenderer.Cleanup();
     UnloadRenderTexture(canvas);
     CloseWindow();
 
