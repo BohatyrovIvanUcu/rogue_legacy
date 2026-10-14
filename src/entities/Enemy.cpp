@@ -97,6 +97,27 @@ void Enemy::Init(
     stateTimer = static_cast<float>(std::rand() % 100) / 100.0f;
 }
 
+void Enemy::ResetToSpawn() {
+    SetCenter(anchorPos);
+    vel = { 0.0f, 0.0f };
+    facingDir = (anchorPos.x > Config::VIRTUAL_WIDTH * 0.5f) ? -1.0f : 1.0f;
+    stateTimer = 0.0f;
+    isTelegraphing = false;
+    lockedAttackTarget = { 0.0f, 0.0f };
+    stunTimer = 0.0f;
+    hurtFlashTimer = 0.0f;
+
+    switch (type) {
+        case EnemyType::Skeleton:     attackCooldown = 1.8f; break;
+        case EnemyType::FloatingEye:  attackCooldown = 2.4f; break;
+        case EnemyType::ShieldKnight: attackCooldown = 1.2f; break;
+        case EnemyType::FireMage:     attackCooldown = 3.0f; break;
+        case EnemyType::Warg:         attackCooldown = 1.6f; break;
+        case EnemyType::WallTurret:   attackCooldown = 2.2f; break;
+        default:                      attackCooldown = 1.5f; break;
+    }
+}
+
 std::string Enemy::GetDisplayName() const {
     if (isDementiaPhantom) return "Dementia Phantom";
     std::string prefix = (tier == 1) ? "" : ((tier == 2) ? "Greater " : "Elite ");

@@ -209,7 +209,21 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
 void Room::OnPlayerEnterRoom(GameContext& ctx, Player& player) {
     visited = true;
     projectiles.clear();
+    trapTimer = 0.0f;
     player.ResetRoomTrialFlags();
+
+    // 1. Очищаємо залишкових фантомів деменції перед повторним входом, щоб вони не накопичувалися
+    enemies.erase(
+        std::remove_if(enemies.begin(), enemies.end(), [](const Enemy& e) { return e.isDementiaPhantom; }),
+        enemies.end()
+    );
+
+    // 2. Скидаємо розташування та стан усіх живих ворогів до точок спавну, обнуляючи таймери та заряджені атаки
+    for (auto& en : enemies) {
+        if (en.active) {
+            en.ResetToSpawn();
+        }
+    }
 
     if (roomType == RoomType::FairyChest && !chestOpened) {
         fairyTrialActive = true;

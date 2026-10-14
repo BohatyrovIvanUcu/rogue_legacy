@@ -42,6 +42,8 @@ public:
         bool dementiaPhantom = false
     );
 
+    void ResetToSpawn();
+
     void Update(
         float dt,
         GameContext& ctx,

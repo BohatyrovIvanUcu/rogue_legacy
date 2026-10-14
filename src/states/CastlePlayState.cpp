@@ -245,6 +245,11 @@ void CastlePlayState::CheckRoomDoorTransitions(GameContext& ctx) {
             curRoom.interactables.end()
         );
         curRoom.projectiles.clear();
+        for (auto& en : curRoom.enemies) {
+            if (en.active) {
+                en.ResetToSpawn();
+            }
+        }
 
         castle_.SyncRoomStateToContext(curRoom, ctx);
         curGx_ = nextGx;
@@ -291,6 +296,11 @@ void CastlePlayState::UpdateTeleporterOverlay(GameContext& ctx) {
                 leavingRoom.interactables.end()
             );
             leavingRoom.projectiles.clear();
+            for (auto& en : leavingRoom.enemies) {
+                if (en.active) {
+                    en.ResetToSpawn();
+                }
+            }
             castle_.SyncRoomStateToContext(leavingRoom, ctx);
 
             curGx_ = tpCursorGx_;
