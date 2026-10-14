@@ -63,6 +63,8 @@ bool SaveManager::SaveGame(const GameContext& ctx, const std::string& filePath) 
         root["sfxMuted"] = ctx.sfxMuted;
         root["musicVolume"] = ctx.musicVolume;
         root["sfxVolume"] = ctx.sfxVolume;
+        root["showFps"] = ctx.showFps;
+        root["targetFps"] = ctx.targetFps;
 
         json bindingsJson = json::array();
         for (size_t i = 0; i < ctx.input.bindings.size(); ++i) {
@@ -167,6 +169,8 @@ bool SaveManager::LoadGame(GameContext& ctx, const std::string& filePath) {
         ctx.sfxMuted = root.value("sfxMuted", false);
         ctx.musicVolume = root.value("musicVolume", 1.0f);
         ctx.sfxVolume = root.value("sfxVolume", 1.0f);
+        ctx.showFps = root.value("showFps", false);
+        ctx.targetFps = root.value("targetFps", 60);
 
         if (root.contains("inputBindings") && root["inputBindings"].is_array()) {
             for (const auto& item : root["inputBindings"]) {
@@ -310,6 +314,8 @@ bool SaveManager::SaveSettings(const GameContext& ctx, const std::string& filePa
         root["sfxMuted"] = ctx.sfxMuted;
         root["musicVolume"] = ctx.musicVolume;
         root["sfxVolume"] = ctx.sfxVolume;
+        root["showFps"] = ctx.showFps;
+        root["targetFps"] = ctx.targetFps;
 
         json bindingsJson = json::array();
         for (size_t i = 0; i < ctx.input.bindings.size(); ++i) {
@@ -342,6 +348,8 @@ bool SaveManager::LoadSettings(GameContext& ctx, const std::string& filePath) {
         ctx.sfxMuted = root.value("sfxMuted", false);
         ctx.musicVolume = root.value("musicVolume", 1.0f);
         ctx.sfxVolume = root.value("sfxVolume", 1.0f);
+        ctx.showFps = root.value("showFps", false);
+        ctx.targetFps = root.value("targetFps", 60);
 
         if (root.contains("inputBindings") && root["inputBindings"].is_array()) {
             for (const auto& item : root["inputBindings"]) {

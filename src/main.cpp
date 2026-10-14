@@ -73,6 +73,7 @@ int main() {
         soundSynth.SetSfxMuted(ctx.sfxMuted);
         soundSynth.SetMusicVolume(ctx.musicVolume);
         soundSynth.SetSfxVolume(ctx.sfxVolume);
+        SetTargetFPS(ctx.targetFps > 0 ? ctx.targetFps : 0);
     }
 
     std::unique_ptr<IGameState> currentState = CreateStateById(GameStateId::Title);
@@ -107,6 +108,12 @@ int main() {
             ToggleBorderlessWindowed();
         }
 
+        // Перемикач лічильника FPS: F3
+        if (IsKeyPressed(KEY_F3)) {
+            ctx.showFps = !ctx.showFps;
+            SaveManager::SaveSettings(ctx, Config::SAVE_FILE_PATH);
+        }
+
         // 1. Малюємо кадр у полотно 1920x1080
         BeginTextureMode(canvas);
         ClearBackground(BLACK);
@@ -136,6 +143,22 @@ int main() {
         BeginDrawing();
         ClearBackground(BLACK);
         DrawTexturePro(canvas.texture, srcRec, dstRec, { 0.0f, 0.0f }, 0.0f, WHITE);
+
+        // Лічильник FPS (вмикається через F3 або в меню налаштувань)
+        if (ctx.showFps) {
+            int fps = GetFPS();
+            float frameMs = GetFrameTime() * 1000.0f;
+            const char* fpsStr = TextFormat("FPS: %d (%.1f ms)", fps, frameMs);
+            int tw = MeasureText(fpsStr, 16);
+            int px = static_cast<int>(sw) - tw - 24;
+            int py = 12;
+            Rectangle badge = { static_cast<float>(px - 8), static_cast<float>(py - 4), static_cast<float>(tw + 16), 26.0f };
+            DrawRectangleRounded(badge, 0.35f, 4, Color{ 10, 14, 22, 225 });
+            Color col = (fps >= 55) ? LIME : ((fps >= 30) ? GOLD : RED);
+            DrawRectangleRoundedLines(badge, 0.35f, 4, 1.5f, col);
+            DrawText(fpsStr, px, py, 16, col);
+        }
+
         EndDrawing();
     }
 

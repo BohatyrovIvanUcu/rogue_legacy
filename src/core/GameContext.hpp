@@ -28,6 +28,8 @@ public:
     bool sfxMuted = false;
     float musicVolume = 1.0f;
     float sfxVolume = 1.0f;
+    bool showFps = false;
+    int targetFps = 60;
     InputConfig input{};
 
     std::array<int, static_cast<size_t>(ManorNodeId::COUNT)> manorLevels{};

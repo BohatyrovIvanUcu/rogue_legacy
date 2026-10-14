@@ -160,12 +160,20 @@ void SettingsMenu::Update(float dt, GameContext& ctx) {
     }
     // 4. ОБРОБКА ВКЛАДКИ АУДІО ТА ЕКРАНУ (TAB 1)
     else {
+        static const int FPS_PRESETS[] = { 60, 120, 144, 240, 0 };
+        auto getFpsIdx = [&](int fps) {
+            for (int f = 0; f < 5; ++f) {
+                if (fps == FPS_PRESETS[f]) return f;
+            }
+            return 0;
+        };
+
         if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
-            audioSelectedRow_ = (audioSelectedRow_ + 4) % 5;
+            audioSelectedRow_ = (audioSelectedRow_ + 6) % 7;
             if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.8f, 0.3f);
         }
         if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
-            audioSelectedRow_ = (audioSelectedRow_ + 1) % 5;
+            audioSelectedRow_ = (audioSelectedRow_ + 1) % 7;
             if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.8f, 0.3f);
         }
 
@@ -184,6 +192,13 @@ void SettingsMenu::Update(float dt, GameContext& ctx) {
                 if (ctx.audio) ctx.audio->SetSfxVolume(ctx.sfxVolume);
             } else if (audioSelectedRow_ == 4) {
                 ToggleBorderlessWindowed();
+            } else if (audioSelectedRow_ == 5) {
+                ctx.showFps = !ctx.showFps;
+            } else if (audioSelectedRow_ == 6) {
+                int idx = getFpsIdx(ctx.targetFps);
+                idx = (idx + 4) % 5;
+                ctx.targetFps = FPS_PRESETS[idx];
+                SetTargetFPS(ctx.targetFps > 0 ? ctx.targetFps : 0);
             }
             SaveManager::SaveSettings(ctx, Config::SAVE_FILE_PATH);
             if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f, 0.4f);
@@ -202,6 +217,13 @@ void SettingsMenu::Update(float dt, GameContext& ctx) {
                 if (ctx.audio) ctx.audio->SetSfxVolume(ctx.sfxVolume);
             } else if (audioSelectedRow_ == 4) {
                 ToggleBorderlessWindowed();
+            } else if (audioSelectedRow_ == 5) {
+                ctx.showFps = !ctx.showFps;
+            } else if (audioSelectedRow_ == 6) {
+                int idx = getFpsIdx(ctx.targetFps);
+                idx = (idx + 1) % 5;
+                ctx.targetFps = FPS_PRESETS[idx];
+                SetTargetFPS(ctx.targetFps > 0 ? ctx.targetFps : 0);
             }
             SaveManager::SaveSettings(ctx, Config::SAVE_FILE_PATH);
             if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 1.0f, 0.4f);
@@ -375,30 +397,41 @@ void SettingsMenu::Draw(GameContext& ctx) {
     }
     // 5. КОНТЕНТ ВКЛАДКИ АУДІО ТА ЕКРАНУ (TAB 1)
     else {
-        int listStartY = boxY + 130;
-        int rowH = 54;
+        int listStartY = boxY + 112;
+        int rowH = 46;
 
         struct AudioRow {
             std::string title;
             std::string value;
         };
 
+        static const int FPS_PRESETS[] = { 60, 120, 144, 240, 0 };
+        auto getFpsIdx = [&](int fps) {
+            for (int f = 0; f < 5; ++f) {
+                if (fps == FPS_PRESETS[f]) return f;
+            }
+            return 0;
+        };
+
         std::string musVolStr = std::to_string(static_cast<int>(std::round(ctx.musicVolume * 100.0f))) + "%";
         std::string sfxVolStr = std::to_string(static_cast<int>(std::round(ctx.sfxVolume * 100.0f))) + "%";
+        std::string fpsLimitStr = (ctx.targetFps == 0) ? "UNLIMITED" : (std::to_string(ctx.targetFps) + " FPS");
 
-        AudioRow rows[5] = {
+        AudioRow rows[7] = {
             { "MUSIC SEQUENCER", ctx.musicMuted ? "MUTED [P]" : "ENABLED" },
             { "MUSIC VOLUME", musVolStr },
             { "SFX (SOUND EFFECTS)", ctx.sfxMuted ? "MUTED" : "ENABLED" },
             { "SFX VOLUME", sfxVolStr },
-            { "DISPLAY MODE", "TOGGLE BORDERLESS FULLSCREEN [F11]" }
+            { "DISPLAY MODE", "TOGGLE BORDERLESS FULLSCREEN [F11]" },
+            { "SHOW FPS COUNTER", ctx.showFps ? "ENABLED [F3]" : "DISABLED [F3]" },
+            { "FPS LIMIT", fpsLimitStr }
         };
 
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 7; ++i) {
             int ry = listStartY + i * rowH;
             bool sel = (i == audioSelectedRow_);
 
-            Rectangle rowRec = { static_cast<float>(boxX + 50), static_cast<float>(ry), static_cast<float>(boxW - 100), 44.0f };
+            Rectangle rowRec = { static_cast<float>(boxX + 50), static_cast<float>(ry), static_cast<float>(boxW - 100), 38.0f };
             bool hoverRow = CheckCollisionPointRec(mousePos, rowRec);
             if (hoverRow && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                 audioSelectedRow_ = i;
@@ -409,6 +442,13 @@ void SettingsMenu::Draw(GameContext& ctx) {
                     if (ctx.audio) ctx.audio->SetSfxMuted(ctx.sfxMuted);
                 } else if (i == 4) {
                     ToggleBorderlessWindowed();
+                } else if (i == 5) {
+                    ctx.showFps = !ctx.showFps;
+                } else if (i == 6) {
+                    int idx = getFpsIdx(ctx.targetFps);
+                    idx = (idx + 1) % 5;
+                    ctx.targetFps = FPS_PRESETS[idx];
+                    SetTargetFPS(ctx.targetFps > 0 ? ctx.targetFps : 0);
                 }
                 SaveManager::SaveSettings(ctx, Config::SAVE_FILE_PATH);
                 if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 1.0f, 0.4f);
@@ -417,14 +457,14 @@ void SettingsMenu::Draw(GameContext& ctx) {
             DrawRectangleRounded(rowRec, 0.2f, 4, sel ? Color{ 45, 52, 75, 230 } : Color{ 22, 26, 38, 200 });
             DrawRectangleRoundedLines(rowRec, 0.2f, 4, 1.8f, sel ? GOLD : (hoverRow ? SKYBLUE : Color{ 60, 70, 95, 255 }));
 
-            Ui::Text(rows[i].title.c_str(), rowRec.x + 20, rowRec.y + 12, 16, sel ? GOLD : RAYWHITE);
+            Ui::Text(rows[i].title.c_str(), rowRec.x + 20, rowRec.y + 10, 15, sel ? GOLD : RAYWHITE);
 
             // Кнопки регулювання гучності [-] / [+]
             if (i == 1 || i == 3) {
                 float volVal = (i == 1) ? ctx.musicVolume : ctx.sfxVolume;
 
                 // Смужка гучності
-                Rectangle barRec = { rowRec.x + rowRec.width - 260.0f, rowRec.y + 12.0f, 150.0f, 20.0f };
+                Rectangle barRec = { rowRec.x + rowRec.width - 260.0f, rowRec.y + 9.0f, 150.0f, 20.0f };
                 DrawRectangleRounded(barRec, 0.2f, 4, Color{ 15, 18, 28, 255 });
                 DrawRectangleRoundedLines(barRec, 0.2f, 4, 1.0f, Color{ 80, 90, 115, 255 });
 
@@ -433,10 +473,10 @@ void SettingsMenu::Draw(GameContext& ctx) {
 
                 std::string vStr = rows[i].value;
                 int vw = Ui::Measure(vStr.c_str(), 14);
-                Ui::Text(vStr.c_str(), rowRec.x + rowRec.width - 90 + (80 - vw) / 2, rowRec.y + 13, 14, RAYWHITE);
+                Ui::Text(vStr.c_str(), rowRec.x + rowRec.width - 90 + (80 - vw) / 2, rowRec.y + 11, 14, RAYWHITE);
             } else {
                 int vw = Ui::Measure(rows[i].value.c_str(), 15);
-                Ui::Text(rows[i].value.c_str(), rowRec.x + rowRec.width - vw - 24, rowRec.y + 12, 15, sel ? SKYBLUE : GOLD);
+                Ui::Text(rows[i].value.c_str(), rowRec.x + rowRec.width - vw - 24, rowRec.y + 10, 15, sel ? SKYBLUE : GOLD);
             }
         }
     }
