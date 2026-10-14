@@ -15,6 +15,7 @@
 #include "states/OutskirtsState.hpp"
 #include "states/CastlePlayState.hpp"
 #include "states/DeathSummaryState.hpp"
+#include "states/SettingsMenu.hpp"
 
 #include <raylib.h>
 #include <memory>
@@ -41,7 +42,7 @@ namespace {
 int main() {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(Config::RENDER_WIDTH, Config::RENDER_HEIGHT, "Rogue Legacy C++20 - Procedural Gothic Action-Roguelite");
     SetTargetFPS(Config::TARGET_FPS);
     SetExitKey(KEY_NULL); // Вимикаємо закриття вікна по ESC, щоб ESC працював для закриття меню Коваля/Чарівниці/Телепорту
@@ -73,8 +74,8 @@ int main() {
         soundSynth.SetSfxMuted(ctx.sfxMuted);
         soundSynth.SetMusicVolume(ctx.musicVolume);
         soundSynth.SetSfxVolume(ctx.sfxVolume);
-        SetTargetFPS(ctx.targetFps > 0 ? ctx.targetFps : 0);
     }
+    SettingsMenu::ApplyFpsAndVsync(ctx);
 
     std::unique_ptr<IGameState> currentState = CreateStateById(GameStateId::Title);
     currentState->OnEnter(ctx);

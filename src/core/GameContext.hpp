@@ -30,6 +30,7 @@ public:
     float sfxVolume = 1.0f;
     bool showFps = false;
     int targetFps = 60;
+    bool vsync = true;
     InputConfig input{};
 
     std::array<int, static_cast<size_t>(ManorNodeId::COUNT)> manorLevels{};

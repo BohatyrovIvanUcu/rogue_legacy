@@ -19,6 +19,7 @@ public:
     void Draw(GameContext& ctx);
 
     static Vector2 GetVirtualMousePos();
+    static void ApplyFpsAndVsync(GameContext& ctx);
 
 private:
     enum class FocusArea : int {
