@@ -18,10 +18,20 @@ public:
     void Update(float dt, GameContext& ctx);
     void Draw(GameContext& ctx);
 
+    static Vector2 GetVirtualMousePos();
+
 private:
+    enum class FocusArea : int {
+        Tabs = 0,
+        List = 1,
+        Bottom = 2
+    };
+
     bool isOpen_ = false;
     bool inGamePause_ = false;
     int currentTab_ = 0; // 0 = Controls, 1 = Audio & Display
+    FocusArea focusArea_ = FocusArea::List;
+    int bottomButtonIdx_ = 1; // 0 = Reset Defaults, 1 = Back / Apply, 2 = Quit (if pause)
 
     // Controls tab state
     int selectedActionIdx_ = 0; // 0 .. InputAction::COUNT - 1
@@ -30,7 +40,7 @@ private:
     float rebindPulseTimer_ = 0.0f;
 
     // Audio & Display tab state
-    int audioSelectedRow_ = 0; // 0 = Music Mute, 1 = Music Vol, 2 = SFX Mute, 3 = SFX Vol, 4 = Fullscreen
+    int audioSelectedRow_ = 0; // 0..6
 
     float animTimer_ = 0.0f;
     std::string statusMessage_ = "";
