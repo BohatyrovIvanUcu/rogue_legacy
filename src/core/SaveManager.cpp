@@ -66,6 +66,7 @@ bool SaveManager::SaveGame(const GameContext& ctx, const std::string& filePath) 
         root["showFps"] = ctx.showFps;
         root["targetFps"] = ctx.targetFps;
         root["vsync"] = ctx.vsync;
+        root["displayMode"] = ctx.displayMode;
 
         json bindingsJson = json::array();
         for (size_t i = 0; i < ctx.input.bindings.size(); ++i) {
@@ -173,6 +174,7 @@ bool SaveManager::LoadGame(GameContext& ctx, const std::string& filePath) {
         ctx.showFps = root.value("showFps", false);
         ctx.targetFps = root.value("targetFps", 60);
         ctx.vsync = root.value("vsync", (ctx.targetFps == 60));
+        ctx.displayMode = root.value("displayMode", 0);
 
         if (root.contains("inputBindings") && root["inputBindings"].is_array()) {
             for (const auto& item : root["inputBindings"]) {
@@ -319,6 +321,7 @@ bool SaveManager::SaveSettings(const GameContext& ctx, const std::string& filePa
         root["showFps"] = ctx.showFps;
         root["targetFps"] = ctx.targetFps;
         root["vsync"] = ctx.vsync;
+        root["displayMode"] = ctx.displayMode;
 
         json bindingsJson = json::array();
         for (size_t i = 0; i < ctx.input.bindings.size(); ++i) {

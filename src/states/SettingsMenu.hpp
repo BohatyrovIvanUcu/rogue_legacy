@@ -21,6 +21,16 @@ public:
     static Vector2 GetVirtualMousePos();
     static void ApplyFpsAndVsync(GameContext& ctx);
 
+    enum class DisplayMode : int {
+        Fullscreen = 0,
+        Borderless = 1,
+        Windowed = 2
+    };
+
+    static DisplayMode GetCurrentDisplayMode();
+    static void SetDisplayMode(DisplayMode mode);
+    static void CycleDisplayMode(GameContext& ctx, int dir = 1);
+
 private:
     enum class FocusArea : int {
         Tabs = 0,

@@ -31,6 +31,7 @@ public:
     bool showFps = false;
     int targetFps = 60;
     bool vsync = true;
+    int displayMode = 0; // 0 = Fullscreen, 1 = Borderless, 2 = Windowed
     InputConfig input{};
 
     std::array<int, static_cast<size_t>(ManorNodeId::COUNT)> manorLevels{};

@@ -50,7 +50,6 @@ int main() {
     // Полотно високої чіткості 1920x1080
     RenderTexture2D canvas = LoadRenderTexture(Config::RENDER_WIDTH, Config::RENDER_HEIGHT);
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);
-    ToggleBorderlessWindowed(); // Старт у повноекранному режимі (F11 — перемкнути)
 
     SoundSynth soundSynth;
     ShaderManager shaderManager;
@@ -76,6 +75,7 @@ int main() {
         soundSynth.SetSfxVolume(ctx.sfxVolume);
     }
     SettingsMenu::ApplyFpsAndVsync(ctx);
+    SettingsMenu::SetDisplayMode(static_cast<SettingsMenu::DisplayMode>(ctx.displayMode));
 
     std::unique_ptr<IGameState> currentState = CreateStateById(GameStateId::Title);
     currentState->OnEnter(ctx);
@@ -104,9 +104,16 @@ int main() {
             currentState->Update(dt, ctx);
         }
 
-        // Перемикач повноекранного режиму: F11
+        // Перемикач повноекранного режиму: F11 (Exclusive Fullscreen <-> Windowed)
         if (IsKeyPressed(KEY_F11)) {
-            ToggleBorderlessWindowed();
+            if (SettingsMenu::GetCurrentDisplayMode() == SettingsMenu::DisplayMode::Fullscreen) {
+                SettingsMenu::SetDisplayMode(SettingsMenu::DisplayMode::Windowed);
+                ctx.displayMode = static_cast<int>(SettingsMenu::DisplayMode::Windowed);
+            } else {
+                SettingsMenu::SetDisplayMode(SettingsMenu::DisplayMode::Fullscreen);
+                ctx.displayMode = static_cast<int>(SettingsMenu::DisplayMode::Fullscreen);
+            }
+            SaveManager::SaveSettings(ctx, Config::SAVE_FILE_PATH);
         }
 
         // Перемикач лічильника FPS: F3

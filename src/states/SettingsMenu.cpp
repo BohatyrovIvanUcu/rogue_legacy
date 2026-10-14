@@ -43,6 +43,51 @@ void SettingsMenu::ApplyFpsAndVsync(GameContext& ctx) {
     SetTargetFPS(ctx.targetFps > 0 ? ctx.targetFps : 0);
 }
 
+SettingsMenu::DisplayMode SettingsMenu::GetCurrentDisplayMode() {
+    if (IsWindowFullscreen()) {
+        return DisplayMode::Fullscreen;
+    }
+    if (IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) {
+        return DisplayMode::Borderless;
+    }
+    return DisplayMode::Windowed;
+}
+
+void SettingsMenu::SetDisplayMode(DisplayMode target) {
+    DisplayMode current = GetCurrentDisplayMode();
+    if (current == target) return;
+
+    // 1. Спочатку скидаємо будь-який активний режим до вікна
+    if (current == DisplayMode::Fullscreen) {
+        ToggleFullscreen();
+    } else if (current == DisplayMode::Borderless) {
+        ToggleBorderlessWindowed();
+    }
+
+    // 2. Вмикаємо новий цільовий режим
+    if (target == DisplayMode::Fullscreen) {
+        ToggleFullscreen();
+    } else if (target == DisplayMode::Borderless) {
+        ToggleBorderlessWindowed();
+    } else if (target == DisplayMode::Windowed) {
+        int monitor = GetCurrentMonitor();
+        int monW = GetMonitorWidth(monitor);
+        int monH = GetMonitorHeight(monitor);
+        int winW = (monW >= 1600) ? 1600 : (monW >= 1280 ? 1280 : 960);
+        int winH = (winW * 9) / 16;
+        SetWindowSize(winW, winH);
+        SetWindowPosition((monW - winW) / 2, (monH - winH) / 2);
+    }
+}
+
+void SettingsMenu::CycleDisplayMode(GameContext& ctx, int dir) {
+    int cur = static_cast<int>(GetCurrentDisplayMode());
+    int next = (cur + (dir > 0 ? 1 : 2)) % 3;
+    SetDisplayMode(static_cast<DisplayMode>(next));
+    ctx.displayMode = next;
+    SaveManager::SaveSettings(ctx, Config::SAVE_FILE_PATH);
+}
+
 void SettingsMenu::Open(bool inGamePause) {
     isOpen_ = true;
     inGamePause_ = inGamePause;
@@ -335,7 +380,7 @@ void SettingsMenu::Update(float dt, GameContext& ctx) {
                     ctx.sfxVolume = std::clamp(ctx.sfxVolume - 0.1f, 0.0f, 1.0f);
                     if (ctx.audio) ctx.audio->SetSfxVolume(ctx.sfxVolume);
                 } else if (audioSelectedRow_ == 4) {
-                    ToggleBorderlessWindowed();
+                    CycleDisplayMode(ctx, -1);
                 } else if (audioSelectedRow_ == 5) {
                     ctx.vsync = !ctx.vsync;
                     if (ctx.vsync && (ctx.targetFps == 0 || ctx.targetFps > 60)) {
@@ -366,7 +411,7 @@ void SettingsMenu::Update(float dt, GameContext& ctx) {
                     ctx.sfxVolume = std::clamp(ctx.sfxVolume + 0.1f, 0.0f, 1.0f);
                     if (ctx.audio) ctx.audio->SetSfxVolume(ctx.sfxVolume);
                 } else if (audioSelectedRow_ == 4) {
-                    ToggleBorderlessWindowed();
+                    CycleDisplayMode(ctx, 1);
                 } else if (audioSelectedRow_ == 5) {
                     ctx.vsync = !ctx.vsync;
                     if (ctx.vsync && (ctx.targetFps == 0 || ctx.targetFps > 60)) {
@@ -623,12 +668,16 @@ void SettingsMenu::Draw(GameContext& ctx) {
         std::string sfxVolStr = std::to_string(static_cast<int>(std::round(ctx.sfxVolume * 100.0f))) + "%";
         std::string fpsLimitStr = (ctx.targetFps == 0) ? "UNLIMITED" : (std::to_string(ctx.targetFps) + " FPS");
 
+        DisplayMode curMode = GetCurrentDisplayMode();
+        std::string modeStr = (curMode == DisplayMode::Fullscreen) ? "EXCLUSIVE FULLSCREEN [F11]"
+                            : (curMode == DisplayMode::Borderless ? "BORDERLESS WINDOWED" : "WINDOWED (1600x900)");
+
         AudioRow rows[8] = {
             { "MUSIC SEQUENCER", ctx.musicMuted ? "MUTED [P]" : "ENABLED" },
             { "MUSIC VOLUME", musVolStr },
             { "SFX (SOUND EFFECTS)", ctx.sfxMuted ? "MUTED" : "ENABLED" },
             { "SFX VOLUME", sfxVolStr },
-            { "DISPLAY MODE", "TOGGLE BORDERLESS FULLSCREEN [F11]" },
+            { "DISPLAY MODE", modeStr },
             { "VERTICAL SYNC (V-SYNC)", ctx.vsync ? "ENABLED" : "DISABLED" },
             { "SHOW FPS COUNTER", ctx.showFps ? "ENABLED [F3]" : "DISABLED [F3]" },
             { "FPS LIMIT", fpsLimitStr }
@@ -650,7 +699,7 @@ void SettingsMenu::Draw(GameContext& ctx) {
                     ctx.sfxMuted = !ctx.sfxMuted;
                     if (ctx.audio) ctx.audio->SetSfxMuted(ctx.sfxMuted);
                 } else if (i == 4) {
-                    ToggleBorderlessWindowed();
+                    CycleDisplayMode(ctx, 1);
                 } else if (i == 5) {
                     ctx.vsync = !ctx.vsync;
                     if (ctx.vsync && (ctx.targetFps == 0 || ctx.targetFps > 60)) {
@@ -691,7 +740,8 @@ void SettingsMenu::Draw(GameContext& ctx) {
                 Ui::Text(vStr.c_str(), rowRec.x + rowRec.width - 90 + (80 - vw) / 2, rowRec.y + 10, 14, RAYWHITE);
             } else {
                 int vw = Ui::Measure(rows[i].value.c_str(), 15);
-                Color valCol = (i == 5) ? (ctx.vsync ? LIME : SKYBLUE)
+                Color valCol = (i == 4) ? ((curMode == DisplayMode::Fullscreen) ? LIME : SKYBLUE)
+                             : (i == 5) ? (ctx.vsync ? LIME : SKYBLUE)
                              : (i == 6) ? (ctx.showFps ? LIME : Color{ 140, 150, 175, 255 })
                              : (i == 7) ? (ctx.targetFps == 0 ? GOLD : SKYBLUE)
                              : (sel ? SKYBLUE : GOLD);
