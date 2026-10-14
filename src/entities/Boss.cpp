@@ -683,10 +683,16 @@ void Boss::Draw() const {
     const auto& pal = GetPalette();
     Vector2 c = GetCenter();
     bool flash = (hurtFlashTimer > 0.0f);
+    bool isEnraged = (hp <= maxHp / 2);
 
     switch (type) {
         case BossType::Khidr: {
-            // Гігантське демонічне око Khidr з щупальцями
+            // Гігантське демонічне око Khidr з щупальцями (Масштаб x2.5)
+            // Ореол боса: у 2-й фазі змінюється на лютий фіолетово-магічний
+            float haloR = isEnraged ? (105.0f + std::sin(animTimer * 10.0f) * 8.0f) : 85.0f;
+            Color haloCol = isEnraged ? pal.moonMagic[3] : pal.bloodCloth[2];
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y), haloR, Fade(haloCol, isEnraged ? 0.45f : 0.25f), Fade(pal.outline, 0.0f));
+
             // 1. Звивисті щупальця з шипами
             for (int i = 0; i < 10; ++i) {
                 float a = i * (6.2831853f / 10.0f) + animTimer * 1.5f;
@@ -696,7 +702,8 @@ void Boss::Draw() const {
                 Color tentCol = flash ? pal.metal[4] : ((i % 2 == 0) ? pal.bloodCloth[2] : pal.bloodCloth[1]);
                 DrawLineEx(c, mid, 9.0f, tentCol);
                 DrawLineEx(mid, tip, 5.0f, tentCol);
-                DrawCircleV(tip, 4.0f, flash ? pal.danger[2] : pal.bloodCloth[3]); // отруйний шип
+                Color tipCol = isEnraged ? pal.fireGold[3] : (flash ? pal.danger[2] : pal.bloodCloth[3]);
+                DrawCircleV(tip, isEnraged ? 5.5f : 4.0f, tipCol); // отруйний шип
             }
 
             // 2. Очне яблуко з кровоносними судинами
@@ -725,8 +732,10 @@ void Boss::Draw() const {
         }
 
         case BossType::Alexander: {
-            // Гігантський рогатий череп Alexander
-            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y), 75.0f, Fade(pal.moonMagic[1], 0.45f), Fade(pal.outline, 0.0f));
+            // Гігантський рогатий череп Alexander (Масштаб x2.2)
+            Color alexHalo = isEnraged ? pal.bloodCloth[3] : pal.moonMagic[1];
+            float alexHaloR = isEnraged ? (92.0f + std::sin(animTimer * 12.0f) * 6.0f) : 75.0f;
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y), alexHaloR, Fade(alexHalo, isEnraged ? 0.55f : 0.45f), Fade(pal.outline, 0.0f));
 
             // 1. Величні закручені роги
             for (int side = -1; side <= 1; side += 2) {

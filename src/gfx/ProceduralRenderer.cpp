@@ -259,6 +259,16 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
     float alpha = p.isMistForm ? 0.38f : 1.0f;
     float sx = p.scaleX;
     float sy = p.scaleY;
+
+    // Статура за рисами (Ectomorph — вужчий витягнутий риг, Endomorph — ширший масивний)
+    if (p.isEctomorph) {
+        sx *= 0.82f;
+        sy *= 1.04f;
+    } else if (p.isEndomorph) {
+        sx *= 1.22f;
+        sy *= 0.95f;
+    }
+
     float dir = (p.facingDir >= 0.0f) ? 1.0f : -1.0f;
 
     float bodyW = 24.0f * sx;
@@ -273,7 +283,7 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
     Vector2 headPos = { c.x + dir * 2.0f * sx, c.y - 14.0f * sy };
     Vector2 shoulderPos = { c.x - dir * 6.0f * sx, c.y - 6.0f * sy };
 
-    // 1. Плащ або крила дракона
+    // 1. Плащ з двома сегментами, що відстає при русі (або крила дракона)
     if (p.classType == ClassType::Dragon_Special) {
         float wingFlap = std::sin(p.animTime * 12.0f) * 14.0f * sy;
         Vector2 w1 = shoulderPos;
@@ -284,47 +294,79 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
         DrawLineEx(w1, w2, 3.0f * sx, Fade(pal.fireGold[3], alpha));
         DrawCircleV(w2, 3.0f * sx, Fade(pal.outline, alpha)); // кіготь крила
     } else {
+        // Колір плаща за класом / тиром
         Color capeOuter = GetTierSecondaryColor(p.capeTier, pal.bloodCloth[2]);
-        Color capeInner = ColorTint(capeOuter, pal.metal[1]);
-        float speedRatio = std::clamp(std::abs(p.velocity.x) / 290.0f, 0.0f, 1.4f);
-        constexpr int CAPE_SEGMENTS = 7;
-        Vector2 prevPt = shoulderPos;
+        if (p.classType == ClassType::Mage_Base || p.classType == ClassType::Archmage_Upgraded) {
+            capeOuter = pal.moonMagic[2];
+        } else if (p.classType == ClassType::Shinobi_Base || p.classType == ClassType::Hokage_Upgraded) {
+            capeOuter = pal.metal[1];
+        } else if (p.classType == ClassType::Lich_Base || p.classType == ClassType::LichKing_Upgraded) {
+            capeOuter = pal.poisonSlime[2];
+        } else if (p.classType == ClassType::Barbarian_Base || p.classType == ClassType::BarbarianKing_Upgraded) {
+            capeOuter = pal.wood[2];
+        }
 
-        for (int i = 1; i <= CAPE_SEGMENTS; ++i) {
-            float t = static_cast<float>(i) / CAPE_SEGMENTS;
-            float wave = std::sin(p.animTime * (8.0f + speedRatio * 7.0f) - i * 0.85f) * (3.0f + speedRatio * 5.0f) * t;
-            float cx = shoulderPos.x - dir * (t * (18.0f + speedRatio * 18.0f) * sx);
-            float cy = shoulderPos.y + t * (25.0f + speedRatio * 8.0f) * sy - (p.velocity.y * 0.015f * t) + wave;
-            Vector2 nextPt = { cx, cy };
-            float thickness = (5.5f + t * 6.5f) * ((sx + sy) * 0.5f);
-            DrawLineEx(prevPt, nextPt, thickness, Fade((i % 2 == 0) ? capeOuter : capeInner, alpha));
-            prevPt = nextPt;
+        Color capeInner = ColorTint(capeOuter, pal.metal[0]);
+        Color capeHi    = ColorTint(capeOuter, pal.metal[4]);
+        float speedRatio = std::clamp(std::abs(p.velocity.x) / 290.0f, 0.0f, 1.4f);
+        float velLagY = p.velocity.y * 0.014f;
+        constexpr int CAPE_NODES = 6;
+
+        // Сегмент 1: Внутрішній нижній шар плаща (тіньовий)
+        Vector2 prevInner = shoulderPos;
+        for (int i = 1; i <= CAPE_NODES; ++i) {
+            float t = static_cast<float>(i) / CAPE_NODES;
+            float wave = std::sin(p.animTime * (7.5f + speedRatio * 6.0f) - i * 0.75f) * (4.0f + speedRatio * 5.5f) * t;
+            float cx = shoulderPos.x - dir * (t * (20.0f + speedRatio * 20.0f) * sx);
+            float cy = shoulderPos.y + t * (27.0f + speedRatio * 9.0f) * sy - velLagY * t + wave;
+            Vector2 nextInner = { cx, cy };
+            DrawLineEx(prevInner, nextInner, (6.0f + t * 6.5f) * ((sx + sy) * 0.5f), Fade(capeInner, alpha));
+            prevInner = nextInner;
+        }
+
+        // Сегмент 2: Зовнішній верхній шар плаща (зі світловою окантовкою)
+        Vector2 prevOuter = { shoulderPos.x + dir * 1.5f * sx, shoulderPos.y - 1.0f * sy };
+        for (int i = 1; i <= CAPE_NODES; ++i) {
+            float t = static_cast<float>(i) / CAPE_NODES;
+            float wave = std::sin(p.animTime * (8.5f + speedRatio * 7.0f) - i * 0.85f + 0.45f) * (3.0f + speedRatio * 6.0f) * t;
+            float cx = shoulderPos.x - dir * (t * (16.0f + speedRatio * 17.0f) * sx);
+            float cy = shoulderPos.y + t * (23.0f + speedRatio * 7.5f) * sy - velLagY * t + wave;
+            Vector2 nextOuter = { cx, cy };
+            Color col = (i == 1 || i == 2) ? capeHi : capeOuter;
+            DrawLineEx(prevOuter, nextOuter, (4.5f + t * 5.0f) * ((sx + sy) * 0.5f), Fade(col, alpha));
+            prevOuter = nextOuter;
         }
     }
 
-    // 2. Ноги з наколінниками та сабатонами (Sabaton boots)
-    Color limbColor = GetTierPrimaryColor(p.limbsTier, pal.metal[2]);
-    Color limbHighlight = ColorTint(limbColor, pal.metal[4]);
+    // 2. Ноги з наколінниками та сабатонами (Sabaton boots) — 3-тональний cel-shading
+    Color limbBase   = GetTierPrimaryColor(p.limbsTier, pal.metal[2]);
+    Color limbShadow = ColorTint(limbBase, pal.metal[1]);
+    Color limbHi     = ColorTint(limbBase, pal.metal[4]);
     float runCycle = (std::abs(p.velocity.x) > 15.0f) ? std::sin(p.animTime * 16.0f) * 8.0f * sx : 0.0f;
     float legW = 7.5f * sx;
     float legH = 14.5f * sy;
 
     auto DrawDetailedLeg = [&](float legX, float legY, float cycleOffset) {
         float curX = legX + cycleOffset;
-        // Стегно
-        DrawRectangleRec({ curX - legW * 0.5f, legY, legW, legH * 0.55f }, Fade(limbColor, alpha));
-        // Наколінник (Poleyn)
-        DrawCircle(static_cast<int>(curX), static_cast<int>(legY + legH * 0.5f), 4.2f * sx, Fade(limbHighlight, alpha));
+        // Стегно (cuisse)
+        DrawRectangleRec({ curX - legW * 0.5f, legY, legW * 0.6f, legH * 0.55f }, Fade(limbHi, alpha));
+        DrawRectangleRec({ curX - legW * 0.5f + legW * 0.6f, legY, legW * 0.4f, legH * 0.55f }, Fade(limbShadow, alpha));
+        // Наколінник (Poleyn) з рельєфною окантовкою
+        DrawCircle(static_cast<int>(curX), static_cast<int>(legY + legH * 0.5f), 4.5f * sx, Fade(limbShadow, alpha));
+        DrawCircle(static_cast<int>(curX - dir * 0.8f * sx), static_cast<int>(legY + legH * 0.5f - 0.8f * sy), 3.8f * sx, Fade(limbHi, alpha));
         DrawCircle(static_cast<int>(curX), static_cast<int>(legY + legH * 0.5f), 1.6f * sx, Fade(pal.fireGold[3], alpha)); // золота заклепка
-        // Поножі та сабатон (латний черевик)
-        DrawRectangleRec({ curX - legW * 0.5f, legY + legH * 0.5f, legW, legH * 0.5f }, Fade(limbColor, alpha));
-        DrawRectangleRec({ curX - legW * 0.5f + dir * 1.5f * sx, legY + legH - 3.5f * sy, legW + 3.0f * sx, 3.5f * sy }, Fade(pal.metal[1], alpha));
+        // Поножі (greaves) та сабатон (латний черевик)
+        DrawRectangleRec({ curX - legW * 0.5f, legY + legH * 0.5f, legW * 0.65f, legH * 0.5f }, Fade(limbBase, alpha));
+        DrawRectangleRec({ curX - legW * 0.5f + legW * 0.65f, legY + legH * 0.5f, legW * 0.35f, legH * 0.5f }, Fade(limbShadow, alpha));
+        // Загострений носок сабатона
+        DrawRectangleRec({ curX - legW * 0.5f + dir * 1.5f * sx, legY + legH - 3.5f * sy, legW + 3.0f * sx, 3.5f * sy }, Fade(limbShadow, alpha));
+        DrawLineEx({ curX - legW * 0.5f + dir * 1.5f * sx, legY + legH - 3.5f * sy }, { curX + legW * 0.5f + dir * 3.0f * sx, legY + legH - 3.5f * sy }, 1.2f, Fade(limbHi, alpha));
     };
 
     DrawDetailedLeg(c.x - 4.5f * sx, c.y + 12.5f * sy, runCycle);
     DrawDetailedLeg(c.x + 4.5f * sx, c.y + 12.5f * sy, -runCycle);
 
-    // 3. Тулуб у готичній кірасі з поясом та настегнниками
+    // 3. Тулуб у готичній кірасі з гербом, поясом та наплічниками
     Color defaultTorso = pal.metal[2];
     if (p.classType == ClassType::Mage_Base || p.classType == ClassType::Archmage_Upgraded) {
         defaultTorso = pal.moonMagic[1];
@@ -336,19 +378,43 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
         defaultTorso = pal.wood[2];
     }
 
-    Color chestCol = GetTierPrimaryColor(p.chestTier, defaultTorso);
-    Color trimCol  = GetTierSecondaryColor(p.chestTier, pal.fireGold[3]);
+    Color chestBase   = GetTierPrimaryColor(p.chestTier, defaultTorso);
+    Color chestShadow = ColorTint(chestBase, pal.metal[1]);
+    Color chestHi     = ColorTint(chestBase, pal.metal[4]);
+    Color trimCol     = GetTierSecondaryColor(p.chestTier, pal.fireGold[3]);
 
     Rectangle torsoRec = { c.x - bodyW * 0.5f, c.y - bodyH * 0.42f, bodyW, bodyH };
-    DrawRectangleRounded(torsoRec, 0.22f, 4, Fade(chestCol, alpha));
+    // 3-тональний рельєф кіраси
+    DrawRectangleRounded(torsoRec, 0.22f, 4, Fade(chestShadow, alpha));
+    DrawRectangleRounded({ torsoRec.x, torsoRec.y, torsoRec.width * 0.65f, torsoRec.height }, 0.22f, 4, Fade(chestBase, alpha));
+    DrawRectangleRounded({ torsoRec.x + 2.0f * sx, torsoRec.y + 2.0f * sy, torsoRec.width * 0.35f, torsoRec.height - 4.0f * sy }, 0.22f, 4, Fade(chestHi, alpha));
     DrawRectangleRoundedLines(torsoRec, 0.22f, 4, std::max(1.5f, 2.0f * sx), Fade(trimCol, alpha));
 
-    // Центральне ребро жорсткості кіраси
+    // Центральне ребро жорсткості кіраси (Tapul)
     DrawLineEx(
         { c.x + dir * 2.0f * sx, torsoRec.y + 3.0f * sy },
         { c.x + dir * 2.0f * sx, torsoRec.y + bodyH - 6.0f * sy },
         2.0f * sx, Fade(trimCol, alpha)
     );
+
+    // Герб на нагрудній пластині (Heraldic Coat of Arms)
+    Vector2 crestCenter = { c.x - dir * 2.0f * sx, torsoRec.y + bodyH * 0.38f };
+    if (p.classType == ClassType::Mage_Base || p.classType == ClassType::Archmage_Upgraded) {
+        // Магічний півмісяць
+        DrawCircleV(crestCenter, 3.5f * sx, Fade(pal.moonMagic[3], alpha));
+        DrawCircleV({ crestCenter.x + 1.2f * sx, crestCenter.y }, 2.8f * sx, Fade(chestBase, alpha));
+    } else if (p.classType == ClassType::Shinobi_Base || p.classType == ClassType::Hokage_Upgraded) {
+        // Сюрікен / Ромб ніндзя
+        DrawRectanglePro({ crestCenter.x, crestCenter.y, 4.5f * sx, 4.5f * sy }, { 2.2f * sx, 2.2f * sy }, 45.0f, Fade(pal.bloodCloth[3], alpha));
+    } else if (p.classType == ClassType::Lich_Base || p.classType == ClassType::LichKing_Upgraded) {
+        // Рунічний кристал душі
+        DrawCircleV(crestCenter, 3.2f * sx, Fade(pal.poisonSlime[3], alpha));
+        DrawCircleLines(static_cast<int>(crestCenter.x), static_cast<int>(crestCenter.y), 3.2f * sx, Fade(pal.fireGold[3], alpha));
+    } else {
+        // Лицарський золотий геральдичний хрест
+        DrawLineEx({ crestCenter.x - 3.8f * sx, crestCenter.y }, { crestCenter.x + 3.8f * sx, crestCenter.y }, 1.8f * sy, Fade(pal.fireGold[3], alpha));
+        DrawLineEx({ crestCenter.x, crestCenter.y - 4.5f * sy }, { crestCenter.x, crestCenter.y + 4.5f * sy }, 1.8f * sx, Fade(pal.fireGold[3], alpha));
+    }
 
     // Золотий комір (Горжет)
     DrawRectangleRec({ c.x - 7.0f * sx, torsoRec.y, 14.0f * sx, 4.0f * sy }, Fade(trimCol, alpha));
@@ -357,45 +423,87 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
     float beltY = torsoRec.y + bodyH - 6.0f * sy;
     DrawRectangleRec({ torsoRec.x + 2.0f * sx, beltY, bodyW - 4.0f * sx, 5.0f * sy }, Fade(pal.wood[0], alpha));
     DrawRectangleRec({ c.x + dir * 1.0f * sx - 3.5f * sx, beltY, 7.0f * sx, 5.0f * sy }, Fade(pal.fireGold[3], alpha));
+    DrawRectangleRec({ c.x + dir * 1.0f * sx - 1.5f * sx, beltY + 1.0f * sy, 3.0f * sx, 3.0f * sy }, Fade(pal.metal[1], alpha)); // рамка пряжки
 
-    // Наплічники (Pauldrons)
+    // Наплічники з окантовкою (Pauldrons)
     auto DrawPauldron = [&](Vector2 pPos) {
-        DrawCircle(static_cast<int>(pPos.x), static_cast<int>(pPos.y), 5.5f * sx, Fade(chestCol, alpha));
-        DrawCircleLines(static_cast<int>(pPos.x), static_cast<int>(pPos.y), 5.5f * sx, Fade(trimCol, alpha));
-        DrawCircle(static_cast<int>(pPos.x), static_cast<int>(pPos.y), 2.0f * sx, Fade(trimCol, alpha));
+        DrawCircle(static_cast<int>(pPos.x), static_cast<int>(pPos.y), 5.8f * sx, Fade(chestShadow, alpha));
+        DrawCircle(static_cast<int>(pPos.x - dir * 1.0f * sx), static_cast<int>(pPos.y - 1.0f * sy), 5.0f * sx, Fade(chestHi, alpha));
+        DrawCircleLines(static_cast<int>(pPos.x), static_cast<int>(pPos.y), 5.8f * sx, Fade(trimCol, alpha));
+        DrawCircle(static_cast<int>(pPos.x), static_cast<int>(pPos.y), 1.8f * sx, Fade(trimCol, alpha));
     };
     DrawPauldron({ c.x - dir * 10.0f * sx, torsoRec.y + 3.0f * sy });
     DrawPauldron({ c.x + dir * 9.0f * sx, torsoRec.y + 4.0f * sy });
 
-    // 4. Голова і шолом
-    Color helmCol  = GetTierPrimaryColor(p.helmTier, pal.metal[3]);
-    Color plumeCol = GetTierSecondaryColor(p.helmTier, pal.bloodCloth[3]);
+    // 4. Голова і шолом-бацинет із загостреним забралом (houndskull)
+    Color helmBase   = GetTierPrimaryColor(p.helmTier, pal.metal[3]);
+    Color helmShadow = ColorTint(helmBase, pal.metal[1]);
+    Color helmHi     = ColorTint(helmBase, pal.metal[4]);
+    Color plumeCol   = GetTierSecondaryColor(p.helmTier, pal.bloodCloth[3]);
 
-    // Купол шолома
-    DrawCircleV(headPos, headR, Fade(helmCol, alpha));
-    DrawCircleLines(static_cast<int>(headPos.x), static_cast<int>(headPos.y), headR, Fade(pal.outline, alpha));
-    // Блик світла на куполі шолома
-    DrawCircle(static_cast<int>(headPos.x - dir * 2.5f * sx), static_cast<int>(headPos.y - headR * 0.45f), headR * 0.4f, Fade(pal.metal[4], alpha * 0.35f));
+    if (p.classType == ClassType::Paladin_Upgraded) {
+        plumeCol = pal.fireGold[3];
+    } else if (p.classType == ClassType::Mage_Base || p.classType == ClassType::Archmage_Upgraded) {
+        plumeCol = pal.moonMagic[3];
+    } else if (p.classType == ClassType::Lich_Base || p.classType == ClassType::LichKing_Upgraded) {
+        plumeCol = pal.poisonSlime[3];
+    }
 
-    // Очна щілина шолома (Visor) з вогником очей лицаря
-    Vector2 visorCenter = { headPos.x + dir * headR * 0.40f, headPos.y - headR * 0.05f };
-    Rectangle visorRec = { visorCenter.x - 4.5f * sx, visorCenter.y - 2.5f * sy, 9.0f * sx, 5.0f * sy };
-    DrawRectangleRec(visorRec, Fade(pal.outline, alpha));
-    DrawRectangleLinesEx(visorRec, 1.2f * sx, Fade(pal.metal[2], alpha));
+    // Купол бацинета (конічний купол шолома)
+    DrawCircleV(headPos, headR, Fade(helmShadow, alpha));
+    DrawCircleSector(headPos, headR, 90.0f, 270.0f, 12, Fade(helmBase, alpha));
+    DrawCircle(static_cast<int>(headPos.x - dir * 2.8f * sx), static_cast<int>(headPos.y - headR * 0.45f), headR * 0.42f, Fade(helmHi, alpha * 0.65f));
+
+    // Гребінь шолома: форма залежить від статі (Sir / Lady)
+    if (p.isFemale) {
+        // Lady: витончена крилата корона-гребінь
+        Vector2 crestL = { headPos.x - dir * 5.0f * sx, headPos.y - headR * 1.35f };
+        Vector2 crestR = { headPos.x + dir * 8.0f * sx, headPos.y - headR * 0.95f };
+        DrawTriangle({ headPos.x, headPos.y - headR * 0.6f }, crestL, { headPos.x, headPos.y - headR * 0.95f }, Fade(pal.fireGold[3], alpha));
+        DrawTriangle({ headPos.x, headPos.y - headR * 0.6f }, { headPos.x, headPos.y - headR * 0.95f }, crestR, Fade(pal.fireGold[2], alpha));
+    } else {
+        // Sir: гострий бойовий гребінь бацинета
+        Vector2 spineTop = { headPos.x - dir * 2.0f * sx, headPos.y - headR * 1.35f };
+        DrawTriangle(
+            { headPos.x - dir * 6.0f * sx, headPos.y - headR * 0.75f },
+            spineTop,
+            { headPos.x + dir * 6.0f * sx, headPos.y - headR * 0.75f },
+            Fade(helmHi, alpha)
+        );
+        DrawLineEx({ headPos.x - dir * 2.0f * sx, headPos.y - headR * 0.75f }, spineTop, 1.8f * sx, Fade(pal.metal[1], alpha));
+    }
+
+    // Загострене забрало (Houndskull / Pointed Visor)
+    Vector2 visorApex = { headPos.x + dir * (headR * 1.15f), headPos.y + headR * 0.15f };
+    Vector2 visorTop  = { headPos.x + dir * (headR * 0.25f), headPos.y - headR * 0.35f };
+    Vector2 visorBot  = { headPos.x + dir * (headR * 0.30f), headPos.y + headR * 0.65f };
+    DrawTriangle(visorTop, visorApex, visorBot, Fade(helmBase, alpha));
+    DrawLineEx(visorTop, visorApex, 1.5f * sx, Fade(helmHi, alpha));
+    DrawLineEx(visorBot, visorApex, 1.5f * sx, Fade(helmShadow, alpha));
+
+    // Вузька очна щілина шолома з палаючим вогником
+    Vector2 slitStart = { headPos.x + dir * (headR * 0.35f), headPos.y - headR * 0.05f };
+    Vector2 slitEnd   = { headPos.x + dir * (headR * 0.85f), headPos.y + headR * 0.05f };
+    DrawLineEx(slitStart, slitEnd, 2.4f * sy, Fade(pal.outline, alpha));
 
     // Світло очей крізь забрало
+    Vector2 eyeFirePos = { slitStart.x + (slitEnd.x - slitStart.x) * 0.55f, slitStart.y + (slitEnd.y - slitStart.y) * 0.55f };
     if (p.classType == ClassType::Lich_Base || p.classType == ClassType::LichKing_Upgraded) {
-        DrawCircleV({ visorCenter.x + dir * 1.0f * sx, visorCenter.y }, 2.5f * sx, Fade(pal.poisonSlime[3], alpha));
+        DrawCircleV(eyeFirePos, 2.5f * sx, Fade(pal.poisonSlime[3], alpha));
+        DrawCircleV(eyeFirePos, 1.2f * sx, Fade(pal.metal[4], alpha));
     } else {
-        DrawCircleV({ visorCenter.x + dir * 1.0f * sx, visorCenter.y }, 2.0f * sx, Fade(pal.fireGold[3], alpha));
+        DrawCircleV(eyeFirePos, 2.2f * sx, Fade(pal.fireGold[3], alpha));
+        DrawCircleV(eyeFirePos, 1.0f * sx, Fade(pal.metal[4], alpha));
     }
 
-    // Вентиляційні отвори на підборідді шолома (bevor slits)
+    // Вентиляційні отвори на "носі" забрала
     for (int vs = 0; vs < 3; ++vs) {
-        DrawCircle(static_cast<int>(headPos.x + dir * (3.0f + vs * 2.5f) * sx), static_cast<int>(headPos.y + headR * 0.45f), 1.0f * sx, Fade(pal.outline, alpha * 0.7f));
+        float vt = 0.45f + vs * 0.16f;
+        Vector2 slitHole = { visorBot.x + (visorApex.x - visorBot.x) * vt, visorBot.y + (visorApex.y - visorBot.y) * vt - 2.0f * sy };
+        DrawCircle(static_cast<int>(slitHole.x), static_cast<int>(slitHole.y), 0.9f * sx, Fade(pal.outline, alpha * 0.85f));
     }
 
-    // Класові головні убори та прикраси
+    // Класові головні убори та багатосегментний плюмаж (Spring inertia)
     switch (p.classType) {
         case ClassType::Barbarian_Base:
         case ClassType::BarbarianKing_Upgraded: {
@@ -412,7 +520,6 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
                 { headPos.x + 2.0f * sx, headPos.y - headR * 0.6f },
                 Fade(pal.bone[4], alpha)
             );
-            // Хутряний комір
             DrawRectangleRounded({ torsoRec.x - 2.0f * sx, torsoRec.y, bodyW + 4.0f * sx, 8.0f * sy }, 0.4f, 4, Fade(pal.wood[1], alpha));
             break;
         }
@@ -434,7 +541,6 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
             // Пов'язка ніндзя з металевою пластиною
             DrawRectangleRec({ headPos.x - headR, headPos.y - 4.5f * sy, headR * 2.0f, 6.0f * sy }, Fade(pal.bloodCloth[2], alpha));
             DrawRectangleRec({ headPos.x - 5.0f * sx, headPos.y - 4.5f * sy, 10.0f * sx, 5.0f * sy }, Fade(pal.metal[3], alpha));
-            // Хвости пов'язки, що майорять на вітрі
             float tailWave = std::sin(p.animTime * 14.0f) * 4.0f * sy;
             DrawLineEx(
                 { headPos.x - dir * headR, headPos.y - 3.0f * sy },
@@ -451,7 +557,6 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
             DrawRectangleRec({ lampPos.x - 3.0f * sx, lampPos.y - 3.0f * sy, 6.0f * sx, 6.0f * sy }, Fade(pal.metal[1], alpha));
             DrawCircleV(lampPos, 4.5f * sx, p.headlampOn ? pal.fireGold[4] : pal.metal[2]);
             if (p.headlampOn) {
-                // Конус променя шахтарського ліхтаря
                 DrawCircleV(lampPos, 9.0f * sx, Fade(pal.fireGold[3], 0.40f));
                 Vector2 beam1 = { lampPos.x + dir * 140.0f * sx, lampPos.y - 35.0f * sy };
                 Vector2 beam2 = { lampPos.x + dir * 140.0f * sx, lampPos.y + 45.0f * sy };
@@ -474,14 +579,23 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
             break;
         }
         default: {
-            // Пишний тришаровий плюмаж лицаря
-            for (int pl = 0; pl < 3; ++pl) {
-                float wave = std::sin(p.animTime * 10.0f + pl * 0.8f) * 3.0f * sy;
-                Vector2 pTop = {
-                    headPos.x - dir * (8.0f + pl * 4.5f) * sx,
-                    headPos.y - headR * (1.55f + pl * 0.25f) + wave
-                };
-                DrawLineEx({ headPos.x, headPos.y - headR }, pTop, (5.0f - pl * 1.0f) * sx, Fade(plumeCol, alpha * (1.0f - pl * 0.15f)));
+            // Багатосегментний плюмаж лицаря з інерційним хитанням (Spring inertia)
+            float springLag = (p.velocity.x * -0.0035f);
+            Vector2 plumeRoot = { headPos.x - dir * 1.0f * sx, headPos.y - headR * 0.98f };
+            constexpr int PLUME_SEGS = 4;
+            Vector2 prevPlume = plumeRoot;
+
+            for (int pl = 1; pl <= PLUME_SEGS; ++pl) {
+                float t = static_cast<float>(pl) / PLUME_SEGS;
+                float pWave = std::sin(p.animTime * (10.0f + pl * 1.2f) - pl * 0.7f) * (3.5f + pl * 1.8f) * sy;
+                float px = plumeRoot.x - dir * (t * 22.0f * sx) + springLag * (pl * 4.0f);
+                float py = plumeRoot.y - (1.0f - t) * 6.0f * sy + (t * 8.0f * sy) + pWave - (p.velocity.y * 0.010f * t);
+                Vector2 nextPlume = { px, py };
+                float thick = (5.5f - pl * 0.85f) * ((sx + sy) * 0.5f);
+                Color segCol = (pl % 2 == 0) ? plumeCol : ColorTint(plumeCol, pal.fireGold[3]);
+                DrawLineEx(prevPlume, nextPlume, thick, Fade(segCol, alpha));
+                DrawCircleV(nextPlume, thick * 0.45f, Fade(segCol, alpha));
+                prevPlume = nextPlume;
             }
             break;
         }
@@ -577,6 +691,7 @@ void ProceduralRenderer::DrawHeroPreview(
     }
 
     hp.facingDir = 1.0f;
+    hp.isFemale = heir.isFemale;
     hp.classType = heir.classType;
     hp.swordTier = static_cast<EquipTier>(ctx.equippedTier[static_cast<size_t>(EquipSlot::Sword)]);
     hp.helmTier  = static_cast<EquipTier>(ctx.equippedTier[static_cast<size_t>(EquipSlot::Helm)]);

@@ -188,6 +188,7 @@ void Enemy::Update(
     bool timeStopActive
 ) {
     if (!active) return;
+    playerPosCached = player.GetCenter();
 
     if (hurtFlashTimer > 0.0f) hurtFlashTimer -= dt;
     if (timeStopActive) return;
@@ -484,63 +485,90 @@ void Enemy::Draw() const {
 
     switch (type) {
         case EnemyType::Skeleton: {
-            Color boneCol = isDementiaPhantom ? tierTint : ColorTint(pal.bone[3], tierTint);
+            Color boneCol   = isDementiaPhantom ? tierTint : ColorTint(pal.bone[3], tierTint);
             Color shadowBone = ColorTint(boneCol, pal.bone[1]);
+            Color hiBone     = ColorTint(boneCol, pal.bone[4]);
 
-            // 1. Череп з очницями та зубами
+            // 1. Череп з вилицями, щелепою та очницями
             float skullY = pos.y + 10.0f;
-            DrawCircleV({ c.x, skullY }, 9.5f, Fade(boneCol, alpha));
-            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(skullY), 9.5f, Fade(shadowBone, alpha));
+            // Купол черепа з 3-тональним cel-shading
+            DrawCircleV({ c.x, skullY }, 9.5f, Fade(shadowBone, alpha));
+            DrawCircleSector({ c.x, skullY }, 9.5f, 110.0f, 290.0f, 12, Fade(boneCol, alpha));
+            DrawCircle(static_cast<int>(c.x - 2.5f), static_cast<int>(skullY - 2.5f), 4.2f, Fade(hiBone, alpha));
+
+            // Загострені вилиці (Zygomatic arches)
+            DrawTriangle({ c.x - 6.0f, skullY + 1.0f }, { c.x - 9.5f, skullY + 3.0f }, { c.x - 5.0f, skullY + 5.0f }, Fade(boneCol, alpha));
+            DrawTriangle({ c.x + 6.0f, skullY + 1.0f }, { c.x + 9.5f, skullY + 3.0f }, { c.x + 5.0f, skullY + 5.0f }, Fade(shadowBone, alpha));
 
             // Шолом для тиру 2 або 3
             if (tier >= 2) {
                 DrawCircleSector({ c.x, skullY - 1.0f }, 10.5f, 180.0f, 360.0f, 12, Fade(pal.metal[2], alpha));
                 DrawLineEx({ c.x - 11.0f, skullY - 1.0f }, { c.x + 11.0f, skullY - 1.0f }, 2.5f, Fade(pal.fireGold[3], alpha));
                 if (tier == 3) {
-                    DrawTriangle({ c.x - 2.0f, skullY - 11.0f }, { c.x + 2.0f, skullY - 11.0f }, { c.x, skullY - 17.0f }, Fade(pal.fireGold[3], alpha));
+                    DrawTriangle({ c.x - 3.0f, skullY - 10.0f }, { c.x + 3.0f, skullY - 10.0f }, { c.x, skullY - 18.0f }, Fade(pal.fireGold[3], alpha));
                 }
             }
 
-            // Очниці та носова западина
+            // Очниці та світні зіниці (емісив)
             Vector2 eyeL = { c.x - 3.8f, skullY - 0.5f };
             Vector2 eyeR = { c.x + 3.8f, skullY - 0.5f };
-            DrawCircleV(eyeL, 3.0f, Fade(pal.outline, alpha));
-            DrawCircleV(eyeR, 3.0f, Fade(pal.outline, alpha));
-            // Вогники очей
-            DrawCircleV(eyeL, 1.6f, Fade(pal.bloodCloth[3], alpha));
-            DrawCircleV(eyeR, 1.6f, Fade(pal.bloodCloth[3], alpha));
-            // Носова порожнина
-            DrawTriangle({ c.x, skullY + 2.0f }, { c.x - 1.6f, skullY + 4.5f }, { c.x + 1.6f, skullY + 4.5f }, Fade(pal.outline, alpha));
-            // Щелепа з зубами
-            DrawRectangle(static_cast<int>(c.x - 5.0f), static_cast<int>(skullY + 5.0f), 10, 4, Fade(boneCol, alpha));
-            for (int t = -3; t <= 3; t += 3) {
-                DrawLine(static_cast<int>(c.x + t), static_cast<int>(skullY + 5.0f), static_cast<int>(c.x + t), static_cast<int>(skullY + 8.5f), Fade(pal.outline, alpha * 0.7f));
+            DrawCircleV(eyeL, 3.2f, Fade(pal.outline, alpha));
+            DrawCircleV(eyeR, 3.2f, Fade(pal.outline, alpha));
+            Color eyeGlow = (tier == 3) ? pal.fireGold[3] : (tier == 2 ? pal.moonMagic[3] : pal.bloodCloth[3]);
+            DrawCircleV(eyeL, 1.8f, Fade(eyeGlow, alpha));
+            DrawCircleV(eyeL, 0.8f, Fade(pal.metal[4], alpha));
+            DrawCircleV(eyeR, 1.8f, Fade(eyeGlow, alpha));
+            DrawCircleV(eyeR, 0.8f, Fade(pal.metal[4], alpha));
+
+            // Грушоподібна носова порожнина
+            DrawTriangle({ c.x, skullY + 1.8f }, { c.x - 1.8f, skullY + 4.8f }, { c.x + 1.8f, skullY + 4.8f }, Fade(pal.outline, alpha));
+
+            // Нижня щелепа (Mandible) з окремими зубами
+            DrawRectangle(static_cast<int>(c.x - 5.5f), static_cast<int>(skullY + 5.5f), 11, 4, Fade(boneCol, alpha));
+            for (int t = -4; t <= 4; t += 2) {
+                DrawLine(static_cast<int>(c.x + t), static_cast<int>(skullY + 5.5f), static_cast<int>(c.x + t), static_cast<int>(skullY + 9.5f), Fade(pal.outline, alpha * 0.85f));
             }
 
-            // 2. Хребет та ребра
-            DrawLineEx({ c.x, skullY + 8.0f }, { c.x, pos.y + 36.0f }, 4.0f, Fade(boneCol, alpha));
+            // 2. Хребет і 4 пари ребер із тріщинами
+            DrawLineEx({ c.x, skullY + 8.5f }, { c.x, pos.y + 35.0f }, 4.0f, Fade(boneCol, alpha));
             for (int r = 0; r < 4; ++r) {
-                float ry = pos.y + 20.0f + r * 4.5f;
-                float rSpan = 8.5f - r * 0.8f;
-                DrawLineEx({ c.x - rSpan, ry }, { c.x + rSpan, ry }, 2.5f, Fade(boneCol, alpha));
-                DrawCircle(static_cast<int>(c.x - rSpan), static_cast<int>(ry), 1.2f, Fade(shadowBone, alpha));
-                DrawCircle(static_cast<int>(c.x + rSpan), static_cast<int>(ry), 1.2f, Fade(shadowBone, alpha));
+                float ry = pos.y + 19.0f + r * 4.2f;
+                float rSpan = 8.8f - r * 0.9f;
+                // Ребро з вигином
+                DrawLineEx({ c.x - rSpan, ry }, { c.x + rSpan, ry }, 2.4f, Fade(boneCol, alpha));
+                DrawCircle(static_cast<int>(c.x - rSpan), static_cast<int>(ry), 1.3f, Fade(hiBone, alpha));
+                DrawCircle(static_cast<int>(c.x + rSpan), static_cast<int>(ry), 1.3f, Fade(shadowBone, alpha));
+                // Тріщини на ребрах
+                if (r == 1 || r == 3) {
+                    DrawLine(static_cast<int>(c.x - rSpan * 0.5f), static_cast<int>(ry - 1.0f), static_cast<int>(c.x - rSpan * 0.5f + 1.5f), static_cast<int>(ry + 1.0f), Fade(pal.outline, alpha * 0.75f));
+                }
             }
 
-            // Тазова кістка
-            DrawRectangleRounded({ c.x - 7.0f, pos.y + 34.0f, 14.0f, 5.0f }, 0.4f, 4, Fade(boneCol, alpha));
+            // Тазова кістка (Pelvic girdle)
+            DrawRectangleRounded({ c.x - 7.5f, pos.y + 33.5f, 15.0f, 5.5f }, 0.45f, 4, Fade(boneCol, alpha));
+            DrawCircle(static_cast<int>(c.x - 3.5f), static_cast<int>(pos.y + 36.0f), 1.8f, Fade(pal.outline, alpha));
+            DrawCircle(static_cast<int>(c.x + 3.5f), static_cast<int>(pos.y + 36.0f), 1.8f, Fade(pal.outline, alpha));
 
-            // 3. Рука зі старим мечем
-            Vector2 shoulder = { c.x + facingDir * 6.0f, pos.y + 20.0f };
-            Vector2 hand = { c.x + facingDir * 18.0f, pos.y + 26.0f };
-            DrawLineEx(shoulder, hand, 3.0f, Fade(boneCol, alpha));
-            // Іржавий меч скелета
-            Vector2 bladeTip = { hand.x + facingDir * 22.0f, hand.y - 14.0f };
-            DrawLineEx(hand, bladeTip, 4.5f, Fade(pal.wood[2], alpha));
-            DrawLineEx({ hand.x - facingDir * 4.0f, hand.y + 3.0f }, { hand.x + facingDir * 4.0f, hand.y - 3.0f }, 3.0f, Fade(pal.metal[2], alpha)); // гарда
-            DrawCircleV(bladeTip, 2.0f, Fade(pal.metal[4], alpha));
+            // 3. Рука з іржавим зазубреним клинком
+            Vector2 shoulder = { c.x + facingDir * 6.0f, pos.y + 19.0f };
+            Vector2 hand = { c.x + facingDir * 18.0f, pos.y + 25.0f };
+            DrawLineEx(shoulder, hand, 3.2f, Fade(boneCol, alpha));
 
-            // 4. Ноги, що крокують
+            // Іржавий зазубрений клинок (Rust-eaten serrated blade)
+            Vector2 bladeTip = { hand.x + facingDir * 23.0f, hand.y - 15.0f };
+            Color rustCol = pal.wood[2];
+            DrawLineEx(hand, bladeTip, 4.8f, Fade(rustCol, alpha));
+            DrawLineEx(hand, bladeTip, 2.2f, Fade(pal.metal[1], alpha));
+            // Гарда
+            DrawLineEx({ hand.x - facingDir * 3.5f, hand.y + 3.5f }, { hand.x + facingDir * 3.5f, hand.y - 3.5f }, 3.5f, Fade(pal.metal[2], alpha));
+            // Зазубрини (serrations)
+            for (int sr = 1; sr <= 3; ++sr) {
+                float st = sr * 0.28f;
+                Vector2 sPt = { hand.x + (bladeTip.x - hand.x) * st, hand.y + (bladeTip.y - hand.y) * st };
+                DrawTriangle({ sPt.x, sPt.y }, { sPt.x - facingDir * 2.5f, sPt.y + 2.0f }, { sPt.x + facingDir * 1.5f, sPt.y - 1.5f }, Fade(pal.outline, alpha));
+            }
+
+            // 4. Ноги з суглобами, що крокують
             float step = std::sin(animTimer * 12.0f) * 6.0f;
             DrawLineEx({ c.x - 4.5f, pos.y + 36.0f }, { c.x - 6.0f + step, GetBottom() }, 3.5f, Fade(boneCol, alpha));
             DrawCircle(static_cast<int>(c.x - 6.0f + step), static_cast<int>(GetBottom() - 1.0f), 2.5f, Fade(shadowBone, alpha));
@@ -555,97 +583,137 @@ void Enemy::Draw() const {
             float floatPulse = 1.0f + 0.05f * std::sin(animTimer * 8.0f);
 
             // Тінь ширяння під оком
-            DrawEllipse(static_cast<int>(c.x), static_cast<int>(pos.y + height + 4.0f), 12.0f, 4.0f, Fade(pal.outline, 0.35f * alpha));
+            DrawEllipse(static_cast<int>(c.x), static_cast<int>(pos.y + height + 6.0f), 13.0f, 4.0f, Fade(pal.outline, 0.35f * alpha));
 
-            // М'ясисті війкові шипи навколо ока
-            for (int sp = 0; sp < 6; ++sp) {
-                float sa = sp * (6.2831853f / 6.0f) + animTimer * 2.0f;
-                Vector2 sBase = { c.x + std::cos(sa) * 15.0f, c.y + std::sin(sa) * 15.0f };
-                Vector2 sTip  = { c.x + std::cos(sa) * 21.0f, c.y + std::sin(sa) * 21.0f };
-                DrawLineEx(sBase, sTip, 2.5f, Fade(pal.bloodCloth[1], alpha));
+            // 1. Чотири щупальця (синусоїда із затримкою по сегментах)
+            for (int t = 0; t < 4; ++t) {
+                float tBaseX = c.x - 9.0f + t * 6.0f;
+                float tBaseY = pos.y + height - 6.0f;
+                Vector2 prevNode = { tBaseX, tBaseY };
+                for (int s = 1; s <= 4; ++s) {
+                    float delay = t * 0.95f + s * 0.70f;
+                    float sWave = std::sin(animTimer * 6.5f - delay) * (3.5f + s * 1.6f);
+                    Vector2 nextNode = { tBaseX + sWave, tBaseY + s * 5.5f };
+                    DrawLineEx(prevNode, nextNode, 4.2f - s * 0.65f, Fade(pal.bloodCloth[1], alpha));
+                    prevNode = nextNode;
+                }
+                DrawCircleV(prevNode, 1.8f, Fade(pal.bloodCloth[3], alpha)); // отруйний кінчик
             }
 
-            // Очне яблуко
+            // 2. Темно-червона зубчаста оболонка (м'ясисті війкові шипи навколо ока)
+            constexpr int SPIKES = 8;
+            for (int sp = 0; sp < SPIKES; ++sp) {
+                float sa = sp * (6.2831853f / SPIKES) + animTimer * 1.8f;
+                Vector2 sBase1 = { c.x + std::cos(sa - 0.22f) * 14.5f, c.y + std::sin(sa - 0.22f) * 14.5f };
+                Vector2 sBase2 = { c.x + std::cos(sa + 0.22f) * 14.5f, c.y + std::sin(sa + 0.22f) * 14.5f };
+                Vector2 sTip   = { c.x + std::cos(sa) * 21.5f, c.y + std::sin(sa) * 21.5f };
+                DrawTriangle(sBase1, sTip, sBase2, Fade(pal.bloodCloth[1], alpha));
+                DrawTriangle(sBase1, sBase2, { c.x, c.y }, Fade(pal.bloodCloth[0], alpha));
+            }
+
+            // 3. Очне яблуко з кровоносними судинами
             DrawCircleV(c, 16.5f * floatPulse, Fade(sclera, alpha));
             DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 16.5f * floatPulse, Fade(pal.bloodCloth[0], alpha));
 
-            // Червоні капілярні кровоносні судини
-            for (int v = 0; v < 4; ++v) {
-                float va = v * 1.57f + 0.3f;
+            // Капілярні судини
+            for (int v = 0; v < 5; ++v) {
+                float va = v * 1.25f + 0.35f;
                 Vector2 v1 = { c.x + std::cos(va) * 15.0f, c.y + std::sin(va) * 15.0f };
-                Vector2 v2 = { c.x + std::cos(va) * 9.0f, c.y + std::sin(va) * 9.0f };
-                DrawLineEx(v1, v2, 1.2f, Fade(pal.bloodCloth[2], alpha * 0.75f));
+                Vector2 v2 = { c.x + std::cos(va) * 8.5f, c.y + std::sin(va) * 8.5f };
+                DrawLineEx(v1, v2, 1.3f, Fade(pal.bloodCloth[2], alpha * 0.85f));
             }
 
-            // Райдужка з градієнтним сяйвом
-            DrawCircleV(c, 9.0f, Fade(iris, alpha));
-            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 9.0f, Fade(pal.outline, alpha));
+            // 4. Райдужка-градієнт
+            DrawCircleV(c, 9.5f, Fade(pal.bloodCloth[1], alpha));
+            DrawCircleV(c, 7.8f, Fade(iris, alpha));
+            DrawCircleV(c, 5.0f, Fade(ColorTint(iris, pal.fireGold[3]), alpha));
 
-            // Зіниця (вертикальна хижа щілина)
-            float pupilW = isTelegraphing ? 5.5f : 3.5f;
-            DrawEllipse(static_cast<int>(c.x), static_cast<int>(c.y), pupilW, 7.5f, pal.outline);
-            // Білий блик світла
-            DrawCircleV({ c.x - 3.0f, c.y - 3.5f }, 2.0f, Fade(pal.bone[4], alpha * 0.95f));
+            // 5. Вертикальна зіниця, що ЗАВЖДИ ДИВИТЬСЯ НА ГРАВЦЯ
+            Vector2 toPlayer = { playerPosCached.x - c.x, playerPosCached.y - c.y };
+            float dist = std::hypot(toPlayer.x, toPlayer.y);
+            Vector2 pOffset = { 0.0f, 0.0f };
+            if (dist > 1.0f) {
+                pOffset = { (toPlayer.x / dist) * 4.0f, (toPlayer.y / dist) * 3.5f };
+            }
+            Vector2 pupilPos = { c.x + pOffset.x, c.y + pOffset.y };
+
+            float pupilW = isTelegraphing ? 5.5f : 3.2f;
+            DrawEllipse(static_cast<int>(pupilPos.x), static_cast<int>(pupilPos.y), pupilW, 7.5f, pal.outline);
+            // Блік світла зверху-ліворуч
+            DrawCircleV({ pupilPos.x - 2.2f, pupilPos.y - 2.8f }, 1.8f, Fade(pal.bone[4], alpha * 0.95f));
 
             if (isTelegraphing) {
-                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 22.0f + std::sin(animTimer * 20.0f) * 4.0f, Fade(pal.danger[2], 0.75f));
+                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 22.0f + std::sin(animTimer * 20.0f) * 4.0f, Fade(pal.danger[2], 0.85f));
             }
             break;
         }
 
         case EnemyType::ShieldKnight: {
-            Color armorCol  = ColorTint(pal.metal[3], tierTint);
-            Color armorDark = ColorTint(armorCol, pal.metal[1]);
+            Color armorBase = ColorTint(pal.metal[3], tierTint);
+            Color armorDark = ColorTint(armorBase, pal.metal[1]);
             Color goldTrim  = (tier == 2) ? pal.moonMagic[3] : ((tier == 3) ? pal.fireGold[3] : pal.fireGold[2]);
 
-            // 1. Поножі та сабатони
+            // 1. Розвіваючий плащ лицаря
+            float capeWave = std::sin(animTimer * 10.0f) * 4.5f;
+            DrawTriangle(
+                { c.x - facingDir * 6.0f, pos.y + 14.0f },
+                { c.x - facingDir * 26.0f, GetBottom() - 4.0f + capeWave },
+                { c.x - facingDir * 10.0f, GetBottom() - 4.0f },
+                Fade(pal.bloodCloth[1], alpha)
+            );
+
+            // 2. Поножі та сабатони
             float knightWalk = std::sin(animTimer * 10.0f) * 4.0f;
-            DrawRectangleRec({ pos.x + 8.0f + knightWalk, GetBottom() - 15.0f, 9.0f, 15.0f }, Fade(armorCol, alpha));
-            DrawRectangleRec({ pos.x + 23.0f - knightWalk, GetBottom() - 15.0f, 9.0f, 15.0f }, Fade(armorCol, alpha));
-            // Наколінники
+            DrawRectangleRec({ pos.x + 8.0f + knightWalk, GetBottom() - 15.0f, 9.0f, 15.0f }, Fade(armorBase, alpha));
+            DrawRectangleRec({ pos.x + 23.0f - knightWalk, GetBottom() - 15.0f, 9.0f, 15.0f }, Fade(armorBase, alpha));
             DrawCircle(static_cast<int>(pos.x + 12.5f + knightWalk), static_cast<int>(GetBottom() - 15.0f), 4.5f, Fade(goldTrim, alpha));
             DrawCircle(static_cast<int>(pos.x + 27.5f - knightWalk), static_cast<int>(GetBottom() - 15.0f), 4.5f, Fade(goldTrim, alpha));
 
-            // 2. Важка лицарська кіраса
+            // 3. Важка лицарська кіраса та шиповані наплічники
             Rectangle chestRec = { pos.x + 6.0f, pos.y + 16.0f, width - 12.0f, height - 31.0f };
-            DrawRectangleRounded(chestRec, 0.25f, 4, Fade(armorCol, alpha));
+            DrawRectangleRounded(chestRec, 0.25f, 4, Fade(armorBase, alpha));
             DrawRectangleRoundedLines(chestRec, 0.25f, 4, 2.0f, Fade(goldTrim, alpha));
             DrawLineEx({ c.x, chestRec.y + 2.0f }, { c.x, chestRec.y + chestRec.height - 4.0f }, 2.0f, Fade(goldTrim, alpha));
 
-            // Шиповані наплічники (Pauldrons)
             float pauldX = (facingDir >= 0.0f) ? (pos.x + 8.0f) : (GetRight() - 8.0f);
             DrawCircle(static_cast<int>(pauldX), static_cast<int>(pos.y + 18.0f), 7.0f, Fade(armorDark, alpha));
             DrawCircleLines(static_cast<int>(pauldX), static_cast<int>(pos.y + 18.0f), 7.0f, Fade(goldTrim, alpha));
-            DrawTriangle({ pauldX - 3.0f, pos.y + 13.0f }, { pauldX + 3.0f, pos.y + 13.0f }, { pauldX, pos.y + 6.0f }, Fade(goldTrim, alpha));
 
-            // 3. Великий лицарський шолом (Great Helm)
+            // 4. Рогатий шолом лицаря (Great Horned Helm)
             Vector2 helmC = { c.x, pos.y + 11.0f };
-            DrawCircleV(helmC, 11.0f, Fade(armorCol, alpha));
+            DrawCircleV(helmC, 11.0f, Fade(armorBase, alpha));
             DrawCircleLines(static_cast<int>(helmC.x), static_cast<int>(helmC.y), 11.0f, Fade(pal.outline, alpha));
 
-            // Плюмаж на шоломі лицаря
-            Color plumeColor = (tier == 1) ? pal.bloodCloth[3] : ((tier == 2) ? pal.moonMagic[3] : pal.fireGold[3]);
-            float pWave = std::sin(animTimer * 12.0f) * 3.5f;
-            DrawLineEx({ helmC.x, helmC.y - 10.0f }, { helmC.x - facingDir * 12.0f, helmC.y - 18.0f + pWave }, 4.5f, Fade(plumeColor, alpha));
+            // Величні сталеві роги шолома (головна деталь силуету у F8)
+            DrawTriangle({ helmC.x - 6.0f, helmC.y - 4.0f }, { helmC.x - facingDir * 16.0f, helmC.y - 20.0f }, { helmC.x - 2.0f, helmC.y - 9.0f }, Fade(goldTrim, alpha));
+            DrawTriangle({ helmC.x + 2.0f, helmC.y - 9.0f }, { helmC.x + facingDir * 16.0f, helmC.y - 20.0f }, { helmC.x + 6.0f, helmC.y - 4.0f }, Fade(goldTrim, alpha));
 
             // Хрестоподібне забрало та палаючі очі
             DrawRectangle(static_cast<int>(helmC.x + facingDir * 3.0f - 4.0f), static_cast<int>(helmC.y - 2.5f), 8, 4, pal.outline);
             DrawCircleV({ helmC.x + facingDir * 5.0f, helmC.y - 1.0f }, 2.5f, isTelegraphing ? pal.fireGold[3] : (tier == 2 ? pal.moonMagic[3] : pal.bloodCloth[3]));
 
-            // 4. Величезний баштовий щит (Tower Shield / Pavise)
+            // 5. Величезний баштовий щит (Tower Shield / Pavise) з умбоною і геральдичним хрестом
             Rectangle shRec = GetShieldHitbox();
             DrawRectangleRounded(shRec, 0.18f, 4, Fade(pal.metal[1], alpha));
             DrawRectangleRoundedLines(shRec, 0.18f, 4, 3.0f, Fade(goldTrim, alpha));
-            // Металевий умбон щита та заклепки
-            Vector2 shC = { shRec.x + shRec.width * 0.5f, shRec.y + shRec.height * 0.42f };
-            DrawCircleV(shC, 6.5f, Fade(goldTrim, alpha));
-            DrawCircleV(shC, 3.0f, Fade(pal.metal[4], alpha * 0.8f));
-            DrawCircleV({ shRec.x + 5.0f, shRec.y + 6.0f }, 2.0f, Fade(goldTrim, alpha));
-            DrawCircleV({ shRec.x + shRec.width - 5.0f, shRec.y + 6.0f }, 2.0f, Fade(goldTrim, alpha));
-            DrawCircleV({ shRec.x + 5.0f, shRec.y + shRec.height - 6.0f }, 2.0f, Fade(goldTrim, alpha));
-            DrawCircleV({ shRec.x + shRec.width - 5.0f, shRec.y + shRec.height - 6.0f }, 2.0f, Fade(goldTrim, alpha));
 
-            // 5. Меч лицаря, що визирає з-за щита
+            // Великий геральдичний хрест на щиті
+            Vector2 shC = { shRec.x + shRec.width * 0.5f, shRec.y + shRec.height * 0.45f };
+            DrawLineEx({ shRec.x + 2.0f, shC.y }, { shRec.x + shRec.width - 2.0f, shC.y }, 3.5f, Fade(goldTrim, alpha));
+            DrawLineEx({ shC.x, shRec.y + 4.0f }, { shC.x, shRec.y + shRec.height - 4.0f }, 3.5f, Fade(goldTrim, alpha));
+
+            // Центральна сталева умбона з шипом (Umbo boss)
+            DrawCircleV(shC, 6.8f, Fade(goldTrim, alpha));
+            DrawCircleV(shC, 4.0f, Fade(pal.metal[3], alpha));
+            DrawCircleV(shC, 1.8f, Fade(pal.metal[4], alpha)); // шип умбони
+
+            // Кутові металеві заклепки
+            DrawCircleV({ shRec.x + 4.5f, shRec.y + 5.5f }, 1.8f, Fade(goldTrim, alpha));
+            DrawCircleV({ shRec.x + shRec.width - 4.5f, shRec.y + 5.5f }, 1.8f, Fade(goldTrim, alpha));
+            DrawCircleV({ shRec.x + 4.5f, shRec.y + shRec.height - 5.5f }, 1.8f, Fade(goldTrim, alpha));
+            DrawCircleV({ shRec.x + shRec.width - 4.5f, shRec.y + shRec.height - 5.5f }, 1.8f, Fade(goldTrim, alpha));
+
+            // 6. Меч лицаря, що визирає з-за щита
             Vector2 swHilt = { c.x - facingDir * 8.0f, pos.y + 24.0f };
             Vector2 swTip  = { c.x + facingDir * (isTelegraphing ? 38.0f : 16.0f), pos.y + (isTelegraphing ? 8.0f : 2.0f) };
             DrawLineEx(swHilt, swTip, 5.0f, Fade(pal.metal[4], alpha));
@@ -678,7 +746,7 @@ void Enemy::Draw() const {
             // 2. Глибокий капюшон з пітьмою всередині
             Vector2 hoodC = { c.x, pos.y + 12.0f + hoverWave };
             DrawCircleV(hoodC, 10.0f, Fade(robeCol, alpha));
-            DrawCircleV(hoodC, 7.5f, Fade(pal.outline, alpha)); // темрява всередині
+            DrawCircleV(hoodC, 7.5f, Fade(pal.outline, alpha));
             // Палаючі очі мага
             DrawCircleV({ hoodC.x + facingDir * 3.5f, hoodC.y - 0.5f }, 2.5f, isTelegraphing ? pal.fireGold[3] : pal.bloodCloth[3]);
             DrawCircleV({ hoodC.x + facingDir * 3.5f, hoodC.y - 0.5f }, 1.2f, pal.bone[4]);
@@ -687,13 +755,11 @@ void Enemy::Draw() const {
             Vector2 staffBase = { c.x - facingDir * 12.0f, GetBottom() + hoverWave };
             Vector2 staffTop  = { c.x - facingDir * 12.0f, pos.y - 6.0f + hoverWave };
             DrawLineEx(staffBase, staffTop, 3.5f, Fade(pal.wood[1], alpha));
-            // Вогняне ядро на верхівці посоха
             float orbPulse = 1.0f + 0.25f * std::sin(animTimer * 16.0f);
             DrawCircleV(staffTop, 6.5f * orbPulse, Fade(pal.fireGold[2], alpha * 0.85f));
             DrawCircleV(staffTop, 3.5f * orbPulse, Fade(pal.fireGold[4], alpha));
 
             if (isTelegraphing) {
-                // Аура заряджання закляття навколо мага
                 DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 26.0f + std::sin(animTimer * 25.0f) * 5.0f, Fade(pal.fireGold[3], 0.7f));
                 for (int i = -1; i <= 1; ++i) {
                     Vector2 mark = { lockedAttackTarget.x + i * 52.0f, lockedAttackTarget.y };
@@ -705,77 +771,172 @@ void Enemy::Draw() const {
         }
 
         case EnemyType::Warg: {
-            Color furCol   = ColorTint(pal.wood[2], tierTint);
-            Color darkMane = ColorTint(furCol, pal.wood[0]);
+            // Обов'язково яскравіший за фон мінімум на 25% (фон <= 25%, варг >= 50%)
+            Color furBase = Color{ 175, 125, 75, 255 };  // Тепле рудо-вовче хутро (~55% яскравість)
+            Color furHi   = Color{ 215, 170, 115, 255 }; // Світловий блік зверху (~68%)
+            Color furMane = Color{ 90,  55,  35, 255 };  // Темна загривка
+            Color furBelly= Color{ 220, 195, 155, 255 }; // Світле черевце (~75%)
 
-            // 1. М'язисте хутряне тіло з гребенем шерсті
-            Rectangle bodyRec = { pos.x + 6.0f, pos.y + 10.0f, width - 12.0f, height - 16.0f };
-            DrawRectangleRounded(bodyRec, 0.35f, 4, Fade(furCol, alpha));
-            // Зубчаста загривка (mane)
-            for (int m = 0; m < 4; ++m) {
-                float mx = bodyRec.x + 6.0f + m * 8.0f;
-                DrawTriangle({ mx - 4.0f, bodyRec.y }, { mx + 4.0f, bodyRec.y }, { mx, bodyRec.y - 5.0f }, Fade(darkMane, alpha));
+            if (tier == 2) {
+                furBase = Color{ 150, 170, 205, 255 }; // Крижаний лютововк
+                furHi   = Color{ 205, 225, 255, 255 };
+                furMane = Color{ 55,  65,  95, 255 };
+                furBelly= Color{ 225, 240, 255, 255 };
+            } else if (tier == 3) {
+                furBase = Color{ 215, 115, 65, 255 };  // Демонічний альфа-варг
+                furHi   = Color{ 255, 185, 105, 255 };
+                furMane = Color{ 105, 30,  20, 255 };
+                furBelly= Color{ 255, 220, 160, 255 };
             }
 
-            // 2. Голова лютововка з гострими вухами та іклами
-            float headX = (facingDir >= 0.0f) ? (GetRight() - 6.0f) : (pos.x + 6.0f);
-            Vector2 headC = { headX, pos.y + 12.0f };
-            DrawCircleV(headC, 9.5f, Fade(furCol, alpha));
-            // Вухо
-            DrawTriangle({ headC.x - facingDir * 3.0f, headC.y - 7.0f }, { headC.x + facingDir * 2.0f, headC.y - 7.0f }, { headC.x - facingDir * 2.0f, headC.y - 15.0f }, Fade(darkMane, alpha));
-            // Морда та ікла
-            Vector2 snout = { headC.x + facingDir * 8.0f, headC.y + 3.0f };
-            DrawRectangleRec({ snout.x - 3.0f, snout.y - 2.0f, 6.0f, 5.0f }, Fade(furCol, alpha));
-            DrawTriangle({ snout.x, snout.y + 3.0f }, { snout.x + facingDir * 2.0f, snout.y + 3.0f }, { snout.x + facingDir * 1.0f, snout.y + 7.0f }, Fade(pal.bone[4], alpha)); // біле ікло
-            // Око хижака
-            DrawCircleV({ headC.x + facingDir * 4.0f, headC.y - 1.0f }, 2.8f, pal.bloodCloth[3]);
-            DrawCircleV({ headC.x + facingDir * 4.0f, headC.y - 1.0f }, 1.2f, pal.fireGold[3]);
+            // 1. М'язисте вовче тіло з вираженим хребтом та скуйовдженим загривком
+            Rectangle bodyRec = { pos.x + 6.0f, pos.y + 11.0f, width - 12.0f, height - 18.0f };
+            DrawRectangleRounded(bodyRec, 0.40f, 4, Fade(furBase, alpha));
+            // Світле підчерев'я
+            DrawRectangleRounded({ bodyRec.x + 2.0f, bodyRec.y + bodyRec.height * 0.45f, bodyRec.width - 4.0f, bodyRec.height * 0.55f }, 0.35f, 4, Fade(furBelly, alpha));
+            // Блік на спині зверху-ліворуч
+            DrawLineEx({ bodyRec.x + 3.0f, bodyRec.y + 2.0f }, { bodyRec.x + bodyRec.width - 3.0f, bodyRec.y + 2.0f }, 2.5f, Fade(furHi, alpha));
 
-            // 3. Лапи з пазурами, що біжать
-            float legRun = std::sin(animTimer * 18.0f) * 7.0f;
-            // Передня лапа
-            Vector2 fLeg1 = { headX - facingDir * 4.0f, GetBottom() - 10.0f };
-            Vector2 fLeg2 = { headX + facingDir * legRun, GetBottom() };
-            DrawLineEx(fLeg1, fLeg2, 4.0f, Fade(darkMane, alpha));
-            DrawCircleV(fLeg2, 2.5f, Fade(pal.outline, alpha)); // кіготь
-            // Задня лапа
+            // Скуйовджений загривок (Shaggy jagged mane crest)
+            for (int m = 0; m < 5; ++m) {
+                float mx = bodyRec.x + 4.0f + m * 7.5f;
+                DrawTriangle({ mx - 4.0f, bodyRec.y + 2.0f }, { mx + 4.0f, bodyRec.y + 2.0f }, { mx - facingDir * 1.5f, bodyRec.y - 7.5f }, Fade(furMane, alpha));
+                DrawTriangle({ mx - 2.0f, bodyRec.y + 1.0f }, { mx + 2.0f, bodyRec.y + 1.0f }, { mx - facingDir * 1.5f, bodyRec.y - 6.0f }, Fade(furHi, alpha * 0.5f));
+            }
+
+            // 2. Голова лютововка з гострими вухами та хижими іклами
+            float headX = (facingDir >= 0.0f) ? (GetRight() - 6.0f) : (pos.x + 6.0f);
+            Vector2 headC = { headX, pos.y + 13.0f };
+            DrawCircleV(headC, 10.0f, Fade(furBase, alpha));
+            DrawCircleSector(headC, 10.0f, 180.0f, 360.0f, 12, Fade(furHi, alpha * 0.65f));
+
+            // Гострі трикутні вуха
+            DrawTriangle({ headC.x - facingDir * 4.0f, headC.y - 8.0f }, { headC.x + facingDir * 2.0f, headC.y - 8.0f }, { headC.x - facingDir * 2.5f, headC.y - 17.0f }, Fade(furMane, alpha));
+            DrawTriangle({ headC.x - facingDir * 3.0f, headC.y - 8.0f }, { headC.x + facingDir * 1.0f, headC.y - 8.0f }, { headC.x - facingDir * 2.0f, headC.y - 14.5f }, Fade(furHi, alpha));
+
+            // Довга хижа морда з іклами
+            Vector2 snout = { headC.x + facingDir * 8.5f, headC.y + 3.0f };
+            DrawRectangleRec({ snout.x - 3.5f, snout.y - 2.5f, 7.0f, 6.0f }, Fade(furBase, alpha));
+            DrawRectangleRec({ snout.x + facingDir * 2.0f, snout.y - 2.0f, 3.5f, 2.5f }, Fade(pal.outline, alpha)); // мочка носа
+            // Великі білі ікла (Fangs)
+            DrawTriangle({ snout.x - 1.0f, snout.y + 3.0f }, { snout.x + 2.0f, snout.y + 3.0f }, { snout.x + facingDir * 1.5f, snout.y + 7.5f }, Fade(pal.bone[4], alpha));
+            DrawTriangle({ snout.x - facingDir * 3.0f, snout.y + 3.0f }, { snout.x - facingDir * 1.0f, snout.y + 3.0f }, { snout.x - facingDir * 2.0f, snout.y + 6.0f }, Fade(pal.bone[4], alpha));
+
+            // Палаючі світні очі хижака (емісив)
+            Vector2 eyePos = { headC.x + facingDir * 4.2f, headC.y - 1.0f };
+            DrawCircleV(eyePos, 3.0f, Fade(pal.outline, alpha));
+            Color wargEyeGlow = (tier == 2) ? pal.moonMagic[3] : pal.fireGold[3];
+            DrawCircleV(eyePos, 2.2f, Fade(wargEyeGlow, alpha));
+            DrawCircleV(eyePos, 1.0f, Fade(pal.metal[4], alpha));
+
+            // 3. М'язисті лапи — чотирифазний цикл бігу (4 phases: reach, contact, compression, push-off)
+            float cycle = std::fmod(animTimer * 14.0f, 4.0f);
+            int phase = static_cast<int>(std::floor(cycle));
+            float fPhaseOffset = cycle - phase;
+
+            float fLegAngle = 0.0f;
+            float rLegAngle = 0.0f;
+            switch (phase) {
+                case 0: // Phase 0: Reach (передня лапа витягнута вперед, задня відштовхується)
+                    fLegAngle = 7.0f + fPhaseOffset * 3.0f;
+                    rLegAngle = -6.0f - fPhaseOffset * 2.0f;
+                    break;
+                case 1: // Phase 1: Contact (передня торкається землі, задня підтягується)
+                    fLegAngle = 10.0f - fPhaseOffset * 8.0f;
+                    rLegAngle = -8.0f + fPhaseOffset * 6.0f;
+                    break;
+                case 2: // Phase 2: Compression (усі лапи згруповані під спиною)
+                    fLegAngle = 2.0f - fPhaseOffset * 9.0f;
+                    rLegAngle = -2.0f + fPhaseOffset * 9.0f;
+                    break;
+                default: // Phase 3: Drive (задня лапа робить потужний поштовх)
+                    fLegAngle = -7.0f + fPhaseOffset * 14.0f;
+                    rLegAngle = 7.0f - fPhaseOffset * 13.0f;
+                    break;
+            }
+
+            // Передня м'язиста лапа
+            Vector2 fShoulder = { headX - facingDir * 5.0f, GetBottom() - 11.0f };
+            Vector2 fPaw      = { headX + facingDir * fLegAngle, GetBottom() };
+            DrawLineEx(fShoulder, fPaw, 4.8f, Fade(furBase, alpha));
+            DrawCircleV(fPaw, 2.8f, Fade(furMane, alpha));
+            DrawCircleV({ fPaw.x + facingDir * 1.5f, fPaw.y + 0.5f }, 1.2f, Fade(pal.outline, alpha)); // пазурі
+
+            // Задня м'язиста лапа
             float rearX = (facingDir >= 0.0f) ? (pos.x + 10.0f) : (GetRight() - 10.0f);
-            Vector2 rLeg1 = { rearX, GetBottom() - 10.0f };
-            Vector2 rLeg2 = { rearX - facingDir * legRun, GetBottom() };
-            DrawLineEx(rLeg1, rLeg2, 4.0f, Fade(darkMane, alpha));
-            DrawCircleV(rLeg2, 2.5f, Fade(pal.outline, alpha));
+            Vector2 rHip = { rearX, GetBottom() - 12.0f };
+            Vector2 rPaw = { rearX + facingDir * rLegAngle, GetBottom() };
+            DrawLineEx(rHip, rPaw, 5.2f, Fade(furBase, alpha));
+            DrawCircleV(rPaw, 3.0f, Fade(furMane, alpha));
+            DrawCircleV({ rPaw.x + facingDir * 1.5f, rPaw.y + 0.5f }, 1.2f, Fade(pal.outline, alpha));
 
             // 4. Пухнастий вовчий хвіст
-            float tailX = (facingDir >= 0.0f) ? pos.x : GetRight();
-            float tailWave = std::sin(animTimer * 12.0f) * 4.0f;
-            DrawLineEx({ tailX, pos.y + 14.0f }, { tailX - facingDir * 14.0f, pos.y + 8.0f + tailWave }, 4.5f, Fade(furCol, alpha));
+            float tailBaseX = (facingDir >= 0.0f) ? pos.x : GetRight();
+            float tailWave = std::sin(animTimer * 12.0f) * 4.5f;
+            Vector2 t1 = { tailBaseX, pos.y + 13.0f };
+            Vector2 t2 = { tailBaseX - facingDir * 9.0f, pos.y + 8.0f + tailWave * 0.5f };
+            Vector2 t3 = { tailBaseX - facingDir * 17.0f, pos.y + 5.0f + tailWave };
+            DrawLineEx(t1, t2, 5.0f, Fade(furBase, alpha));
+            DrawLineEx(t2, t3, 4.0f, Fade(furHi, alpha));
+            DrawCircleV(t3, 2.5f, Fade(furMane, alpha));
             break;
         }
 
         case EnemyType::WallTurret: {
-            Color stoneCol = isTelegraphing ? pal.fireGold[2] : ColorTint(pal.stoneTile[3], tierTint);
+            // Готична горгулья з рогами й іклами (Gothic Stone Gargoyle)
             Rectangle b = GetBounds();
+            Color stoneBase   = ColorTint(pal.stoneTile[3], tierTint);
+            Color stoneShadow = ColorTint(pal.stoneTile[1], tierTint);
+            Color stoneHi     = ColorTint(pal.stoneTile[4], tierTint);
 
-            // Кам'яна основа з кладкою
-            DrawRectangleRec(b, stoneCol);
-            DrawRectangleLinesEx(b, 2.5f, pal.stoneTile[1]);
-            DrawLineEx({ b.x, b.y + b.height * 0.5f }, { b.x + b.width, b.y + b.height * 0.5f }, 1.5f, pal.stoneTile[1]);
+            // 1. Різьблений кам'яний кронштейн (Corbel bracket)
+            DrawRectangleRec({ b.x, b.y + b.height - 10.0f, b.width, 10.0f }, stoneShadow);
+            DrawLineEx({ b.x, b.y + b.height - 10.0f }, { b.x + b.width, b.y + b.height - 10.0f }, 2.0f, stoneHi);
+            // Кам'яні кігті горгульї, що стискають карниз
+            for (int cl = 0; cl < 3; ++cl) {
+                float clx = b.x + 6.0f + cl * 8.0f;
+                DrawRectangle(static_cast<int>(clx), static_cast<int>(b.y + b.height - 12.0f), 3, 5, stoneHi);
+            }
 
-            // Металеві заклепки по кутах
-            DrawCircle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + 4.0f), 2.0f, pal.fireGold[3]);
-            DrawCircle(static_cast<int>(b.x + b.width - 4.0f), static_cast<int>(b.y + 4.0f), 2.0f, pal.fireGold[3]);
-            DrawCircle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + b.height - 4.0f), 2.0f, pal.fireGold[3]);
-            DrawCircle(static_cast<int>(b.x + b.width - 4.0f), static_cast<int>(b.y + b.height - 4.0f), 2.0f, pal.fireGold[3]);
+            // 2. Згорблене кам'яне тіло горгульї зі складеними крилами
+            Vector2 bodyC = { c.x - facingDir * 3.0f, c.y + 2.0f };
+            DrawCircleV(bodyC, 13.0f, stoneBase);
+            DrawCircleSector(bodyC, 13.0f, 135.0f, 315.0f, 10, stoneHi);
+            // Складені крила кажана за спиною
+            Vector2 wingBase = { bodyC.x - facingDir * 7.0f, bodyC.y - 2.0f };
+            Vector2 wingTip  = { bodyC.x - facingDir * 15.0f, b.y + 2.0f };
+            DrawTriangle(wingBase, wingTip, { wingBase.x, bodyC.y + 8.0f }, stoneShadow);
+            DrawLineEx(wingBase, wingTip, 2.2f, stoneHi);
 
-            // Сопло гармати / паща горгульї
-            Vector2 cannonC = { c.x + facingDir * 8.0f, c.y };
-            DrawCircleV(cannonC, 10.0f, pal.metal[1]);
-            DrawCircleLines(static_cast<int>(cannonC.x), static_cast<int>(cannonC.y), 10.0f, pal.outline);
+            // 3. Голова горгульї з рогами та вухами
+            Vector2 headC = { c.x + facingDir * 5.0f, c.y - 5.0f };
+            DrawCircleV(headC, 9.5f, stoneBase);
+            DrawCircleLines(static_cast<int>(headC.x), static_cast<int>(headC.y), 9.5f, pal.outline);
 
-            // Палаюче жерло гармати перед пострілом
-            float charge = isTelegraphing ? (0.7f + 0.3f * std::sin(animTimer * 25.0f)) : 0.2f;
-            DrawCircleV(cannonC, 6.0f, Fade(isTelegraphing ? pal.danger[2] : pal.bloodCloth[3], charge * 0.9f));
-            DrawCircleV(cannonC, 3.0f, Fade(pal.fireGold[3], charge));
+            // Закручені кам'яні демонічні роги
+            DrawTriangle({ headC.x - 3.0f, headC.y - 6.0f }, { headC.x - facingDir * 12.0f, headC.y - 18.0f }, { headC.x + 3.0f, headC.y - 7.0f }, stoneShadow);
+            DrawLineEx({ headC.x, headC.y - 6.0f }, { headC.x - facingDir * 12.0f, headC.y - 18.0f }, 2.0f, stoneHi);
+
+            // 4. Паща горгульї (телеграф: паща розжарюється перед пострілом)
+            Vector2 mawC = { headC.x + facingDir * 7.0f, headC.y + 3.0f };
+            float charge = isTelegraphing ? (0.75f + 0.25f * std::sin(animTimer * 28.0f)) : 0.08f;
+
+            // Зяюча паща
+            DrawCircleV(mawC, 8.0f, pal.outline);
+            // Гострі кам'яні ікла (Fangs)
+            DrawTriangle({ mawC.x - 2.0f, mawC.y - 7.0f }, { mawC.x + 2.0f, mawC.y - 7.0f }, { mawC.x, mawC.y - 2.0f }, stoneHi);
+            DrawTriangle({ mawC.x - 2.0f, mawC.y + 7.0f }, { mawC.x + 2.0f, mawC.y + 7.0f }, { mawC.x, mawC.y + 2.0f }, stoneHi);
+
+            // Розпечена лава всередині пащі (Maw glow)
+            Color lavaCore = isTelegraphing ? pal.fireGold[4] : pal.bloodCloth[2];
+            Color lavaGlow = isTelegraphing ? pal.danger[2] : pal.bloodCloth[1];
+            DrawCircleV(mawC, 6.0f * (0.8f + charge * 0.4f), Fade(lavaGlow, charge));
+            DrawCircleV(mawC, 3.2f * (0.8f + charge * 0.4f), Fade(lavaCore, charge));
+
+            // Палаючі червоні очі горгульї
+            Vector2 gEye = { headC.x + facingDir * 2.5f, headC.y - 2.5f };
+            DrawCircleV(gEye, 2.2f, isTelegraphing ? pal.fireGold[3] : pal.bloodCloth[3]);
+            DrawCircleV(gEye, 1.0f, pal.metal[4]);
             break;
         }
 

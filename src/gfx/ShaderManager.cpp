@@ -216,8 +216,39 @@ void main() {
         finalColor = c * fragColor;
         return;
     }
-    // Phase 1 pass-through
-    finalColor = c * fragColor;
+
+    if (c.a < 0.1) {
+        // Прозорий піксель: оцінюємо 8 сусідів на 1 внутрішній піксель
+        float aN  = texture(texture0, fragTexCoord + vec2( 0.0,          -u_texelSize.y)).a;
+        float aS  = texture(texture0, fragTexCoord + vec2( 0.0,           u_texelSize.y)).a;
+        float aW  = texture(texture0, fragTexCoord + vec2(-u_texelSize.x, 0.0)).a;
+        float aE  = texture(texture0, fragTexCoord + vec2( u_texelSize.x, 0.0)).a;
+        float aNW = texture(texture0, fragTexCoord + vec2(-u_texelSize.x, -u_texelSize.y)).a;
+        float aNE = texture(texture0, fragTexCoord + vec2( u_texelSize.x, -u_texelSize.y)).a;
+        float aSW = texture(texture0, fragTexCoord + vec2(-u_texelSize.x,  u_texelSize.y)).a;
+        float aSE = texture(texture0, fragTexCoord + vec2( u_texelSize.x,  u_texelSize.y)).a;
+
+        float maxA = max(max(max(aN, aS), max(aW, aE)), max(max(aNW, aNE), max(aSW, aSE)));
+        if (maxA >= 0.1) {
+            // Темний готичний контур #0C0A12
+            finalColor = vec4(0.04706, 0.03922, 0.07059, 1.0) * fragColor;
+            return;
+        }
+        finalColor = vec4(0.0);
+    } else {
+        // Непрозорий піксель: перевіряємо, чи є прозорий сусід зверху-ліворуч (NW)
+        float aNW = texture(texture0, fragTexCoord + vec2(-u_texelSize.x, -u_texelSize.y)).a;
+        float aN  = texture(texture0, fragTexCoord + vec2( 0.0,          -u_texelSize.y)).a;
+        float aW  = texture(texture0, fragTexCoord + vec2(-u_texelSize.x, 0.0)).a;
+
+        if (aNW < 0.1 || aN < 0.1 || aW < 0.1) {
+            // Rim light: +20% яскравості
+            vec3 rim = min(c.rgb * 1.20 + vec3(0.04, 0.04, 0.06), vec3(1.0));
+            finalColor = vec4(rim, c.a) * fragColor;
+        } else {
+            finalColor = c * fragColor;
+        }
+    }
 }
 )";
 
@@ -230,9 +261,9 @@ uniform sampler2D texture0;
 
 void main() {
     vec4 c = texture(texture0, fragTexCoord);
-    if (c.a > 0.05) {
-        // Темний силует #0C0A12
-        finalColor = vec4(0.047, 0.039, 0.071, c.a) * fragColor;
+    if (c.a > 0.08) {
+        // Плоский чорний силует #0C0A12
+        finalColor = vec4(0.04706, 0.03922, 0.07059, 1.0) * fragColor;
     } else {
         finalColor = vec4(0.0);
     }
@@ -327,10 +358,11 @@ void main() {
     vec4 c = texture(texture0, uv) * fragColor;
 
     if (u_isSilhouette == 1) {
-        if (c.a > 0.05) {
-            finalColor = vec4(0.047, 0.039, 0.071, c.a);
+        vec3 silCol = vec3(0.04706, 0.03922, 0.07059);
+        if (distance(c.rgb, silCol) < 0.045) {
+            finalColor = vec4(silCol, 1.0);
         } else {
-            finalColor = vec4(0.0);
+            finalColor = vec4(0.51, 0.53, 0.60, 1.0);
         }
         return;
     }

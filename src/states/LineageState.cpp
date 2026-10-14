@@ -117,7 +117,7 @@ void LineageState::Draw(GameContext& ctx) {
         DrawEllipseLines(static_cast<int>(heroPos.x), static_cast<int>(pedestalY), 48.0f, 11.0f, borderCol);
 
         if (ctx.renderer) {
-            ctx.renderer->DrawHeroPreview(heroPos, 1.35f, h, ctx, isSelected ? animTimer_ : 0.4f);
+            ctx.renderer->DrawHeroPreview(heroPos, 1.85f, h, ctx, isSelected ? animTimer_ : 0.4f);
         }
 
         // 3. Four Compact Graphical Stat Badges

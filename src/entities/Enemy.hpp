@@ -29,6 +29,7 @@ public:
     float sinePhase = 0.0f;
     bool isTelegraphing = false;
     Vector2 lockedAttackTarget{ 0.0f, 0.0f };
+    Vector2 playerPosCached{ 0.0f, 0.0f };
 
 public:
     Enemy() = default;

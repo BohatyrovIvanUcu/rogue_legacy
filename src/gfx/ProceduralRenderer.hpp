@@ -27,6 +27,11 @@ struct HeroRenderParams {
     bool headlampOn = false;
     bool isInvulnerable = false;
     float animTime = 0.0f;
+
+    // Phase 6 genetics & traits
+    bool isFemale = false;
+    bool isEctomorph = false;
+    bool isEndomorph = false;
 };
 
 class ProceduralRenderer {
