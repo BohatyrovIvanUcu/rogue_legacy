@@ -8,6 +8,7 @@
 #include "audio/SoundSynth.hpp"
 #include "gfx/ParticleSystem.hpp"
 #include "gfx/ProceduralRenderer.hpp"
+#include "gfx/ShaderManager.hpp"
 #include "gfx/Palette.hpp"
 #include "gfx/UiText.hpp"
 #include <cmath>
@@ -604,7 +605,8 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
             // Перевірка щита ShieldKnight (Pogo Down-Strike пробиває щит зверху!)
             if (en.IsBlockedByShield(player.GetCenter(), player.isDownStriking)) {
                 if (ctx.audio)     ctx.audio->PlaySfx(SfxId::HitShield);
-                if (ctx.particles) ctx.particles->SpawnSparks(en.GetCenter(), SKYBLUE, 10);
+                if (ctx.particles) ctx.particles->SpawnSparks(en.GetCenter(), SKYBLUE, 14);
+                ctx.AddTrauma(0.18f);
                 if (player.isDownStriking) player.TriggerPogoBounce(ctx);
                 continue;
             }
@@ -614,12 +616,19 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
             float kbDir = (en.GetCenter().x >= player.GetCenter().x) ? 1.0f : -1.0f;
             Vector2 kbVel = { kbDir * 210.0f, -150.0f };
 
+            // Phase 7: Hit-stop (3 кадри) та trauma screen shake (0.25 normal, 0.40 crit)
+            ctx.RequestHitStop(3);
+            ctx.AddTrauma(isCrit ? 0.40f : 0.25f);
+
             bool killed = en.TakeDamage(dmg, kbVel, isCrit, ctx);
             player.OnMeleeDamageDealt(dmg, ctx);
             if (player.isDownStriking) {
                 player.TriggerPogoBounce(ctx);
             }
             if (killed) {
+                if (en.type == EnemyType::Skeleton && ctx.particles) {
+                    ctx.particles->SpawnBones(en.GetCenter(), 14);
+                }
                 player.OnEnemyKilled(ctx, en.type);
                 if (!en.isDementiaPhantom) {
                     Interactable::SpawnLootBurst(combatDrops, en.GetCenter(), en.goldReward, true);
@@ -633,6 +642,10 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
             int dmg = player.RollMeleeDamage(player.isDownStriking, isCrit);
             Vector2 hitPos{};
             if (activeBoss.CheckAndApplyPlayerAttack(swordBox, dmg, isCrit, 0, player.currentSwingHitIds, ctx, projectiles, hitPos)) {
+                // Phase 7: Hit-stop (3 кадри) та trauma screen shake при ударі по босу
+                ctx.RequestHitStop(3);
+                ctx.AddTrauma(isCrit ? 0.40f : 0.25f);
+
                 player.OnMeleeDamageDealt(dmg, ctx);
                 if (player.isDownStriking) {
                     player.TriggerPogoBounce(ctx);
@@ -672,6 +685,7 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
                             ctx.particles->SpawnSparks(tCenter, GOLD, 8);
                             ctx.particles->SpawnFloatingText({ tCenter.x, tr.y - 6.0f }, "SECRET WALL BROKEN!", GOLD, 20, true);
                         }
+                        ctx.AddTrauma(0.60f); // Screen shake trauma: 0.60 on explosion/wall break
                     }
                 }
             }
@@ -875,12 +889,30 @@ void Room::DrawProps(const GameContext& ctx, [[maybe_unused]] const Player& play
 
 void Room::DrawEntities(const GameContext& ctx, const Player& player) const {
     for (const auto& en : enemies) {
-        en.Draw();
+        if (en.hurtFlashTimer > 0.0f && ctx.shaders) {
+            ctx.shaders->BeginWhiteFlash();
+            en.Draw();
+            ctx.shaders->EndWhiteFlash();
+        } else {
+            en.Draw();
+        }
     }
     if (hasActiveBoss && activeBoss.active) {
-        activeBoss.Draw();
+        if (activeBoss.hurtFlashTimer > 0.0f && ctx.shaders) {
+            ctx.shaders->BeginWhiteFlash();
+            activeBoss.Draw();
+            ctx.shaders->EndWhiteFlash();
+        } else {
+            activeBoss.Draw();
+        }
     }
-    player.Draw(ctx);
+    if (player.hurtFlashTimer > 0.0f && ctx.shaders) {
+        ctx.shaders->BeginWhiteFlash();
+        player.Draw(ctx);
+        ctx.shaders->EndWhiteFlash();
+    } else {
+        player.Draw(ctx);
+    }
     for (const auto& proj : projectiles) {
         proj.Draw();
     }

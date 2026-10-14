@@ -44,6 +44,10 @@ public:
     void BeginEntityPass(const Camera2D& worldCam);
     void EndEntityPass();
 
+    // Hit flash pass (pure white silhouette for 80ms)
+    void BeginWhiteFlash();
+    void EndWhiteFlash();
+
     // Pass 3: Composite entities onto sceneRT_ (with optional outline or silhouette shader)
     void CompositeEntitiesToScene();
 
@@ -118,6 +122,7 @@ private:
     Shader shBloomExtract_{};
     Shader shBloomBlur_{};
     Shader shGrading_{};
+    Shader whiteFlashShader_{};
     Shader shColorblind_{};
     Shader shNostalgic_{};
     Shader shMyopia_{};

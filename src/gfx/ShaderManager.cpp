@@ -270,6 +270,24 @@ void main() {
 }
 )";
 
+    const char* FS_WHITE_FLASH = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+
+void main() {
+    vec4 c = texture(texture0, fragTexCoord);
+    float a = c.a * fragColor.a;
+    if (a > 0.05) {
+        finalColor = vec4(1.0, 1.0, 1.0, a);
+    } else {
+        finalColor = vec4(0.0);
+    }
+}
+)";
+
     const char* FS_GRAYSCALE = 
 R"(#version 330
 in vec2 fragTexCoord;
@@ -468,6 +486,7 @@ void ShaderManager::Init() {
     shBloomExtract_   = LoadShaderFromMemory(nullptr, FS_BLOOM_EXTRACT);
     shBloomBlur_      = LoadShaderFromMemory(nullptr, FS_BLOOM_BLUR);
     shGrading_        = LoadShaderFromMemory(nullptr, FS_FINAL_GRADING);
+    whiteFlashShader_ = LoadShaderFromMemory(nullptr, FS_WHITE_FLASH);
 
     shColorblind_ = LoadShaderFromMemory(nullptr, FS_COLORBLIND);
     shNostalgic_  = LoadShaderFromMemory(nullptr, FS_NOSTALGIC);
@@ -529,6 +548,7 @@ void ShaderManager::Shutdown() {
     UnloadShader(shBloomExtract_);
     UnloadShader(shBloomBlur_);
     UnloadShader(shGrading_);
+    UnloadShader(whiteFlashShader_);
     UnloadShader(shColorblind_);
     UnloadShader(shNostalgic_);
     UnloadShader(shMyopia_);
@@ -628,6 +648,18 @@ void ShaderManager::BeginEntityPass(const Camera2D& worldCam) {
 void ShaderManager::EndEntityPass() {
     EndMode2D();
     EndTextureMode();
+}
+
+void ShaderManager::BeginWhiteFlash() {
+    if (whiteFlashShader_.id != 0) {
+        BeginShaderMode(whiteFlashShader_);
+    }
+}
+
+void ShaderManager::EndWhiteFlash() {
+    if (whiteFlashShader_.id != 0) {
+        EndShaderMode();
+    }
 }
 
 void ShaderManager::CompositeEntitiesToScene() {

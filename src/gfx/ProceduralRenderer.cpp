@@ -627,31 +627,33 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
             handPos.y + std::sin(rad) * bladeLen
         };
 
-        // Дуговий шлейф удару меча (Slash Arc Fan)
+        // Дуговий шлейф удару меча (Slash Arc Fan): 8 трикутних сегментів у BLEND_ADDITIVE
         float baseAngle = -85.0f;
-        int arcSegments = 7;
+        int arcSegments = 8;
         float stepA = (swingAngleDeg - baseAngle) / arcSegments;
-        if (stepA > 1.0f) {
+        if (stepA > 0.5f) {
+            BeginBlendMode(BLEND_ADDITIVE);
             for (int i = 0; i < arcSegments; ++i) {
                 float a1 = (baseAngle + i * stepA) * (3.14159265f / 180.0f);
                 float a2 = (baseAngle + (i + 1) * stepA) * (3.14159265f / 180.0f);
-                float tFrac = static_cast<float>(i) / arcSegments;
-                float arcAlpha = tFrac * 0.38f;
+                float tFrac = static_cast<float>(i + 1) / static_cast<float>(arcSegments);
+                float arcAlpha = std::pow(tFrac, 1.4f) * 0.75f;
 
-                Vector2 inner1 = { handPos.x + dir * std::cos(a1) * (bladeLen * 0.45f), handPos.y + std::sin(a1) * (bladeLen * 0.45f) };
-                Vector2 inner2 = { handPos.x + dir * std::cos(a2) * (bladeLen * 0.45f), handPos.y + std::sin(a2) * (bladeLen * 0.45f) };
-                Vector2 outer1 = { handPos.x + dir * std::cos(a1) * (bladeLen * 1.06f), handPos.y + std::sin(a1) * (bladeLen * 1.06f) };
-                Vector2 outer2 = { handPos.x + dir * std::cos(a2) * (bladeLen * 1.06f), handPos.y + std::sin(a2) * (bladeLen * 1.06f) };
+                Vector2 inner1 = { handPos.x + dir * std::cos(a1) * (bladeLen * 0.40f), handPos.y + std::sin(a1) * (bladeLen * 0.40f) };
+                Vector2 inner2 = { handPos.x + dir * std::cos(a2) * (bladeLen * 0.40f), handPos.y + std::sin(a2) * (bladeLen * 0.40f) };
+                Vector2 outer1 = { handPos.x + dir * std::cos(a1) * (bladeLen * 1.10f), handPos.y + std::sin(a1) * (bladeLen * 1.10f) };
+                Vector2 outer2 = { handPos.x + dir * std::cos(a2) * (bladeLen * 1.10f), handPos.y + std::sin(a2) * (bladeLen * 1.10f) };
 
                 Color arcColor = bladeCol;
-                if (p.swordTier == EquipTier::Imperial) arcColor = pal.fireGold[2];
-                else if (p.swordTier == EquipTier::Royal) arcColor = pal.fireGold[3];
+                if (p.swordTier == EquipTier::Imperial) arcColor = pal.fireGold[3];
+                else if (p.swordTier == EquipTier::Royal) arcColor = pal.moonMagic[3];
                 else if (p.swordTier == EquipTier::Dark) arcColor = pal.bloodCloth[3];
 
-                DrawTriangle(inner1, outer1, outer2, Fade(arcColor, arcAlpha));
-                DrawTriangle(inner1, outer2, inner2, Fade(arcColor, arcAlpha));
-                DrawLineEx(outer1, outer2, 2.2f * sx, Fade(pal.metal[4], arcAlpha * 2.2f));
+                DrawTriangle(inner1, outer1, outer2, Fade(arcColor, arcAlpha * 0.65f));
+                DrawTriangle(inner1, outer2, inner2, Fade(arcColor, arcAlpha * 0.65f));
+                DrawLineEx(outer1, outer2, 2.5f * sx, Fade(pal.metal[4], arcAlpha));
             }
+            EndBlendMode();
         }
 
         DrawDetailedSword(handPos, tipPos, p.swordTier, sx, sy, alpha, true, p.attackProgress, false, p.animTime);
@@ -736,6 +738,38 @@ void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int ro
         } else {
             DrawCircle(wx, wy, 28.0f, Fade(pal.bloodCloth[2], 0.12f));
         }
+    }
+
+    // Готичні геральдичні гобелени / штандарти з ніжним колиханням (Tapestry sway)
+    float timeSec = static_cast<float>(GetTime());
+    for (int i = 0; i < 2; ++i) {
+        int tx = 450 + i * 380;
+        int ty = 230 + ((seed + i * 3) % 2) * 50;
+        float sway = std::sin(timeSec * 2.2f + i * 1.57f) * 2.5f;
+
+        // Кована планка / карниз гобелена
+        DrawLineEx({ tx - 28.0f, static_cast<float>(ty) }, { tx + 28.0f, static_cast<float>(ty) }, 3.5f, pal.fireGold[3]);
+        DrawCircle(tx - 28, ty, 3.0f, pal.fireGold[4]);
+        DrawCircle(tx + 28, ty, 3.0f, pal.fireGold[4]);
+
+        // Полотно гобелена з плавним зсувом низу від протягу в замку
+        Color tapColor = (biome == BiomeType::CastleHamson || biome == BiomeType::TheMaya) ? pal.bloodCloth[1] : 
+                         (biome == BiomeType::ForestAbkhazia ? pal.poisonSlime[1] : pal.dungeon.stoneTile[1]);
+        Color tapTrim  = pal.fireGold[2];
+
+        Vector2 topL = { tx - 22.0f, static_cast<float>(ty + 2) };
+        Vector2 topR = { tx + 22.0f, static_cast<float>(ty + 2) };
+        Vector2 botL = { tx - 22.0f + sway, static_cast<float>(ty + 95) };
+        Vector2 botR = { tx + 22.0f + sway, static_cast<float>(ty + 95) };
+        Vector2 tipM = { tx + sway * 1.2f, static_cast<float>(ty + 115) }; // V-подібний нижній кут
+
+        DrawTriangle(topL, botL, topR, Fade(tapColor, 0.40f));
+        DrawTriangle(topR, botL, botR, Fade(tapColor, 0.40f));
+        DrawTriangle(botL, tipM, botR, Fade(tapColor, 0.40f));
+
+        // Геральдичний золотий хрест / емблема
+        DrawLineEx({ tx - 10.0f + sway * 0.4f, static_cast<float>(ty + 40) }, { tx + 10.0f + sway * 0.4f, static_cast<float>(ty + 40) }, 2.0f, Fade(tapTrim, 0.45f));
+        DrawLineEx({ tx + sway * 0.4f, static_cast<float>(ty + 25) }, { tx + sway * 0.4f, static_cast<float>(ty + 65) }, 2.0f, Fade(tapTrim, 0.45f));
     }
 }
 

@@ -221,7 +221,7 @@ void Interactable::Update(
                     ctx.runGoldCollected += gained;
                     if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup);
                     if (ctx.particles) {
-                        ctx.particles->SpawnSparks(myCenter, GOLD, 6);
+                        ctx.particles->SpawnGoldSparkles(myCenter, 8);
                         ctx.particles->SpawnFloatingText(myCenter, "+" + std::to_string(gained) + "G", GOLD, 18, false);
                     }
                 } else if (kind == InteractableKind::MeatDrop) {

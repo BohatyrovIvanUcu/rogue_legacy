@@ -557,7 +557,7 @@ bool Boss::CheckAndApplyPlayerAttack(
                 anyHit = true;
                 outHitCenter = it->pos;
                 it->hp -= std::max(1, damage);
-                it->hurtFlashTimer = 0.14f;
+                it->hurtFlashTimer = 0.08f; // Phase 7: 80 ms pure white hit flash
 
                 if (ctx.particles) {
                     ctx.particles->SpawnSparks(it->pos, LIME, 10);
@@ -612,7 +612,7 @@ bool Boss::CheckAndApplyPlayerAttack(
     hitRegistry.push_back(id);
     outHitCenter = GetCenter();
     hp -= std::max(1, damage);
-    hurtFlashTimer = 0.14f;
+    hurtFlashTimer = 0.08f; // Phase 7: 80 ms pure white hit flash
 
     if (ctx.particles) {
         ctx.particles->SpawnBlood(outHitCenter, 12);

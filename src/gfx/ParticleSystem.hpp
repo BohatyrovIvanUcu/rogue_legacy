@@ -1,6 +1,6 @@
 #pragma once
 #include <raylib.h>
-#include <vector>
+#include <array>
 #include <string>
 
 struct Particle {
@@ -8,13 +8,14 @@ struct Particle {
     Vector2 vel{};
     Color color = WHITE;
     float size = 4.0f;
-    float life = 0.5f;
+    float life = 0.0f;
     float maxLife = 0.5f;
     float gravityScale = 1.0f;
     float rotation = 0.0f;
     float rotSpeed = 0.0f;
     bool isCircle = false;
     bool fadeOut = true;
+    bool active = false;
 };
 
 struct FloatingText {
@@ -23,21 +24,27 @@ struct FloatingText {
     std::string text;
     Color color = WHITE;
     int fontSize = 20;
-    float life = 0.85f;
+    float life = 0.0f;
     float maxLife = 0.85f;
     bool isCrit = false;
+    bool active = false;
 };
 
 struct DecoyLog {
     Vector2 pos{};
     Vector2 vel{};
     float rotation = 0.0f;
-    float life = 1.25f;
+    float life = 0.0f;
+    bool active = false;
 };
 
 class ParticleSystem {
 public:
-    ParticleSystem() = default;
+    static constexpr size_t POOL_SIZE = 512;
+    static constexpr size_t TEXT_POOL_SIZE = 64;
+    static constexpr size_t LOG_POOL_SIZE = 16;
+
+    ParticleSystem();
 
     void Clear();
     void Update(float dt);
@@ -53,6 +60,10 @@ public:
     void SpawnHealSparkles(Vector2 pos, Color tint, int count = 12);
     void SpawnDecoyLog(Vector2 pos);
 
+    // Phase 7 Game Feel particles
+    void SpawnBones(Vector2 pos, int count = 12);
+    void SpawnGoldSparkles(Vector2 pos, int count = 8);
+
     void SpawnFloatingText(
         Vector2 pos,
         const std::string& text,
@@ -62,7 +73,14 @@ public:
     );
 
 private:
-    std::vector<Particle> particles_;
-    std::vector<FloatingText> texts_;
-    std::vector<DecoyLog> decoyLogs_;
+    void EmitParticle(const Particle& p);
+
+    std::array<Particle, POOL_SIZE> pool_{};
+    size_t poolHead_ = 0;
+
+    std::array<FloatingText, TEXT_POOL_SIZE> texts_{};
+    size_t textHead_ = 0;
+
+    std::array<DecoyLog, LOG_POOL_SIZE> decoyLogs_{};
+    size_t logHead_ = 0;
 };

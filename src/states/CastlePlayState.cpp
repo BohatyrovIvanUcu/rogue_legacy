@@ -67,6 +67,17 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
         return;
     }
 
+    // 1. Hit-stop: 3 кадри заморозки симуляції при влучанні
+    if (ctx.hitStopFrames > 0) {
+        ctx.hitStopFrames--;
+        ctx.screenTrauma = std::max(0.0f, ctx.screenTrauma - 1.25f * dt);
+        float maxShake = 24.0f;
+        float shakeMag = maxShake * (ctx.screenTrauma * ctx.screenTrauma);
+        float shakeAngle = static_cast<float>(std::rand() % 628) / 100.0f;
+        worldCam_.target = { camTarget_.x + std::cos(shakeAngle) * shakeMag, camTarget_.y + std::sin(shakeAngle) * shakeMag };
+        return;
+    }
+
     Room& curRoom = castle_.GetRoom(curGx_, curGy_);
     curRoom.Update(dt, ctx, player_);
     castle_.SyncRoomStateToContext(curRoom, ctx);
@@ -93,7 +104,14 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
 
     camTarget_.x += (targetX - camTarget_.x) * std::min(1.0f, 10.0f * dt);
     camTarget_.y += (targetY - camTarget_.y) * std::min(1.0f, 10.0f * dt);
-    worldCam_.target = camTarget_;
+
+    // Screen shake за моделлю trauma: offset = maxShake * trauma², спадає лінійно
+    ctx.screenTrauma = std::max(0.0f, ctx.screenTrauma - 1.25f * dt);
+    float maxShake = 24.0f;
+    float trauma2 = ctx.screenTrauma * ctx.screenTrauma;
+    float shakeMag = maxShake * trauma2;
+    float shakeAngle = static_cast<float>(std::rand() % 628) / 100.0f;
+    worldCam_.target = { camTarget_.x + std::cos(shakeAngle) * shakeMag, camTarget_.y + std::sin(shakeAngle) * shakeMag };
 
     // 1. Перевірка відкриття карти Телепорту
     if (curRoom.requestOpenTeleporterMap || ctx.input.IsActionPressed(InputAction::OpenMap)) {

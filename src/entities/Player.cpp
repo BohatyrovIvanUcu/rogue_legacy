@@ -109,6 +109,8 @@ void Player::Update(
 
     if (iframeTimer > 0.0f)         iframeTimer -= dt;
     if (hurtFlashTimer > 0.0f)      hurtFlashTimer -= dt;
+    if (landSquashTimer > 0.0f)     landSquashTimer -= dt;
+    if (jumpStretchTimer > 0.0f)    jumpStretchTimer -= dt;
     if (dashCooldownTimer > 0.0f)   dashCooldownTimer -= dt;
     if (attackCooldownTimer > 0.0f) attackCooldownTimer -= dt;
     if (spellCooldownTimer > 0.0f)  spellCooldownTimer -= dt;
@@ -305,6 +307,7 @@ void Player::HandleMovementAndPhysics(
             coyoteTimer = 0.0f;
             jumpBufferTimer = 0.0f;
             jumpedInCurrentRoom = true;
+            jumpStretchTimer = 0.08f; // Phase 7: jump stretch 1.10 on Y
             if (ctx.audio)     ctx.audio->PlaySfx(SfxId::Jump);
             if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 6);
             if (ctx.CurrentHeirHasTrait(TraitType::IBS)) {
@@ -316,6 +319,7 @@ void Player::HandleMovementAndPhysics(
             airJumpsLeft--;
             jumpBufferTimer = 0.0f;
             jumpedInCurrentRoom = true;
+            jumpStretchTimer = 0.08f; // Phase 7: jump stretch 1.10 on Y
             if (ctx.audio)     ctx.audio->PlaySfx(SfxId::Jump, 1.15f);
             if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 8);
             if (ctx.CurrentHeirHasTrait(TraitType::IBS)) {
@@ -352,7 +356,19 @@ void Player::HandleMovementAndPhysics(
 
     if (onGround) {
         isDownStriking = false;
+        if (!wasOnGround) {
+            landSquashTimer = 0.08f; // Phase 7: landing squash 0.85 Y / 1.12 X
+            if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 6);
+        }
+        if (std::abs(vel.x) > 20.0f) {
+            footstepDustTimer += dt;
+            if (footstepDustTimer >= 0.18f) {
+                footstepDustTimer = 0.0f;
+                if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x - facingDir * 8.0f, GetBottom() }, 2);
+            }
+        }
     }
+    wasOnGround = onGround;
 }
 
 void Player::HandleCombatAndAbilities(
@@ -838,6 +854,7 @@ bool Player::TakeDamage(
         iframeTimer = 0.28f;
         if (ctx.audio)     ctx.audio->PlaySfx(SfxId::HitShield);
         if (ctx.particles) ctx.particles->SpawnSparks(GetCenter(), SKYBLUE, 14);
+        ctx.AddTrauma(0.18f);
 
         if (ctx.activeHeir.classType == ClassType::Paladin_Upgraded && outProjectiles) {
             int lightningDmg = std::max(10, static_cast<int>(std::round(stats.intelligence * 1.5f)));
@@ -853,7 +870,7 @@ bool Player::TakeDamage(
     hp = std::max(0, hp - finalDmg);
     damagedInCurrentRoom = true;
     iframeTimer = stats.iframeDuration;
-    hurtFlashTimer = 0.30f;
+    hurtFlashTimer = 0.08f; // Phase 7: 80 ms pure white hit flash
 
     // Retaliation Rune: повертає 60% шкоди за кожну руну
     if (stats.retaliationFactor > 0.0f) {
@@ -875,8 +892,10 @@ bool Player::TakeDamage(
     if (hp <= 0) {
         ctx.lastKillerName = attackerName;
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::PlayerDeath);
+        ctx.AddTrauma(0.80f); // Screen shake trauma: 0.80 on player death
     } else {
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::PlayerHurt);
+        ctx.AddTrauma(0.45f); // Screen shake trauma on hurt
     }
 
     return true;
@@ -925,9 +944,25 @@ void Player::Draw(const GameContext& ctx) const {
 
     HeroRenderParams rp{};
     rp.centerPos = GetCenter();
+    if (onGround && std::abs(vel.x) < 10.0f && !isAttacking && !isDashing) {
+        // Hero idle breathing bobbing ±1px (Phase 7)
+        rp.centerPos.y += std::sin(animTime * 3.5f) * 1.0f;
+    }
     rp.velocity = vel;
-    rp.scaleX = stats.scaleX;
-    rp.scaleY = stats.scaleY;
+
+    float sx = stats.scaleX;
+    float sy = stats.scaleY;
+    if (landSquashTimer > 0.0f) {
+        float t = landSquashTimer / 0.08f;
+        sy *= (1.0f - 0.15f * t); // landing scaleY 0.85
+        sx *= (1.0f + 0.12f * t); // landing scaleX 1.12
+    } else if (jumpStretchTimer > 0.0f) {
+        float t = jumpStretchTimer / 0.08f;
+        sy *= (1.0f + 0.10f * t); // jump stretch 1.10 on Y
+        sx *= (1.0f - 0.08f * t);
+    }
+    rp.scaleX = sx;
+    rp.scaleY = sy;
     rp.height = height;
     rp.facingDir = facingDir;
     rp.classType = ctx.activeHeir.classType;
@@ -943,6 +978,7 @@ void Player::Draw(const GameContext& ctx) const {
     rp.isMistForm = isMistForm;
     rp.headlampOn = headlampOn;
     rp.isInvulnerable = (iframeTimer > 0.0f);
+    rp.isHitFlash = (hurtFlashTimer > 0.0f);
     rp.animTime = animTime;
 
     rp.isFemale = ctx.activeHeir.isFemale;

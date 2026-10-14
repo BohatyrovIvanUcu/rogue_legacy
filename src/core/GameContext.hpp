@@ -67,6 +67,18 @@ public:
     bool hasRequestedState = false;
     bool shouldQuit = false;
 
+    // Phase 7 Game Feel: Trauma screen shake and Hit-stop
+    float screenTrauma = 0.0f;
+    int hitStopFrames = 0;
+
+    void AddTrauma(float t) {
+        screenTrauma = std::clamp(screenTrauma + t, 0.0f, 1.0f);
+    }
+
+    void RequestHitStop(int frames = 3) {
+        hitStopFrames = std::max(hitStopFrames, frames);
+    }
+
 public:
     GameContext() {
         ResetToDefaultNewGame();

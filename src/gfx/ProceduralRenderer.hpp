@@ -26,6 +26,7 @@ struct HeroRenderParams {
     bool isMistForm = false;
     bool headlampOn = false;
     bool isInvulnerable = false;
+    bool isHitFlash = false;
     float animTime = 0.0f;
 
     // Phase 6 genetics & traits

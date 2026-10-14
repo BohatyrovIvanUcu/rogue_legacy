@@ -13,59 +13,86 @@ namespace {
     }
 }
 
+ParticleSystem::ParticleSystem() {
+    Clear();
+}
+
 void ParticleSystem::Clear() {
-    particles_.clear();
-    texts_.clear();
-    decoyLogs_.clear();
+    for (auto& p : pool_) {
+        p.active = false;
+    }
+    poolHead_ = 0;
+
+    for (auto& t : texts_) {
+        t.active = false;
+    }
+    textHead_ = 0;
+
+    for (auto& l : decoyLogs_) {
+        l.active = false;
+    }
+    logHead_ = 0;
+}
+
+void ParticleSystem::EmitParticle(const Particle& p) {
+    pool_[poolHead_] = p;
+    pool_[poolHead_].active = true;
+    poolHead_ = (poolHead_ + 1) % POOL_SIZE;
 }
 
 void ParticleSystem::Update(float dt) {
-    for (auto& p : particles_) {
+    for (auto& p : pool_) {
+        if (!p.active) continue;
         p.life -= dt;
+        if (p.life <= 0.0f) {
+            p.active = false;
+            continue;
+        }
         p.vel.y += Config::GRAVITY * p.gravityScale * dt;
         p.pos.x += p.vel.x * dt;
         p.pos.y += p.vel.y * dt;
         p.rotation += p.rotSpeed * dt;
     }
-    particles_.erase(
-        std::remove_if(particles_.begin(), particles_.end(), [](const Particle& p) { return p.life <= 0.0f; }),
-        particles_.end()
-    );
 
     for (auto& ft : texts_) {
+        if (!ft.active) continue;
         ft.life -= dt;
+        if (ft.life <= 0.0f) {
+            ft.active = false;
+            continue;
+        }
         ft.vel.y += 120.0f * dt;
         ft.pos.x += ft.vel.x * dt;
         ft.pos.y += ft.vel.y * dt;
     }
-    texts_.erase(
-        std::remove_if(texts_.begin(), texts_.end(), [](const FloatingText& t) { return t.life <= 0.0f; }),
-        texts_.end()
-    );
 
     for (auto& log : decoyLogs_) {
+        if (!log.active) continue;
         log.life -= dt;
+        if (log.life <= 0.0f) {
+            log.active = false;
+            continue;
+        }
         log.vel.y += Config::GRAVITY * 0.75f * dt;
         log.pos.x += log.vel.x * dt;
         log.pos.y += log.vel.y * dt;
         log.rotation += 280.0f * dt;
     }
-    decoyLogs_.erase(
-        std::remove_if(decoyLogs_.begin(), decoyLogs_.end(), [](const DecoyLog& l) { return l.life <= 0.0f; }),
-        decoyLogs_.end()
-    );
 }
 
 void ParticleSystem::Draw() const {
     const auto& pal = GetPalette();
+
     for (const auto& log : decoyLogs_) {
+        if (!log.active) continue;
         float alpha = std::clamp(log.life / 0.4f, 0.0f, 1.0f);
         Rectangle rec = { log.pos.x, log.pos.y, 18.0f, 36.0f };
         DrawRectanglePro(rec, { 9.0f, 18.0f }, log.rotation, Fade(pal.wood[1], alpha));
         DrawRectanglePro({ log.pos.x, log.pos.y, 12.0f, 36.0f }, { 6.0f, 18.0f }, log.rotation, Fade(pal.wood[3], alpha));
     }
 
-    for (const auto& p : particles_) {
+    for (const auto& p : pool_) {
+        if (!p.active) continue;
         float ratio = std::clamp(p.life / std::max(0.001f, p.maxLife), 0.0f, 1.0f);
         Color c = p.fadeOut ? Fade(p.color, ratio) : p.color;
 
@@ -78,6 +105,7 @@ void ParticleSystem::Draw() const {
     }
 
     for (const auto& ft : texts_) {
+        if (!ft.active) continue;
         float alpha = std::clamp(ft.life / std::max(0.001f, ft.maxLife), 0.0f, 1.0f);
         int fSize = ft.fontSize;
         if (ft.isCrit && ft.life > ft.maxLife * 0.7f) {
@@ -106,7 +134,7 @@ void ParticleSystem::SpawnBlood(Vector2 pos, int count) {
         p.life = p.maxLife;
         p.gravityScale = 0.85f;
         p.rotSpeed = RandRange(-360.0f, 360.0f);
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -124,7 +152,7 @@ void ParticleSystem::SpawnSparks(Vector2 pos, Color tint, int count) {
         p.life = p.maxLife;
         p.gravityScale = 0.25f;
         p.rotSpeed = RandRange(-500.0f, 500.0f);
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -140,7 +168,7 @@ void ParticleSystem::SpawnDust(Vector2 pos, int count) {
         p.life = p.maxLife;
         p.gravityScale = -0.08f;
         p.isCircle = true;
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -157,7 +185,7 @@ void ParticleSystem::SpawnSmoke(Vector2 pos, Color tint, int count) {
         p.life = p.maxLife;
         p.gravityScale = -0.12f;
         p.isCircle = true;
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -172,7 +200,7 @@ void ParticleSystem::SpawnDebris(Vector2 pos, Color tint, int count) {
         p.life = p.maxLife;
         p.gravityScale = 0.95f;
         p.rotSpeed = RandRange(-480.0f, 480.0f);
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -188,7 +216,7 @@ void ParticleSystem::SpawnGasCloud(Vector2 pos) {
         p.life = p.maxLife;
         p.gravityScale = -0.10f;
         p.isCircle = true;
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -207,7 +235,7 @@ void ParticleSystem::SpawnExplosion(Vector2 pos, float radius, Color tint) {
         p.life = p.maxLife;
         p.gravityScale = 0.0f;
         p.isCircle = (i % 2 == 0);
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -221,7 +249,7 @@ void ParticleSystem::SpawnHealSparkles(Vector2 pos, Color tint, int count) {
         p.maxLife = RandRange(0.35f, 0.65f);
         p.life = p.maxLife;
         p.gravityScale = -0.15f;
-        particles_.push_back(p);
+        EmitParticle(p);
     }
 }
 
@@ -231,8 +259,47 @@ void ParticleSystem::SpawnDecoyLog(Vector2 pos) {
     log.vel = { RandRange(-60.0f, 60.0f), -220.0f };
     log.rotation = RandRange(-25.0f, 25.0f);
     log.life = 1.20f;
-    decoyLogs_.push_back(log);
+    log.active = true;
+
+    decoyLogs_[logHead_] = log;
+    logHead_ = (logHead_ + 1) % LOG_POOL_SIZE;
+
     SpawnSmoke(pos, GetPalette().bone[2], 20);
+}
+
+void ParticleSystem::SpawnBones(Vector2 pos, int count) {
+    const auto& pal = GetPalette();
+    for (int i = 0; i < count; ++i) {
+        Particle p;
+        p.pos = pos;
+        float angle = RandRange(-2.8f, -0.34f);
+        float speed = RandRange(120.0f, 320.0f);
+        p.vel = { std::cos(angle) * speed, std::sin(angle) * speed };
+        p.color = (i % 2 == 0) ? pal.bone[4] : pal.bone[3];
+        p.size = RandRange(4.0f, 7.5f);
+        p.maxLife = RandRange(0.45f, 0.85f);
+        p.life = p.maxLife;
+        p.gravityScale = 1.1f;
+        p.rotSpeed = RandRange(-550.0f, 550.0f);
+        p.isCircle = false;
+        EmitParticle(p);
+    }
+}
+
+void ParticleSystem::SpawnGoldSparkles(Vector2 pos, int count) {
+    const auto& pal = GetPalette();
+    for (int i = 0; i < count; ++i) {
+        Particle p;
+        p.pos = { pos.x + RandRange(-12.0f, 12.0f), pos.y + RandRange(-12.0f, 6.0f) };
+        p.vel = { RandRange(-45.0f, 45.0f), RandRange(-110.0f, -30.0f) };
+        p.color = (i % 2 == 0) ? pal.fireGold[4] : pal.fireGold[3];
+        p.size = RandRange(3.0f, 6.0f);
+        p.maxLife = RandRange(0.25f, 0.50f);
+        p.life = p.maxLife;
+        p.gravityScale = -0.05f;
+        p.isCircle = (i % 2 == 0);
+        EmitParticle(p);
+    }
 }
 
 void ParticleSystem::SpawnFloatingText(
@@ -251,5 +318,8 @@ void ParticleSystem::SpawnFloatingText(
     ft.maxLife = isCrit ? 1.05f : 0.80f;
     ft.life = ft.maxLife;
     ft.isCrit = isCrit;
-    texts_.push_back(ft);
+    ft.active = true;
+
+    texts_[textHead_] = ft;
+    textHead_ = (textHead_ + 1) % TEXT_POOL_SIZE;
 }

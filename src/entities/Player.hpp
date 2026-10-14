@@ -66,6 +66,12 @@ public:
     float ibsTimer = 0.0f;
     float animTime = 0.0f;
 
+    // Phase 7: Squash & Stretch, Footsteps
+    float landSquashTimer = 0.0f;
+    float jumpStretchTimer = 0.0f;
+    bool wasOnGround = true;
+    float footstepDustTimer = 0.0f;
+
     // Прапорці для випробувань Скринь Феї (Fairy Chest) у поточній кімнаті
     bool jumpedInCurrentRoom = false;
     bool damagedInCurrentRoom = false;

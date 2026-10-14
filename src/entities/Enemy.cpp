@@ -144,7 +144,7 @@ bool Enemy::TakeDamage(
     if (!active || hp <= 0) return false;
 
     hp -= std::max(1, amount);
-    hurtFlashTimer = 0.14f;
+    hurtFlashTimer = 0.08f; // Phase 7: 80 ms pure white hit flash
 
     if (type != EnemyType::WallTurret) {
         vel.x = knockbackVel.x;
@@ -213,8 +213,10 @@ void Enemy::Update(
             ResolvePhysicsAndTiles(dt, tileMap, true);
 
             stateTimer += dt;
+            isTelegraphing = (stateTimer >= attackCooldown - 0.16f); // Phase 7: 160 ms telegraph
             if (stateTimer >= attackCooldown) {
                 stateTimer = 0.0f;
+                isTelegraphing = false;
                 float faceToPlayer = (pCenter.x >= myCenter.x) ? 1.0f : -1.0f;
                 facingDir = faceToPlayer;
 
@@ -229,7 +231,7 @@ void Enemy::Update(
         }
 
         case EnemyType::FloatingEye: {
-            // Літає синусоїдою, за 0.6s до атаки червоніє і випускає 4 (або 8) снарядів
+            // Літає синусоїдою, за 180ms до атаки червоніє і випускає 4 (або 8) снарядів
             sinePhase += dt * 2.8f;
             Vector2 toPlayer = { pCenter.x - myCenter.x, pCenter.y - myCenter.y };
             float d = std::hypot(toPlayer.x, toPlayer.y);
@@ -244,7 +246,7 @@ void Enemy::Update(
             pos.y += vel.y * dt;
 
             stateTimer += dt;
-            isTelegraphing = (stateTimer >= attackCooldown - 0.60f);
+            isTelegraphing = (stateTimer >= attackCooldown - 0.18f); // Phase 7: 180 ms telegraph
             if (stateTimer >= attackCooldown) {
                 stateTimer = 0.0f;
                 isTelegraphing = false;
@@ -285,6 +287,7 @@ void Enemy::Update(
         case EnemyType::ShieldKnight: {
             // Повільно крокує зі щитом поперед себе. Розвертається до гравця із затримкою.
             stateTimer += dt;
+            isTelegraphing = (std::abs(pCenter.x - myCenter.x) < 85.0f && stateTimer >= 0.58f);
             if (stateTimer >= 0.75f) {
                 stateTimer = 0.0f;
                 if (std::abs(pCenter.x - myCenter.x) > 28.0f) {
@@ -298,13 +301,13 @@ void Enemy::Update(
         }
 
         case EnemyType::FireMage: {
-            // Кожні 3.0s телепортується у вільну точку, фокусується 0.7s і піднімає 3 вогняні стовпи
+            // Кожні 3.0s телепортується у вільну точку, фокусується 180ms і піднімає вогняні стовпи
             stateTimer += dt;
             vel.x = 0.0f;
             ResolvePhysicsAndTiles(dt, tileMap, true);
             facingDir = (pCenter.x >= myCenter.x) ? 1.0f : -1.0f;
 
-            if (!isTelegraphing && stateTimer >= 2.30f) {
+            if (!isTelegraphing && stateTimer >= 2.82f) {
                 isTelegraphing = true;
                 lockedAttackTarget = { pCenter.x, player.GetBottom() };
             }
@@ -351,8 +354,10 @@ void Enemy::Update(
             bool sameHeight = std::abs(pCenter.y - myCenter.y) < 68.0f;
             float distX = std::abs(pCenter.x - myCenter.x);
 
+            isTelegraphing = (onGround && sameHeight && distX < 320.0f && stateTimer >= attackCooldown - 0.16f);
             if (onGround && sameHeight && distX < 320.0f && stateTimer >= attackCooldown) {
                 stateTimer = 0.0f;
+                isTelegraphing = false;
                 facingDir = (pCenter.x >= myCenter.x) ? 1.0f : -1.0f;
                 vel.x = facingDir * (390.0f + tier * 35.0f);
                 vel.y = -340.0f;
@@ -368,7 +373,7 @@ void Enemy::Update(
         case EnemyType::WallTurret: {
             // Вмонтована у стіну кам'яна голова горгульї, кожні 2.2s випускає вогняну стрілу
             stateTimer += dt;
-            isTelegraphing = (stateTimer >= attackCooldown - 0.45f);
+            isTelegraphing = (stateTimer >= attackCooldown - 0.18f); // Phase 7: 180 ms telegraph
             if (stateTimer >= attackCooldown) {
                 stateTimer = 0.0f;
                 isTelegraphing = false;
@@ -480,7 +485,25 @@ void Enemy::Draw() const {
         tierTint = pal.fireGold[3];
     }
     if (hurtFlashTimer > 0.0f) {
-        tierTint = pal.bloodCloth[3];
+        tierTint = WHITE;
+    }
+
+    if (isTelegraphing) {
+        float flashPulse = 0.70f + 0.30f * std::sin(stateTimer * 42.0f);
+        Rectangle b = GetBounds();
+        float exp = 3.0f;
+        Rectangle ob = { b.x - exp, b.y - exp, b.width + exp * 2.0f, b.height + exp * 2.0f };
+        Color dangerCol = Fade(pal.danger[2], flashPulse);
+        float cLen = 7.0f;
+        // 4 corner telegraph contour brackets in danger color
+        DrawLineEx({ ob.x, ob.y }, { ob.x + cLen, ob.y }, 2.0f, dangerCol);
+        DrawLineEx({ ob.x, ob.y }, { ob.x, ob.y + cLen }, 2.0f, dangerCol);
+        DrawLineEx({ ob.x + ob.width, ob.y }, { ob.x + ob.width - cLen, ob.y }, 2.0f, dangerCol);
+        DrawLineEx({ ob.x + ob.width, ob.y }, { ob.x + ob.width, ob.y + cLen }, 2.0f, dangerCol);
+        DrawLineEx({ ob.x, ob.y + ob.height }, { ob.x + cLen, ob.y + ob.height }, 2.0f, dangerCol);
+        DrawLineEx({ ob.x, ob.y + ob.height }, { ob.x, ob.y + ob.height - cLen }, 2.0f, dangerCol);
+        DrawLineEx({ ob.x + ob.width, ob.y + ob.height }, { ob.x + ob.width - cLen, ob.y + ob.height }, 2.0f, dangerCol);
+        DrawLineEx({ ob.x + ob.width, ob.y + ob.height }, { ob.x + ob.width, ob.y + ob.height - cLen }, 2.0f, dangerCol);
     }
 
     switch (type) {
