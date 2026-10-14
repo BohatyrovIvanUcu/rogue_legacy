@@ -50,8 +50,20 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
         ctx.particles->Update(dt);
     }
 
+    if (settingsMenu_.IsOpen()) {
+        settingsMenu_.Update(dt, ctx);
+        return;
+    }
+
     if (teleporterMapOpen_) {
         UpdateTeleporterOverlay(ctx);
+        return;
+    }
+
+    // Пауза та меню налаштувань по Escape
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        settingsMenu_.Open(true);
+        if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChestOpen, 0.9f, 0.6f);
         return;
     }
 
@@ -84,7 +96,7 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
     worldCam_.target = camTarget_;
 
     // 1. Перевірка відкриття карти Телепорту
-    if (curRoom.requestOpenTeleporterMap || IsKeyPressed(KEY_M)) {
+    if (curRoom.requestOpenTeleporterMap || ctx.input.IsActionPressed(InputAction::OpenMap)) {
         curRoom.requestOpenTeleporterMap = false;
         if (!curRoom.isBossArenaActive) {
             teleporterMapOpen_ = true;
@@ -447,6 +459,10 @@ void CastlePlayState::Draw(GameContext& ctx) {
 
     if (teleporterMapOpen_) {
         DrawTeleporterOverlay(ctx);
+    }
+
+    if (settingsMenu_.IsOpen()) {
+        settingsMenu_.Draw(ctx);
     }
 
     EndMode2D();

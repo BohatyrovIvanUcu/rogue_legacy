@@ -3,6 +3,7 @@
 #include <raylib.h>
 #include <array>
 #include <vector>
+#include <algorithm>
 
 class SoundSynth {
 public:
@@ -16,6 +17,13 @@ public:
     void PlayIbsFart();
     void UpdateMusic(float dt, bool muted);
     void SetBossMusic(bool bossMode);
+
+    void SetSfxMuted(bool muted) { sfxMuted_ = muted; }
+    bool IsSfxMuted() const { return sfxMuted_; }
+    void SetMusicVolume(float vol) { musicVol_ = std::clamp(vol, 0.0f, 1.0f); }
+    float GetMusicVolume() const { return musicVol_; }
+    void SetSfxVolume(float vol) { sfxVol_ = std::clamp(vol, 0.0f, 1.0f); }
+    float GetSfxVolume() const { return sfxVol_; }
 
 private:
     Sound GenerateSfxWave(SfxId id);
@@ -34,4 +42,7 @@ private:
     float stepTimer_ = 0.0f;
     int currentStep_ = 0;
     bool bossMusicMode_ = false;
+    bool sfxMuted_ = false;
+    float musicVol_ = 1.0f;
+    float sfxVol_ = 1.0f;
 };

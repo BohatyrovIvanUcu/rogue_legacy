@@ -1,6 +1,7 @@
 #pragma once
 #include "core/Config.hpp"
 #include "core/Types.hpp"
+#include "core/InputConfig.hpp"
 #include "data/Registry.hpp"
 #include <array>
 #include <vector>
@@ -24,6 +25,10 @@ public:
     int ngPlusLevel = 0;
     int generationCount = 1;
     bool musicMuted = false;
+    bool sfxMuted = false;
+    float musicVolume = 1.0f;
+    float sfxVolume = 1.0f;
+    InputConfig input{};
 
     std::array<int, static_cast<size_t>(ManorNodeId::COUNT)> manorLevels{};
 

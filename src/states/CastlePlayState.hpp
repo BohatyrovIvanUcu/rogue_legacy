@@ -2,6 +2,7 @@
 #pragma once
 
 #include "states/IGameState.hpp"
+#include "states/SettingsMenu.hpp"
 #include "world/CastleGenerator.hpp"
 #include "entities/Player.hpp"
 
@@ -34,4 +35,5 @@ private:
 
     Camera2D worldCam_{};
     Vector2 camTarget_{ 600.0f, 360.0f };
+    SettingsMenu settingsMenu_{};
 };

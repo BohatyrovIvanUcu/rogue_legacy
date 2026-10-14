@@ -100,18 +100,19 @@ void SoundSynth::Shutdown() {
 }
 
 void SoundSynth::PlaySfx(SfxId id, float pitch, float volume) {
-    if (!initialized_) return;
+    if (!initialized_ || sfxMuted_) return;
     int idx = std::clamp(static_cast<int>(id), 0, static_cast<int>(SfxId::COUNT) - 1);
     Sound& snd = sfxBank_[static_cast<size_t>(idx)];
     SetSoundPitch(snd, pitch);
-    SetSoundVolume(snd, std::clamp(volume, 0.0f, 1.0f));
+    SetSoundVolume(snd, std::clamp(volume * sfxVol_, 0.0f, 1.0f));
     PlaySound(snd);
 }
 
 void SoundSynth::PlayIbsFart() {
-    if (!initialized_) return;
+    if (!initialized_ || sfxMuted_) return;
     float pitch = 0.85f + static_cast<float>(std::rand() % 35) / 100.0f;
     SetSoundPitch(ibsFartSound_, pitch);
+    SetSoundVolume(ibsFartSound_, std::clamp(1.0f * sfxVol_, 0.0f, 1.0f));
     PlaySound(ibsFartSound_);
 }
 
@@ -120,7 +121,7 @@ void SoundSynth::SetBossMusic(bool bossMode) {
 }
 
 void SoundSynth::UpdateMusic(float dt, bool muted) {
-    if (!initialized_ || muted) return;
+    if (!initialized_ || muted || musicVol_ <= 0.001f) return;
 
     float stepDuration = bossMusicMode_ ? 0.115f : 0.155f;
     stepTimer_ += dt;

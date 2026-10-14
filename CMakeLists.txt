@@ -53,6 +53,7 @@ set(SOURCES
     src/states/OutskirtsState.cpp
     src/states/CastlePlayState.cpp
     src/states/DeathSummaryState.cpp
+    src/states/SettingsMenu.cpp
 )
 
 add_executable(rogue_legacy_cpp ${SOURCES})

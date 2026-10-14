@@ -177,13 +177,25 @@ void OutskirtsState::Update(float dt, GameContext& ctx) {
     }
 
     // 2. Якщо відкрито модальне меню Коваля / Чарівниці / Архітектора
+    if (settingsMenu_.IsOpen()) {
+        settingsMenu_.Update(dt, ctx);
+        return;
+    }
+
     if (activeMenu_ != ModalMenu::None) {
         UpdateModalMenu(ctx);
         return;
     }
 
+    // Пауза / Налаштування по Escape
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        settingsMenu_.Open(true);
+        if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChestOpen, 0.9f, 0.6f);
+        return;
+    }
+
     // Повернення у Родовий Маєток (M або вихід вліво)
-    if (IsKeyPressed(KEY_M) || heroX_ < 60.0f) {
+    if (ctx.input.IsActionPressed(InputAction::OpenMap) || heroX_ < 60.0f) {
         ctx.RequestStateChange(GameStateId::Manor);
         return;
     }
@@ -200,8 +212,8 @@ void OutskirtsState::Update(float dt, GameContext& ctx) {
 
     // 3. Пересування героя по бруківці
     float moveDir = 0.0f;
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))  moveDir -= 1.0f;
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) moveDir += 1.0f;
+    if (ctx.input.IsActionDown(InputAction::MoveLeft))  moveDir -= 1.0f;
+    if (ctx.input.IsActionDown(InputAction::MoveRight)) moveDir += 1.0f;
 
     heroVelX_ = moveDir * 310.0f;
     if (moveDir != 0.0f) {
@@ -216,8 +228,8 @@ void OutskirtsState::Update(float dt, GameContext& ctx) {
     bool nearCharonGate  = (std::abs(heroX_ - CHARON_GATE_X) < 85.0f);
     bool nearInteractive = (nearBlacksmith || nearEnchantress || nearArchitect || nearCharonGate);
 
-    bool jumpPressed = IsKeyPressed(KEY_SPACE);
-    if (!jumpPressed && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) && !nearInteractive) {
+    bool jumpPressed = ctx.input.IsActionPressed(InputAction::Jump);
+    if (!jumpPressed && ctx.input.IsActionPressed(InputAction::MoveUp) && !nearInteractive) {
         jumpPressed = true;
     }
 
@@ -230,7 +242,7 @@ void OutskirtsState::Update(float dt, GameContext& ctx) {
 
     // Зрізання стрибка при передчасному відпусканні клавіші
     if (!onGround_ && heroVelY_ < 0.0f) {
-        if (IsKeyReleased(KEY_SPACE) || IsKeyReleased(KEY_W) || IsKeyReleased(KEY_UP)) {
+        if (ctx.input.IsActionReleased(InputAction::Jump)) {
             heroVelY_ *= Config::PLAYER_JUMP_CUT_MULTIPLIER;
         }
     }
@@ -258,7 +270,7 @@ void OutskirtsState::Update(float dt, GameContext& ctx) {
         }
     }
 
-    bool attackPressed = IsKeyPressed(KEY_J) || IsKeyPressed(KEY_Z) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    bool attackPressed = ctx.input.IsActionPressed(InputAction::Attack);
     if (attackPressed && attackTimer_ <= 0.0f) {
         attackTimer_ = Config::SWORD_ATTACK_DURATION;
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::SwordSlash);
@@ -268,8 +280,10 @@ void OutskirtsState::Update(float dt, GameContext& ctx) {
         }
     }
 
-    // 6. Взаємодія з NPC (W / E / UP / ENTER)
-    bool interact = IsKeyPressed(KEY_W) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_ENTER);
+    // 6. Взаємодія з NPC
+    bool interact = ctx.input.IsActionPressed(InputAction::Interact) ||
+                    ctx.input.IsActionPressed(InputAction::MoveUp) ||
+                    IsKeyPressed(KEY_ENTER);
     if (interact) {
         if (nearBlacksmith) {
             activeMenu_ = ModalMenu::Blacksmith;
@@ -869,6 +883,10 @@ void OutskirtsState::Draw(GameContext& ctx) {
         DrawArchitectModal(ctx);
     } else if (activeMenu_ == ModalMenu::CharonToll) {
         DrawCharonModal(ctx);
+    }
+
+    if (settingsMenu_.IsOpen()) {
+        settingsMenu_.Draw(ctx);
     }
 }
 

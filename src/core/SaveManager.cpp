@@ -60,6 +60,20 @@ bool SaveManager::SaveGame(const GameContext& ctx, const std::string& filePath) 
         root["ngPlusLevel"] = ctx.ngPlusLevel;
         root["generationCount"] = ctx.generationCount;
         root["musicMuted"] = ctx.musicMuted;
+        root["sfxMuted"] = ctx.sfxMuted;
+        root["musicVolume"] = ctx.musicVolume;
+        root["sfxVolume"] = ctx.sfxVolume;
+
+        json bindingsJson = json::array();
+        for (size_t i = 0; i < ctx.input.bindings.size(); ++i) {
+            json b;
+            b["action"] = i;
+            b["primary"] = ctx.input.bindings[i].primary;
+            b["secondary"] = ctx.input.bindings[i].secondary;
+            bindingsJson.push_back(b);
+        }
+        root["inputBindings"] = bindingsJson;
+
         root["isCastleLocked"] = ctx.isCastleLocked;
         root["hasSavedCastle"] = ctx.hasSavedCastle;
 
@@ -150,6 +164,20 @@ bool SaveManager::LoadGame(GameContext& ctx, const std::string& filePath) {
         ctx.ngPlusLevel = root.value("ngPlusLevel", 0);
         ctx.generationCount = root.value("generationCount", 1);
         ctx.musicMuted = root.value("musicMuted", false);
+        ctx.sfxMuted = root.value("sfxMuted", false);
+        ctx.musicVolume = root.value("musicVolume", 1.0f);
+        ctx.sfxVolume = root.value("sfxVolume", 1.0f);
+
+        if (root.contains("inputBindings") && root["inputBindings"].is_array()) {
+            for (const auto& item : root["inputBindings"]) {
+                size_t act = item.value("action", 0);
+                if (act < ctx.input.bindings.size()) {
+                    ctx.input.bindings[act].primary = item.value("primary", 0);
+                    ctx.input.bindings[act].secondary = item.value("secondary", 0);
+                }
+            }
+        }
+
         ctx.isCastleLocked = root.value("isCastleLocked", false);
         ctx.hasSavedCastle = root.value("hasSavedCastle", false);
         ctx.lichBonusMaxHp = 0;
@@ -268,3 +296,65 @@ bool SaveManager::LoadGame(GameContext& ctx, const std::string& filePath) {
         return false;
     }
 }
+
+bool SaveManager::SaveSettings(const GameContext& ctx, const std::string& filePath) {
+    try {
+        json root;
+        if (SaveFileExists(filePath)) {
+            std::ifstream in(filePath);
+            if (in.is_open()) {
+                in >> root;
+            }
+        }
+        root["musicMuted"] = ctx.musicMuted;
+        root["sfxMuted"] = ctx.sfxMuted;
+        root["musicVolume"] = ctx.musicVolume;
+        root["sfxVolume"] = ctx.sfxVolume;
+
+        json bindingsJson = json::array();
+        for (size_t i = 0; i < ctx.input.bindings.size(); ++i) {
+            json b;
+            b["action"] = i;
+            b["primary"] = ctx.input.bindings[i].primary;
+            b["secondary"] = ctx.input.bindings[i].secondary;
+            bindingsJson.push_back(b);
+        }
+        root["inputBindings"] = bindingsJson;
+
+        std::ofstream out(filePath);
+        if (!out.is_open()) return false;
+        out << root.dump(4);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool SaveManager::LoadSettings(GameContext& ctx, const std::string& filePath) {
+    if (!SaveFileExists(filePath)) return false;
+    try {
+        std::ifstream in(filePath);
+        if (!in.is_open()) return false;
+        json root;
+        in >> root;
+
+        ctx.musicMuted = root.value("musicMuted", false);
+        ctx.sfxMuted = root.value("sfxMuted", false);
+        ctx.musicVolume = root.value("musicVolume", 1.0f);
+        ctx.sfxVolume = root.value("sfxVolume", 1.0f);
+
+        if (root.contains("inputBindings") && root["inputBindings"].is_array()) {
+            for (const auto& item : root["inputBindings"]) {
+                size_t act = item.value("action", 0);
+                if (act < ctx.input.bindings.size()) {
+                    ctx.input.bindings[act].primary = item.value("primary", 0);
+                    ctx.input.bindings[act].secondary = item.value("secondary", 0);
+                }
+            }
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+

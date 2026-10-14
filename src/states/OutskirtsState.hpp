@@ -2,6 +2,7 @@
 #pragma once
 
 #include "states/IGameState.hpp"
+#include "states/SettingsMenu.hpp"
 #include "core/Types.hpp"
 #include <raylib.h>
 #include <vector>
@@ -56,4 +57,5 @@ private:
     float charonTimer_ = 0.0f;
     float gatePortcullisY_ = 0.0f;
     std::vector<TollCoinVisual> flyingCoins_;
+    SettingsMenu settingsMenu_{};
 };

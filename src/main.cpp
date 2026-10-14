@@ -70,6 +70,9 @@ int main() {
 
     if (SaveManager::SaveFileExists(Config::SAVE_FILE_PATH)) {
         SaveManager::LoadGame(ctx, Config::SAVE_FILE_PATH);
+        soundSynth.SetSfxMuted(ctx.sfxMuted);
+        soundSynth.SetMusicVolume(ctx.musicVolume);
+        soundSynth.SetSfxVolume(ctx.sfxVolume);
     }
 
     std::unique_ptr<IGameState> currentState = CreateStateById(GameStateId::Title);

@@ -204,12 +204,12 @@ void Player::HandleMovementAndPhysics(
 
     // Зчитування горизонтального та вертикального вводу
     float moveX = 0.0f;
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))  moveX -= 1.0f;
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) moveX += 1.0f;
+    if (ctx.input.IsActionDown(InputAction::MoveLeft))  moveX -= 1.0f;
+    if (ctx.input.IsActionDown(InputAction::MoveRight)) moveX += 1.0f;
 
     float moveY = 0.0f;
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    moveY -= 1.0f;
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))  moveY += 1.0f;
+    if (ctx.input.IsActionDown(InputAction::MoveUp))    moveY -= 1.0f;
+    if (ctx.input.IsActionDown(InputAction::MoveDown))  moveY += 1.0f;
 
     if (moveX != 0.0f && !isDashing) {
         facingDir = (moveX > 0.0f) ? 1.0f : -1.0f;
@@ -241,8 +241,7 @@ void Player::HandleMovementAndPhysics(
     }
 
     // 2. РИВОК (DASH)
-    bool dashPressed = IsKeyPressed(KEY_K) || IsKeyPressed(KEY_C) ||
-                       IsKeyPressed(KEY_LEFT_SHIFT) || IsKeyPressed(KEY_RIGHT_SHIFT);
+    bool dashPressed = ctx.input.IsActionPressed(InputAction::Dash);
     if (dashPressed && !isDashing && dashCooldownTimer <= 0.0f && airDashesLeft > 0) {
         isDashing = true;
         dashTimer = Config::DASH_DURATION;
@@ -281,10 +280,10 @@ void Player::HandleMovementAndPhysics(
         coyoteTimer = std::max(0.0f, coyoteTimer - dt);
     }
 
-    bool jumpPressed  = IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP);
-    bool jumpReleased = IsKeyReleased(KEY_SPACE) || IsKeyReleased(KEY_W) || IsKeyReleased(KEY_UP);
-    bool jumpHeld     = IsKeyDown(KEY_SPACE) || IsKeyDown(KEY_W) || IsKeyDown(KEY_UP);
-    bool downHeld     = IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN);
+    bool jumpPressed  = ctx.input.IsActionPressed(InputAction::Jump);
+    bool jumpReleased = ctx.input.IsActionReleased(InputAction::Jump);
+    bool jumpHeld     = ctx.input.IsActionDown(InputAction::Jump);
+    bool downHeld     = ctx.input.IsActionDown(InputAction::MoveDown);
 
     // Стрибок вниз крізь напівпрозору платформу '=' (S + Space або Down + Space)
     if (onGround && downHeld && jumpPressed) {
@@ -363,7 +362,7 @@ void Player::HandleCombatAndAbilities(
     std::vector<Projectile>& projectiles
 ) {
     ClassType cls = ctx.activeHeir.classType;
-    bool downHeld = IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN);
+    bool downHeld = ctx.input.IsActionDown(InputAction::MoveDown);
 
     // 1. ОНОВЛЕННЯ ТАЙМЕРА АТАКИ МЕЧЕМ
     if (isAttacking) {
@@ -375,8 +374,8 @@ void Player::HandleCombatAndAbilities(
         }
     }
 
-    // 2. АТАКА МЕЧЕМ АБО POGO DOWN-STRIKE (J / Z / ЛКМ)
-    bool attackPressed = IsKeyPressed(KEY_J) || IsKeyPressed(KEY_Z) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    // 2. АТАКА МЕЧЕМ АБО POGO DOWN-STRIKE
+    bool attackPressed = ctx.input.IsActionPressed(InputAction::Attack);
     if (attackPressed && attackCooldownTimer <= 0.0f) {
         isMistForm = false;
 
@@ -386,8 +385,8 @@ void Player::HandleCombatAndAbilities(
                 mp -= 12;
                 attackCooldownTimer = 0.26f;
                 Vector2 aimDir = { facingDir, 0.0f };
-                if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))   aimDir.y = -0.6f;
-                if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) aimDir.y =  0.6f;
+                if (ctx.input.IsActionDown(InputAction::MoveUp))   aimDir.y = -0.6f;
+                if (ctx.input.IsActionDown(InputAction::MoveDown)) aimDir.y =  0.6f;
                 int fbDmg = std::max(8, static_cast<int>(std::round(stats.str * 0.65f + stats.intelligence * 0.85f)));
                 projectiles.push_back(Projectile::MakeDragonFireball(GetCenter(), aimDir, fbDmg));
                 if (ctx.audio) ctx.audio->PlaySfx(SfxId::SpellCast, 0.9f);
@@ -432,8 +431,8 @@ void Player::HandleCombatAndAbilities(
         isDownStriking = true;
     }
 
-    // 3. КАСТ ЗАКЛЯТТЯ (L / X / ПКМ)
-    bool spellPressed = IsKeyPressed(KEY_L) || IsKeyPressed(KEY_X) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT);
+    // 3. КАСТ ЗАКЛЯТТЯ
+    bool spellPressed = ctx.input.IsActionPressed(InputAction::CastSpell);
     if (spellPressed && spellCooldownTimer <= 0.0f) {
         isMistForm = false;
         SpellType spellToCast = activeSpell;
@@ -457,9 +456,9 @@ void Player::HandleCombatAndAbilities(
         }
     }
 
-    // 4. КЛАСОВИЙ ТАЛАНТ (Q / E / LEFT_CONTROL)
-    bool talentHeld    = IsKeyDown(KEY_Q) || IsKeyDown(KEY_LEFT_CONTROL);
-    bool talentPressed = IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_LEFT_CONTROL);
+    // 4. КЛАСОВИЙ ТАЛАНТ
+    bool talentHeld    = ctx.input.IsActionDown(InputAction::ClassTalent);
+    bool talentPressed = ctx.input.IsActionPressed(InputAction::ClassTalent);
 
     // Щит Лицаря / Паладина (утримання Q)
     if (cls == ClassType::Knights_Base || cls == ClassType::Paladin_Upgraded) {

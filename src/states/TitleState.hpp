@@ -2,6 +2,7 @@
 #pragma once
 
 #include "states/IGameState.hpp"
+#include "states/SettingsMenu.hpp"
 
 class TitleState : public IGameState {
 public:
@@ -17,4 +18,5 @@ private:
     int selectedIndex_ = 0;
     bool hasSaveFile_ = false;
     float animTimer_ = 0.0f;
+    SettingsMenu settingsMenu_{};
 };

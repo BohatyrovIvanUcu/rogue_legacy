@@ -14,16 +14,28 @@ void TitleState::OnEnter(GameContext& ctx) {
     hasSaveFile_ = SaveManager::SaveFileExists(Config::SAVE_FILE_PATH);
     selectedIndex_ = 0;
     animTimer_ = 0.0f;
+    settingsMenu_.Close();
     if (ctx.audio) {
         ctx.audio->SetBossMusic(false);
     }
 }
 
-void TitleState::OnExit(GameContext& /*ctx*/) {}
+void TitleState::OnExit(GameContext& /*ctx*/) {
+    settingsMenu_.Close();
+}
 
 void TitleState::Update(float dt, GameContext& ctx) {
     animTimer_ += dt;
 
+    // Якщо відкрито меню налаштувань — передаємо керування йому
+    if (settingsMenu_.IsOpen()) {
+        settingsMenu_.Update(dt, ctx);
+        return;
+    }
+
+    Vector2 mousePos = GetMousePosition();
+
+    // Навігація клавіатурою
     if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) {
         selectedIndex_ = (selectedIndex_ + 3) % 4;
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f, 0.5f);
@@ -33,7 +45,37 @@ void TitleState::Update(float dt, GameContext& ctx) {
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f, 0.5f);
     }
 
+    // Швидкий перехід у Дерево маєтку по [M]
+    if (IsKeyPressed(KEY_M)) {
+        if (hasSaveFile_) {
+            SaveManager::LoadGame(ctx, Config::SAVE_FILE_PATH);
+        }
+        ctx.RequestStateChange(GameStateId::Manor);
+        if (ctx.audio) ctx.audio->PlaySfx(SfxId::ManorBuild, 1.0f, 0.8f);
+        return;
+    }
+
+    // Перевірка кліків миші по пунктах меню
+    int boxW = 500;
+    int boxX = (Config::VIRTUAL_WIDTH - boxW) / 2;
+    int boxY = 244;
+    for (int i = 0; i < 4; ++i) {
+        int oy = boxY + 20 + i * 46;
+        Rectangle optRec = { static_cast<float>(boxX + 16), static_cast<float>(oy - 2), static_cast<float>(boxW - 32), 36.0f };
+        if (CheckCollisionPointRec(mousePos, optRec)) {
+            if (selectedIndex_ != i) {
+                selectedIndex_ = i;
+                if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 0.9f, 0.3f);
+            }
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                // Активуємо обраний пункт меню
+                goto ActivateSelection;
+            }
+        }
+    }
+
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+ActivateSelection:
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChestOpen, 1.0f, 0.8f);
 
         if (selectedIndex_ == 0) {
@@ -51,8 +93,8 @@ void TitleState::Update(float dt, GameContext& ctx) {
             SaveManager::SaveGame(ctx, Config::SAVE_FILE_PATH);
             ctx.RequestStateChange(GameStateId::Lineage);
         } else if (selectedIndex_ == 2) {
-            // Перемикач музики
-            ctx.musicMuted = !ctx.musicMuted;
+            // Меню налаштувань та перепризначення клавіш
+            settingsMenu_.Open(false);
         } else if (selectedIndex_ == 3) {
             ctx.shouldQuit = true;
         }
@@ -64,6 +106,12 @@ void TitleState::Draw(GameContext& ctx) {
         ctx.renderer->DrawManorCastle(ctx, animTimer_);
     } else {
         ClearBackground(Color{ 14, 16, 28, 255 });
+    }
+
+    // Якщо відкрито меню налаштувань — малюємо його поверх і виходимо
+    if (settingsMenu_.IsOpen()) {
+        settingsMenu_.Draw(ctx);
+        return;
     }
 
     // М'який градієнт для читабельності логотипу та меню
@@ -106,7 +154,7 @@ void TitleState::Draw(GameContext& ctx) {
         ? ("CONTINUE LINEAGE (GEN " + std::to_string(ctx.generationCount) + " / NG+" + std::to_string(ctx.ngPlusLevel) + ")")
         : "START LINEAGE";
     std::string opt1 = "NEW LINEAGE (RESET PROGRESS)";
-    std::string opt2 = std::string("MUSIC SEQUENCER: ") + (ctx.musicMuted ? "MUTED [P]" : "ON [P]");
+    std::string opt2 = "SETTINGS & KEYBINDINGS";
     std::string opt3 = "EXIT TO DESKTOP";
 
     const std::string options[4] = { opt0, opt1, opt2, opt3 };
@@ -123,17 +171,15 @@ void TitleState::Draw(GameContext& ctx) {
         Ui::Text(label.c_str(), boxX + 28, oy + 6, 17, col);
     }
 
-    // Довідка керування внизу екрана
-    int helpW = 1060;
-    int helpX = (Config::VIRTUAL_WIDTH - helpW) / 2;
-    int helpY = 534;
-    Rectangle helpRec = { static_cast<float>(helpX), static_cast<float>(helpY), static_cast<float>(helpW), 148.0f };
-    DrawRectangleRounded(helpRec, 0.06f, 4, Color{ 14, 16, 26, 235 });
-    DrawRectangleRoundedLines(helpRec, 0.06f, 4, 2.0f, Color{ 90, 100, 130, 255 });
+    // Акуратний лаконічний футер керування внизу екрана
+    int footW = 860;
+    int footX = (Config::VIRTUAL_WIDTH - footW) / 2;
+    int footY = 610;
+    Rectangle footRec = { static_cast<float>(footX), static_cast<float>(footY), static_cast<float>(footW), 36.0f };
+    DrawRectangleRounded(footRec, 0.3f, 4, Color{ 14, 16, 26, 210 });
+    DrawRectangleRoundedLines(footRec, 0.3f, 4, 1.5f, Color{ 80, 90, 115, 200 });
 
-    Ui::Text("CONTROLS & COMBAT MECHANICS:", helpX + 24, helpY + 14, 17, GOLD);
-    Ui::Text("MOVE: [A / D] or [Arrows]     JUMP / DOUBLE JUMP: [Space / W]     DROP PLATFORM: [S + Space]", helpX + 24, helpY + 42, 14, RAYWHITE);
-    Ui::Text("SWORD ATTACK: [J / Z / LMB]   POGO DOWN-STRIKE (In Air): [S + J]   CAST SPELL: [L / X / RMB]", helpX + 24, helpY + 68, 14, SKYBLUE);
-    Ui::Text("DASH: [K / C / Shift]         CLASS TALENT: [Q / Left Ctrl]        INTERACT / ENTER DOOR: [W / E]", helpX + 24, helpY + 94, 14, LIME);
-    Ui::Text("MAP NAVIGATION: [M] Manor Screen   [ESC / TAB] Close Modals       [P] Toggle Audio Mute", helpX + 24, helpY + 120, 13, Color{ 200, 205, 220, 255 });
+    const char* footText = "[ENTER / SPACE] Select       [W / S / ARROWS] Navigate       [M] Manor Tree       [ESC] Quit";
+    int ftw = Ui::Measure(footText, 14);
+    Ui::Text(footText, footX + (footW - ftw) / 2, footY + 10, 14, Color{ 200, 215, 240, 255 });
 }
