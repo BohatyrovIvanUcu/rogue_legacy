@@ -35,7 +35,7 @@ public:
 
     bool IsSolidAt(int col, int row, bool isDwarf = false) const {
         char c = GetTileAt(col, row);
-        if (c == '#' || c == 'T' || c == 'X') return true;
+        if (c == '#' || c == 'X') return true;
         // Тайл 'D' (Dwarf Tunnel) пропускає лише спадкоємця з рисою Dwarfism
         if (c == 'D' && !isDwarf) return true;
         // Тайл 'I' (Illusion Wall) пропускає гравця безперешкодно!

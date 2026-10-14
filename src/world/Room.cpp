@@ -164,13 +164,13 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
                     break;
                 }
                 case 'T': {
+                    tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
                     if (!cleared) {
                         Enemy turret;
                         turret.Init(EnemyType::WallTurret, enemyTier, roomLevel, center, false);
                         turret.facingDir = (c < Config::ROOM_COLS / 2) ? 1.0f : -1.0f;
                         enemies.push_back(turret);
                     }
-                    // Тайл 'T' залишається твердим у IsSolidAt
                     break;
                 }
                 case 'S': {
@@ -843,7 +843,7 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
     // 3. Тайлова карта кімнати з процедурним автотайлінгом
     auto IsSolidTile = [this](int col, int row) -> bool {
         char ch = GetTileAt(col, row);
-        return (ch == '#' || ch == 'T' || ch == 'X' || ch == 'I');
+        return (ch == '#' || ch == 'X' || ch == 'I');
     };
 
     for (int r = 0; r < Config::ROOM_ROWS; ++r) {
