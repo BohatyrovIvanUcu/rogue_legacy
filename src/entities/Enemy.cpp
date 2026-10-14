@@ -301,22 +301,26 @@ void Enemy::Update(
         }
 
         case EnemyType::FireMage: {
-            // Кожні 3.0s телепортується у вільну точку, фокусується 180ms і піднімає вогняні стовпи
+            // Кожні 3.4s телепортується у вільну точку, фокусується 850ms (попередження/телеграф) і піднімає вогняні стовпи
             stateTimer += dt;
             vel.x = 0.0f;
             ResolvePhysicsAndTiles(dt, tileMap, true);
             facingDir = (pCenter.x >= myCenter.x) ? 1.0f : -1.0f;
 
-            if (!isTelegraphing && stateTimer >= 2.82f) {
+            constexpr float kTelegraphDuration = 0.85f;
+            constexpr float kAttackTime = 3.40f;
+            constexpr float kTelegraphStartTime = kAttackTime - kTelegraphDuration; // 2.55f
+
+            if (!isTelegraphing && stateTimer >= kTelegraphStartTime) {
                 isTelegraphing = true;
                 lockedAttackTarget = { pCenter.x, player.GetBottom() };
             }
 
-            if (stateTimer >= 3.00f) {
+            if (stateTimer >= kAttackTime) {
                 stateTimer = 0.0f;
                 isTelegraphing = false;
 
-                // Спавн 3 вогняних стовпів з підлоги під позицією гравця
+                // Спавн вогняних стовпів з підлоги під заблокованою позицією гравця
                 int pillarCount = (tier >= 2) ? 3 : 2;
                 for (int i = 0; i < pillarCount; ++i) {
                     float offset = (i - (pillarCount - 1) * 0.5f) * 52.0f;
@@ -783,11 +787,27 @@ void Enemy::Draw() const {
             DrawCircleV(staffTop, 3.5f * orbPulse, Fade(pal.fireGold[4], alpha));
 
             if (isTelegraphing) {
-                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 26.0f + std::sin(animTimer * 25.0f) * 5.0f, Fade(pal.fireGold[3], 0.7f));
-                for (int i = -1; i <= 1; ++i) {
-                    Vector2 mark = { lockedAttackTarget.x + i * 52.0f, lockedAttackTarget.y };
-                    DrawCircleV(mark, 12.0f + std::sin(animTimer * 20.0f) * 3.0f, Fade(pal.danger[2], 0.65f));
-                    DrawCircleLines(static_cast<int>(mark.x), static_cast<int>(mark.y), 15.0f, pal.fireGold[3]);
+                float chargeRatio = std::clamp((stateTimer - 2.55f) / 0.85f, 0.0f, 1.0f);
+                float chargePulse = std::sin(animTimer * (16.0f + 20.0f * chargeRatio));
+
+                // Магічна аура концентрації навколо мага та сяйво посоха
+                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 24.0f + chargePulse * 4.0f, Fade(pal.fireGold[3], 0.75f + 0.25f * chargeRatio));
+                DrawCircleV(staffTop, (8.0f + 6.0f * chargeRatio) * orbPulse, Fade(pal.fireGold[3], 0.45f + 0.35f * chargeRatio));
+
+                // Попереджувальні рунічні мітки на підлозі (відповідають точним точкам спавну стовпів)
+                int pillarCount = (tier >= 2) ? 3 : 2;
+                for (int i = 0; i < pillarCount; ++i) {
+                    float offset = (i - (pillarCount - 1) * 0.5f) * 52.0f;
+                    Vector2 mark = { lockedAttackTarget.x + offset, lockedAttackTarget.y };
+
+                    // Пульсуюче вогняне коло небезпеки
+                    DrawEllipse(static_cast<int>(mark.x), static_cast<int>(mark.y), 22.0f + chargePulse * 3.0f, 6.0f, Fade(pal.danger[2], 0.45f + 0.45f * chargeRatio));
+                    DrawEllipseLines(static_cast<int>(mark.x), static_cast<int>(mark.y), 26.0f + chargePulse * 2.0f, 8.0f, pal.fireGold[3]);
+
+                    // Вертикальний струмінь тепла (індикатор зони виверження)
+                    float beamH = 80.0f * chargeRatio;
+                    DrawLineEx({ mark.x, mark.y }, { mark.x, mark.y - beamH }, 2.5f, Fade(pal.fireGold[2], 0.35f + 0.35f * chargeRatio));
+                    DrawCircleV({ mark.x, mark.y - beamH }, 3.0f, Fade(pal.fireGold[4], 0.6f + 0.4f * chargeRatio));
                 }
             }
             break;
