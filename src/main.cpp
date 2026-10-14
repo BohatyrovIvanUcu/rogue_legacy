@@ -150,6 +150,10 @@ int main() {
         float dh = Config::RENDER_HEIGHT * scale;
         Rectangle srcRec = { 0.0f, 0.0f, static_cast<float>(Config::RENDER_WIDTH), -static_cast<float>(Config::RENDER_HEIGHT) };
         Rectangle dstRec = { (sw - dw) * 0.5f, (sh - dh) * 0.5f, dw, dh };
+        if (std::abs(sw - static_cast<float>(Config::RENDER_WIDTH)) < 2.0f &&
+            std::abs(sh - static_cast<float>(Config::RENDER_HEIGHT)) < 2.0f) {
+            dstRec = { 0.0f, 0.0f, static_cast<float>(Config::RENDER_WIDTH), static_cast<float>(Config::RENDER_HEIGHT) };
+        }
 
         BeginDrawing();
         ClearBackground(BLACK);

@@ -24,7 +24,51 @@ Vector2 SettingsMenu::GetVirtualMousePos() {
     return { canvasPos.x / Config::SCALE_FACTOR, canvasPos.y / Config::SCALE_FACTOR };
 }
 
-extern "C" void glfwSwapInterval(int interval);
+namespace {
+    struct CoreWindowStub {
+        const char *title;
+        unsigned int flags;
+        bool ready;
+        bool fullscreen;
+        bool shouldClose;
+        bool resizedLastFrame;
+        bool eventWaiting;
+        bool usingFbo;
+        struct { int x, y; } position;
+        struct { int x, y; } previousPosition;
+        struct { unsigned int width, height; } display;
+        struct { unsigned int width, height; } screen;
+        struct { unsigned int width, height; } previousScreen;
+        struct { unsigned int width, height; } currentFbo;
+        struct { unsigned int width, height; } render;
+        struct { int x, y; } renderOffset;
+        struct { unsigned int width, height; } screenMin;
+        struct { unsigned int width, height; } screenMax;
+        Matrix screenScale;
+    };
+
+    struct CoreDataStub {
+        CoreWindowStub Window;
+    };
+
+    struct GLFWvidmode {
+        int width;
+        int height;
+        int redBits;
+        int greenBits;
+        int blueBits;
+        int refreshRate;
+    };
+}
+
+extern "C" {
+    void glfwSwapInterval(int interval);
+    void glfwSetWindowMonitor(void* window, void* monitor, int xpos, int ypos, int width, int height, int refreshRate);
+    void** glfwGetMonitors(int* count);
+    void* glfwGetPrimaryMonitor(void);
+    const GLFWvidmode* glfwGetVideoMode(void* monitor);
+    extern CoreDataStub CORE;
+}
 
 void SettingsMenu::ApplyFpsAndVsync(GameContext& ctx) {
     // Якщо вибрано більше 60 FPS або UNLIMITED — V-Sync обов'язково вимикається,
@@ -57,26 +101,107 @@ void SettingsMenu::SetDisplayMode(DisplayMode target) {
     DisplayMode current = GetCurrentDisplayMode();
     if (current == target) return;
 
-    // 1. Спочатку скидаємо будь-який активний режим до вікна
+    void* win = GetWindowHandle();
+
+    // 1. Спочатку скидаємо будь-який активний повноекранний або безрамковий режим
     if (current == DisplayMode::Fullscreen) {
-        ToggleFullscreen();
+        if (win) {
+            int monitor = GetCurrentMonitor();
+            int monW = GetMonitorWidth(monitor);
+            int monH = GetMonitorHeight(monitor);
+            int winW = (monW >= 1600) ? 1600 : (monW >= 1280 ? 1280 : 960);
+            int winH = (winW * 9) / 16;
+            int posX = (monW - winW) / 2;
+            int posY = (monH - winH) / 2;
+            glfwSetWindowMonitor(win, nullptr, posX, posY, winW, winH, 0);
+            CORE.Window.fullscreen = false;
+            CORE.Window.flags &= ~FLAG_FULLSCREEN_MODE;
+        } else {
+            ToggleFullscreen();
+        }
     } else if (current == DisplayMode::Borderless) {
         ToggleBorderlessWindowed();
     }
 
-    // 2. Вмикаємо новий цільовий режим
+    int monitor = GetCurrentMonitor();
+    int monCount = 0;
+    void** monitors = glfwGetMonitors(&monCount);
+    void* m = (monitor >= 0 && monitor < monCount && monitors) ? monitors[monitor] : glfwGetPrimaryMonitor();
+    int monW = GetMonitorWidth(monitor);
+    int monH = GetMonitorHeight(monitor);
+    int refreshRate = 60;
+    if (m) {
+        const GLFWvidmode* mode = glfwGetVideoMode(m);
+        if (mode && mode->width > 0 && mode->height > 0) {
+            monW = mode->width;
+            monH = mode->height;
+            if (mode->refreshRate > 0) refreshRate = mode->refreshRate;
+        }
+    }
+
+    Matrix idMat{ 1.0f, 0.0f, 0.0f, 0.0f,
+                  0.0f, 1.0f, 0.0f, 0.0f,
+                  0.0f, 0.0f, 1.0f, 0.0f,
+                  0.0f, 0.0f, 0.0f, 1.0f };
+
+    // 2. Вмикаємо новий цільовий режим із точним оновленням параметрів Raylib
     if (target == DisplayMode::Fullscreen) {
-        ToggleFullscreen();
+        CORE.Window.screen.width = static_cast<unsigned int>(monW);
+        CORE.Window.screen.height = static_cast<unsigned int>(monH);
+
+        if (win && m) {
+            glfwSetWindowMonitor(win, m, 0, 0, monW, monH, refreshRate);
+            CORE.Window.fullscreen = true;
+            CORE.Window.flags |= FLAG_FULLSCREEN_MODE;
+        } else {
+            SetWindowSize(monW, monH);
+            ToggleFullscreen();
+        }
+
+        CORE.Window.screen.width = static_cast<unsigned int>(monW);
+        CORE.Window.screen.height = static_cast<unsigned int>(monH);
+        CORE.Window.display.width = static_cast<unsigned int>(monW);
+        CORE.Window.display.height = static_cast<unsigned int>(monH);
+        CORE.Window.render.width = static_cast<unsigned int>(monW);
+        CORE.Window.render.height = static_cast<unsigned int>(monH);
+        CORE.Window.renderOffset = { 0, 0 };
+        CORE.Window.screenScale = idMat;
     } else if (target == DisplayMode::Borderless) {
-        ToggleBorderlessWindowed();
+        if (!IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE)) {
+            ToggleBorderlessWindowed();
+        }
+
+        CORE.Window.screen.width = static_cast<unsigned int>(monW);
+        CORE.Window.screen.height = static_cast<unsigned int>(monH);
+        CORE.Window.display.width = static_cast<unsigned int>(monW);
+        CORE.Window.display.height = static_cast<unsigned int>(monH);
+        CORE.Window.render.width = static_cast<unsigned int>(monW);
+        CORE.Window.render.height = static_cast<unsigned int>(monH);
+        CORE.Window.renderOffset = { 0, 0 };
+        CORE.Window.screenScale = idMat;
     } else if (target == DisplayMode::Windowed) {
-        int monitor = GetCurrentMonitor();
-        int monW = GetMonitorWidth(monitor);
-        int monH = GetMonitorHeight(monitor);
         int winW = (monW >= 1600) ? 1600 : (monW >= 1280 ? 1280 : 960);
         int winH = (winW * 9) / 16;
-        SetWindowSize(winW, winH);
-        SetWindowPosition((monW - winW) / 2, (monH - winH) / 2);
+        int posX = (monW - winW) / 2;
+        int posY = (monH - winH) / 2;
+
+        if (win) {
+            glfwSetWindowMonitor(win, nullptr, posX, posY, winW, winH, 0);
+            CORE.Window.fullscreen = false;
+            CORE.Window.flags &= ~FLAG_FULLSCREEN_MODE;
+        } else {
+            SetWindowSize(winW, winH);
+            SetWindowPosition(posX, posY);
+        }
+
+        CORE.Window.screen.width = static_cast<unsigned int>(winW);
+        CORE.Window.screen.height = static_cast<unsigned int>(winH);
+        CORE.Window.display.width = static_cast<unsigned int>(monW);
+        CORE.Window.display.height = static_cast<unsigned int>(monH);
+        CORE.Window.render.width = static_cast<unsigned int>(winW);
+        CORE.Window.render.height = static_cast<unsigned int>(winH);
+        CORE.Window.renderOffset = { 0, 0 };
+        CORE.Window.screenScale = idMat;
     }
 }
 
