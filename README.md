@@ -57,13 +57,27 @@ Featuring **100% pure procedural rendering** (no external sprite sheets required
 
 ---
 
-## Building and Running
+## Quick Download for Windows (No Compilation Required)
+
+🎮 **Want to play immediately on Windows?**
+1. Go to the [**Releases Page**](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases) or download the latest package directly:
+   👉 **[Download rogue_legacy_windows_x64.zip](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_windows_x64.zip)**
+2. Extract the downloaded `.zip` file anywhere on your PC.
+3. Double-click `rogue_legacy.exe` and enjoy the game!
+
+---
+
+## Building from Source
 
 ### Prerequisites
-- CMake 3.16+
-- C++17 compatible compiler (GCC, Clang, or MSVC)
-- Git (Raylib is fetched automatically via CMake FetchContent)
-- Standard system dependencies for Raylib (OpenGL, X11/Wayland on Linux)
+- CMake 3.20+
+- C++20 compatible compiler (GCC 11+, Clang 13+, or MSVC 2019+)
+- Git (Raylib and nlohmann/json are fetched automatically via CMake FetchContent)
+
+### Windows Local Build:
+1. Double-click `build_windows.bat` in the repository root.
+   *(Or run `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release -j` in PowerShell/CMD).*
+2. The executable will be generated at `build\Release\rogue_legacy_cpp.exe` (and copied to `rogue_legacy.exe`).
 
 ### Linux Build Instructions:
 ```bash
