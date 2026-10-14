@@ -74,6 +74,13 @@ public:
     void Update(float dt, GameContext& ctx, Player& player);
     void Draw(const GameContext& ctx, const Player& player) const;
 
+    // Окремі проходи графічного пайплайну
+    void DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) const;
+    void DrawProps(const GameContext& ctx, const Player& player) const;
+    void DrawEntities(const GameContext& ctx, const Player& player) const;
+    void DrawEmissive(const GameContext& ctx) const;
+    void DrawWorldUi(const GameContext& ctx, const Player& player, const Camera2D& cam) const;
+
     std::vector<Vector2> GetActiveTorchScreenPositions() const;
 
 private:

@@ -189,23 +189,158 @@ void main() {
 }
 )";
 
+    const char* FS_PASSTHROUGH = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+
+void main() {
+    finalColor = texture(texture0, fragTexCoord) * fragColor;
+}
+)";
+
+    const char* FS_OUTLINE = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+uniform vec2 u_texelSize;
+uniform int u_enabled;
+
+void main() {
+    vec4 c = texture(texture0, fragTexCoord);
+    if (u_enabled == 0) {
+        finalColor = c * fragColor;
+        return;
+    }
+    // Phase 1 pass-through
+    finalColor = c * fragColor;
+}
+)";
+
+    const char* FS_SILHOUETTE = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+
+void main() {
+    vec4 c = texture(texture0, fragTexCoord);
+    if (c.a > 0.05) {
+        // Темний силует #0C0A12
+        finalColor = vec4(0.047, 0.039, 0.071, c.a) * fragColor;
+    } else {
+        finalColor = vec4(0.0);
+    }
+}
+)";
+
+    const char* FS_GRAYSCALE = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+
+void main() {
+    vec4 c = texture(texture0, fragTexCoord) * fragColor;
+    float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+    finalColor = vec4(vec3(lum), c.a);
+}
+)";
+
+    const char* FS_LIGHT_COMPOSITE = 
+R"(#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+uniform sampler2D texture0;
+uniform int u_lightEnabled;
+
+void main() {
+    vec4 sceneCol = texture(texture0, fragTexCoord) * fragColor;
+    if (u_lightEnabled == 0) {
+        finalColor = sceneCol;
+        return;
+    }
+    finalColor = sceneCol;
+}
+)";
+
 } // anonymous namespace
 
 ShaderManager::~ShaderManager() {
     Shutdown();
 }
 
+void ShaderManager::RecreateRenderTextures() {
+    if (!initialized_) return;
+
+    if (sceneRT_.id != 0)  UnloadRenderTexture(sceneRT_);
+    if (entityRT_.id != 0) UnloadRenderTexture(entityRT_);
+    if (lightRT_.id != 0)  UnloadRenderTexture(lightRT_);
+    if (litRT_.id != 0)    UnloadRenderTexture(litRT_);
+    if (bloomRT1_.id != 0) UnloadRenderTexture(bloomRT1_);
+    if (bloomRT2_.id != 0) UnloadRenderTexture(bloomRT2_);
+    if (pingTarget_.id != 0) UnloadRenderTexture(pingTarget_);
+    if (pongTarget_.id != 0) UnloadRenderTexture(pongTarget_);
+
+    targetW_ = presentTarget_ ? presentTarget_->texture.width : Config::RENDER_WIDTH;
+    targetH_ = presentTarget_ ? presentTarget_->texture.height : Config::RENDER_HEIGHT;
+    if (targetW_ <= 0) targetW_ = Config::RENDER_WIDTH;
+    if (targetH_ <= 0) targetH_ = Config::RENDER_HEIGHT;
+
+    internalW_ = (targetW_ + pixelScale_ - 1) / pixelScale_;
+    internalH_ = (targetH_ + pixelScale_ - 1) / pixelScale_;
+
+    sceneRT_  = LoadRenderTexture(internalW_, internalH_);
+    entityRT_ = LoadRenderTexture(internalW_, internalH_);
+    lightRT_  = LoadRenderTexture(std::max(1, internalW_ / 2), std::max(1, internalH_ / 2));
+    litRT_    = LoadRenderTexture(internalW_, internalH_);
+    bloomRT1_ = LoadRenderTexture(std::max(1, internalW_ / 4), std::max(1, internalH_ / 4));
+    bloomRT2_ = LoadRenderTexture(std::max(1, internalW_ / 4), std::max(1, internalH_ / 4));
+
+    pingTarget_ = LoadRenderTexture(targetW_, targetH_);
+    pongTarget_ = LoadRenderTexture(targetW_, targetH_);
+
+    SetTextureFilter(sceneRT_.texture, TEXTURE_FILTER_POINT);
+    SetTextureFilter(entityRT_.texture, TEXTURE_FILTER_POINT);
+    SetTextureFilter(lightRT_.texture, TEXTURE_FILTER_BILINEAR);
+    SetTextureFilter(litRT_.texture, TEXTURE_FILTER_POINT);
+    SetTextureFilter(bloomRT1_.texture, TEXTURE_FILTER_BILINEAR);
+    SetTextureFilter(bloomRT2_.texture, TEXTURE_FILTER_BILINEAR);
+    SetTextureFilter(pingTarget_.texture, TEXTURE_FILTER_POINT);
+    SetTextureFilter(pongTarget_.texture, TEXTURE_FILTER_POINT);
+}
+
 void ShaderManager::Init() {
     if (initialized_) return;
 
-    pingTarget_ = LoadRenderTexture(Config::RENDER_WIDTH, Config::RENDER_HEIGHT);
-    pongTarget_ = LoadRenderTexture(Config::RENDER_WIDTH, Config::RENDER_HEIGHT);
+    targetW_ = Config::RENDER_WIDTH;
+    targetH_ = Config::RENDER_HEIGHT;
+    pixelScale_ = 2;
+    internalW_ = targetW_ / pixelScale_;
+    internalH_ = targetH_ / pixelScale_;
+
+    shPassThrough_    = LoadShaderFromMemory(nullptr, FS_PASSTHROUGH);
+    shOutline_        = LoadShaderFromMemory(nullptr, FS_OUTLINE);
+    shSilhouette_     = LoadShaderFromMemory(nullptr, FS_SILHOUETTE);
+    shGrayscale_      = LoadShaderFromMemory(nullptr, FS_GRAYSCALE);
+    shLightComposite_ = LoadShaderFromMemory(nullptr, FS_LIGHT_COMPOSITE);
 
     shColorblind_ = LoadShaderFromMemory(nullptr, FS_COLORBLIND);
     shNostalgic_  = LoadShaderFromMemory(nullptr, FS_NOSTALGIC);
     shMyopia_     = LoadShaderFromMemory(nullptr, FS_MYOPIA);
     shHyperopia_  = LoadShaderFromMemory(nullptr, FS_HYPEROPIA);
     shDarkness_   = LoadShaderFromMemory(nullptr, FS_DARKNESS);
+
+    locOutlineTexelSize_      = GetShaderLocation(shOutline_, "u_texelSize");
+    locOutlineEnabled_        = GetShaderLocation(shOutline_, "u_enabled");
+    locLightCompositeEnabled_ = GetShaderLocation(shLightComposite_, "u_lightEnabled");
 
     locNostalgicTime_       = GetShaderLocation(shNostalgic_, "u_time");
 
@@ -225,14 +360,26 @@ void ShaderManager::Init() {
     locDarkTorches_         = GetShaderLocation(shDarkness_, "u_torches");
 
     initialized_ = true;
+    RecreateRenderTextures();
 }
 
 void ShaderManager::Shutdown() {
     if (!initialized_) return;
 
-    UnloadRenderTexture(pingTarget_);
-    UnloadRenderTexture(pongTarget_);
+    if (sceneRT_.id != 0)  UnloadRenderTexture(sceneRT_);
+    if (entityRT_.id != 0) UnloadRenderTexture(entityRT_);
+    if (lightRT_.id != 0)  UnloadRenderTexture(lightRT_);
+    if (litRT_.id != 0)    UnloadRenderTexture(litRT_);
+    if (bloomRT1_.id != 0) UnloadRenderTexture(bloomRT1_);
+    if (bloomRT2_.id != 0) UnloadRenderTexture(bloomRT2_);
+    if (pingTarget_.id != 0) UnloadRenderTexture(pingTarget_);
+    if (pongTarget_.id != 0) UnloadRenderTexture(pongTarget_);
 
+    UnloadShader(shPassThrough_);
+    UnloadShader(shOutline_);
+    UnloadShader(shSilhouette_);
+    UnloadShader(shGrayscale_);
+    UnloadShader(shLightComposite_);
     UnloadShader(shColorblind_);
     UnloadShader(shNostalgic_);
     UnloadShader(shMyopia_);
@@ -242,19 +389,182 @@ void ShaderManager::Shutdown() {
     initialized_ = false;
 }
 
-void ShaderManager::BeginSceneCapture() {
-    Camera2D cam{};
-    cam.zoom = Config::SCALE_FACTOR;
-    BeginSceneCapture(cam);
+void ShaderManager::UpdateDebugHotkeys() {
+    if (IsKeyPressed(KEY_F5)) {
+        debugLight_ = !debugLight_;
+        TraceLog(LOG_INFO, "DEBUG: Light %s", debugLight_ ? "ON" : "OFF");
+    }
+    if (IsKeyPressed(KEY_F6)) {
+        int nextScale = (pixelScale_ % 4) + 1;
+        SetPixelScale(nextScale);
+        TraceLog(LOG_INFO, "DEBUG: Pixel Scale set to %dx", pixelScale_);
+    }
+    if (IsKeyPressed(KEY_F7)) {
+        debugBloom_ = !debugBloom_;
+        TraceLog(LOG_INFO, "DEBUG: Bloom %s", debugBloom_ ? "ON" : "OFF");
+    }
+    if (IsKeyPressed(KEY_F8)) {
+        debugSilhouette_ = !debugSilhouette_;
+        TraceLog(LOG_INFO, "DEBUG: Silhouette Test %s", debugSilhouette_ ? "ON" : "OFF");
+    }
+    if (IsKeyPressed(KEY_F9)) {
+        debugOutline_ = !debugOutline_;
+        TraceLog(LOG_INFO, "DEBUG: Outline %s", debugOutline_ ? "ON" : "OFF");
+    }
+    if (IsKeyPressed(KEY_F10)) {
+        debugGrayscale_ = !debugGrayscale_;
+        TraceLog(LOG_INFO, "DEBUG: Grayscale Mode %s", debugGrayscale_ ? "ON" : "OFF");
+    }
 }
 
-void ShaderManager::BeginSceneCapture(const Camera2D& cam) {
-    BeginTextureMode(pingTarget_);
+void ShaderManager::CheckWindowResize() {
+    int curW = presentTarget_ ? presentTarget_->texture.width : GetScreenWidth();
+    int curH = presentTarget_ ? presentTarget_->texture.height : GetScreenHeight();
+    if (curW <= 0) curW = Config::RENDER_WIDTH;
+    if (curH <= 0) curH = Config::RENDER_HEIGHT;
+
+    if (curW != targetW_ || curH != targetH_ || IsWindowResized()) {
+        targetW_ = curW;
+        targetH_ = curH;
+        RecreateRenderTextures();
+    }
+}
+
+void ShaderManager::SetPixelScale(int scale) {
+    if (scale < 1) scale = 1;
+    if (scale > 4) scale = 4;
+    if (scale != pixelScale_) {
+        pixelScale_ = scale;
+        RecreateRenderTextures();
+    }
+}
+
+Camera2D ShaderManager::GetInternalCamera(const Camera2D& worldCam) const {
+    Camera2D internalCam = worldCam;
+    float k = static_cast<float>(pixelScale_);
+    float internalZoom = worldCam.zoom / k;
+    internalCam.zoom = internalZoom;
+    internalCam.offset = {
+        std::floor(worldCam.offset.x / k),
+        std::floor(worldCam.offset.y / k)
+    };
+    // Округлення target до цілого внутрішнього пікселя
+    internalCam.target = {
+        std::round(worldCam.target.x * internalZoom) / internalZoom,
+        std::round(worldCam.target.y * internalZoom) / internalZoom
+    };
+    return internalCam;
+}
+
+void ShaderManager::BeginScenePass(const Camera2D& worldCam) {
+    CheckWindowResize();
+    currentInternalCam_ = GetInternalCamera(worldCam);
+    BeginTextureMode(sceneRT_);
     ClearBackground(BLACK);
-    BeginMode2D(cam);
+    BeginMode2D(currentInternalCam_);
 }
 
-void ShaderManager::EndSceneAndPresent(
+void ShaderManager::EndScenePass() {
+    EndMode2D();
+    EndTextureMode();
+}
+
+void ShaderManager::BeginEntityPass(const Camera2D& worldCam) {
+    currentInternalCam_ = GetInternalCamera(worldCam);
+    BeginTextureMode(entityRT_);
+    ClearBackground(BLANK); // Прозорий фон
+    BeginMode2D(currentInternalCam_);
+}
+
+void ShaderManager::EndEntityPass() {
+    EndMode2D();
+    EndTextureMode();
+}
+
+void ShaderManager::CompositeEntitiesToScene() {
+    BeginTextureMode(sceneRT_);
+    if (debugSilhouette_) {
+        BeginShaderMode(shSilhouette_);
+    } else if (debugOutline_) {
+        BeginShaderMode(shOutline_);
+        float texelSize[2] = {
+            1.0f / static_cast<float>(entityRT_.texture.width),
+            1.0f / static_cast<float>(entityRT_.texture.height)
+        };
+        int enabled = 1;
+        SetShaderValue(shOutline_, locOutlineTexelSize_, texelSize, SHADER_UNIFORM_VEC2);
+        SetShaderValue(shOutline_, locOutlineEnabled_, &enabled, SHADER_UNIFORM_INT);
+    }
+
+    Rectangle srcRec = {
+        0.0f, 0.0f,
+        static_cast<float>(entityRT_.texture.width),
+        -static_cast<float>(entityRT_.texture.height)
+    };
+    DrawTextureRec(entityRT_.texture, srcRec, { 0.0f, 0.0f }, WHITE);
+
+    if (debugSilhouette_ || debugOutline_) {
+        EndShaderMode();
+    }
+    EndTextureMode();
+}
+
+void ShaderManager::BeginLightPass(const Camera2D& worldCam) {
+    currentInternalCam_ = GetInternalCamera(worldCam);
+    BeginTextureMode(lightRT_);
+    ClearBackground(WHITE); // На Фазі 1: pass-through біле світло
+    Camera2D lightCam = currentInternalCam_;
+    lightCam.offset = { lightCam.offset.x * 0.5f, lightCam.offset.y * 0.5f };
+    lightCam.zoom = lightCam.zoom * 0.5f;
+    BeginMode2D(lightCam);
+}
+
+void ShaderManager::EndLightPass() {
+    EndMode2D();
+    EndTextureMode();
+}
+
+void ShaderManager::CompositeSceneAndLight() {
+    BeginTextureMode(litRT_);
+    ClearBackground(BLACK);
+    if (debugLight_) {
+        BeginShaderMode(shLightComposite_);
+        int lightFlag = 1;
+        SetShaderValue(shLightComposite_, locLightCompositeEnabled_, &lightFlag, SHADER_UNIFORM_INT);
+    }
+
+    Rectangle srcRec = {
+        0.0f, 0.0f,
+        static_cast<float>(sceneRT_.texture.width),
+        -static_cast<float>(sceneRT_.texture.height)
+    };
+    DrawTextureRec(sceneRT_.texture, srcRec, { 0.0f, 0.0f }, WHITE);
+
+    if (debugLight_) {
+        EndShaderMode();
+    }
+    EndTextureMode();
+}
+
+void ShaderManager::BeginEmissivePass(const Camera2D& worldCam) {
+    currentInternalCam_ = GetInternalCamera(worldCam);
+    BeginTextureMode(litRT_);
+    BeginBlendMode(BLEND_ADDITIVE);
+    BeginMode2D(currentInternalCam_);
+}
+
+void ShaderManager::EndEmissivePass() {
+    EndMode2D();
+    EndBlendMode();
+    EndTextureMode();
+}
+
+void ShaderManager::ApplyBloom() {
+    if (!debugBloom_) return;
+    // На Фазі 1 — pass-through. Буфери bloomRT1_ та bloomRT2_ підготовлені для Фази 3.
+}
+
+void ShaderManager::PresentFinalScene(
     const GameContext& ctx,
     Vector2 playerScreenPos,
     bool isDarknessBiome,
@@ -263,17 +573,21 @@ void ShaderManager::EndSceneAndPresent(
     bool timeStopActive,
     const std::vector<Vector2>& torchScreenPositions
 ) {
-    EndMode2D();
+    // 1. Копіюємо низькороздільний litRT_ у pingTarget_ з Point-фільтрацією
+    BeginTextureMode(pingTarget_);
+    ClearBackground(BLACK);
+    Rectangle srcRec = {
+        0.0f, 0.0f,
+        static_cast<float>(litRT_.texture.width),
+        -static_cast<float>(litRT_.texture.height)
+    };
+    Rectangle dstRec = {
+        0.0f, 0.0f,
+        static_cast<float>(targetW_),
+        static_cast<float>(targetH_)
+    };
+    DrawTexturePro(litRT_.texture, srcRec, dstRec, { 0.0f, 0.0f }, 0.0f, WHITE);
     EndTextureMode();
-
-    float res[2] = {
-        static_cast<float>(Config::RENDER_WIDTH),
-        static_cast<float>(Config::RENDER_HEIGHT)
-    };
-    float pPos[2] = {
-        playerScreenPos.x * Config::SCALE_FACTOR,
-        playerScreenPos.y * Config::SCALE_FACTOR
-    };
 
     RenderTexture2D* src = &pingTarget_;
     RenderTexture2D* dst = &pongTarget_;
@@ -282,15 +596,24 @@ void ShaderManager::EndSceneAndPresent(
         BeginTextureMode(*dst);
         ClearBackground(BLANK);
         BeginShaderMode(shader);
-        Rectangle srcRec = {
+        Rectangle passSrcRec = {
             0.0f, 0.0f,
             static_cast<float>(src->texture.width),
             -static_cast<float>(src->texture.height)
         };
-        DrawTextureRec(src->texture, srcRec, { 0.0f, 0.0f }, WHITE);
+        DrawTextureRec(src->texture, passSrcRec, { 0.0f, 0.0f }, WHITE);
         EndShaderMode();
         EndTextureMode();
         std::swap(src, dst);
+    };
+
+    float res[2] = {
+        static_cast<float>(targetW_),
+        static_cast<float>(targetH_)
+    };
+    float pPos[2] = {
+        playerScreenPos.x * Config::SCALE_FACTOR,
+        playerScreenPos.y * Config::SCALE_FACTOR
     };
 
     if (isDarknessBiome || timeStopActive) {
@@ -335,6 +658,10 @@ void ShaderManager::EndSceneAndPresent(
         ApplyPass(shNostalgic_);
     }
 
+    if (debugGrayscale_) {
+        ApplyPass(shGrayscale_);
+    }
+
     bool hasVertigo = ctx.CurrentHeirHasTrait(TraitType::Vertigo);
     Rectangle finalSrcRec = {
         0.0f, 0.0f,
@@ -342,15 +669,47 @@ void ShaderManager::EndSceneAndPresent(
         hasVertigo ? static_cast<float>(src->texture.height)
                    : -static_cast<float>(src->texture.height)
     };
-    // EndTextureMode у raylib завжди повертає на екран, тому знову вмикаємо полотно,
-    // щоб фінальний кадр і HUD після нього малювались у полотно 1920x1080.
+
     float outW = static_cast<float>(GetScreenWidth());
     float outH = static_cast<float>(GetScreenHeight());
     if (presentTarget_) {
         BeginTextureMode(*presentTarget_);
-        outW = static_cast<float>(Config::RENDER_WIDTH);
-        outH = static_cast<float>(Config::RENDER_HEIGHT);
+        outW = static_cast<float>(presentTarget_->texture.width);
+        outH = static_cast<float>(presentTarget_->texture.height);
     }
     Rectangle finalDstRec = { 0.0f, 0.0f, outW, outH };
     DrawTexturePro(src->texture, finalSrcRec, finalDstRec, { 0.0f, 0.0f }, 0.0f, WHITE);
+}
+
+void ShaderManager::BeginSceneCapture() {
+    Camera2D cam{};
+    cam.zoom = Config::SCALE_FACTOR;
+    BeginSceneCapture(cam);
+}
+
+void ShaderManager::BeginSceneCapture(const Camera2D& cam) {
+    BeginScenePass(cam);
+}
+
+void ShaderManager::EndSceneAndPresent(
+    const GameContext& ctx,
+    Vector2 playerScreenPos,
+    bool isDarknessBiome,
+    bool headlampActive,
+    float facingDir,
+    bool timeStopActive,
+    const std::vector<Vector2>& torchScreenPositions
+) {
+    EndScenePass();
+    CompositeSceneAndLight();
+    ApplyBloom();
+    PresentFinalScene(
+        ctx,
+        playerScreenPos,
+        isDarknessBiome,
+        headlampActive,
+        facingDir,
+        timeStopActive,
+        torchScreenPositions
+    );
 }

@@ -122,12 +122,15 @@ int main() {
             SaveManager::SaveSettings(ctx, Config::SAVE_FILE_PATH);
         }
 
+        // Обробка debug-клавіш шейдерів (F5-F10)
+        shaderManager.UpdateDebugHotkeys();
+
         // 1. Малюємо кадр у полотно 1920x1080
         BeginTextureMode(canvas);
         ClearBackground(BLACK);
         if (currentState) {
-            if (ctx.currentStateId == GameStateId::CastlePlay) {
-                // CastlePlayState самостійно проектує сцену через ShaderManager та HUD камеру
+            if (ctx.currentStateId == GameStateId::CastlePlay || ctx.currentStateId == GameStateId::Outskirts) {
+                // CastlePlayState та OutskirtsState самостійно проектують сцену та UI у повній роздільності
                 currentState->Draw(ctx);
             } else {
                 Camera2D renderCam{};
@@ -152,19 +155,33 @@ int main() {
         ClearBackground(BLACK);
         DrawTexturePro(canvas.texture, srcRec, dstRec, { 0.0f, 0.0f }, 0.0f, WHITE);
 
-        // Лічильник FPS (вмикається через F3 або в меню налаштувань)
+        // Лічильник FPS та статус debug-клавіш (F3 або в налаштуваннях)
         if (ctx.showFps) {
             int fps = GetFPS();
             float frameMs = GetFrameTime() * 1000.0f;
             const char* fpsStr = TextFormat("FPS: %d (%.1f ms)", fps, frameMs);
-            int tw = MeasureText(fpsStr, 16);
+            const char* debugStr = TextFormat(
+                "F5 Light:%s | F6 Scale:%dx | F7 Bloom:%s | F8 Sil:%s | F9 Outline:%s | F10 Gray:%s",
+                shaderManager.IsLightEnabled() ? "ON" : "OFF",
+                shaderManager.GetPixelScale(),
+                shaderManager.IsBloomEnabled() ? "ON" : "OFF",
+                shaderManager.IsSilhouetteEnabled() ? "ON" : "OFF",
+                shaderManager.IsOutlineEnabled() ? "ON" : "OFF",
+                shaderManager.IsGrayscaleEnabled() ? "ON" : "OFF"
+            );
+
+            int twFps = MeasureText(fpsStr, 16);
+            int twDbg = MeasureText(debugStr, 12);
+            int tw = std::max(twFps, twDbg);
+
             int px = static_cast<int>(sw) - tw - 24;
             int py = 12;
-            Rectangle badge = { static_cast<float>(px - 8), static_cast<float>(py - 4), static_cast<float>(tw + 16), 26.0f };
-            DrawRectangleRounded(badge, 0.35f, 4, Color{ 10, 14, 22, 225 });
+            Rectangle badge = { static_cast<float>(px - 8), static_cast<float>(py - 4), static_cast<float>(tw + 16), 46.0f };
+            DrawRectangleRounded(badge, 0.25f, 4, Color{ 10, 14, 22, 230 });
             Color col = (fps >= 55) ? LIME : ((fps >= 30) ? GOLD : RED);
-            DrawRectangleRoundedLines(badge, 0.35f, 4, 1.5f, col);
+            DrawRectangleRoundedLines(badge, 0.25f, 4, 1.5f, col);
             DrawText(fpsStr, px, py, 16, col);
+            DrawText(debugStr, px, py + 22, 12, Color{ 180, 195, 220, 240 });
         }
 
         EndDrawing();

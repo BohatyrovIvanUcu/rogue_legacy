@@ -471,6 +471,10 @@ void OutskirtsState::UpdateModalMenu(GameContext& ctx) {
 }
 
 void OutskirtsState::Draw(GameContext& ctx) {
+    Camera2D worldCam{};
+    worldCam.zoom = Config::SCALE_FACTOR;
+    BeginMode2D(worldCam);
+
     // 1. Яскраве денне небо (Daytime azure gradient sky)
     DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, static_cast<int>(GROUND_Y + 40.0f), Color{ 62, 138, 235, 255 }, Color{ 185, 222, 252, 255 });
 
@@ -613,7 +617,6 @@ void OutskirtsState::Draw(GameContext& ctx) {
     DrawRectangle(signX + 44, signY, 8, static_cast<int>(GROUND_Y - signY), Color{ 68, 48, 32, 255 });
     DrawRectangleRounded({ static_cast<float>(signX), static_cast<float>(signY), 108.0f, 32.0f }, 0.25f, 4, Color{ 95, 68, 46, 255 });
     DrawRectangleLinesEx({ static_cast<float>(signX), static_cast<float>(signY), 108.0f, 32.0f }, 2.0f, GOLD);
-    Ui::Text("<-- [M] MANOR", signX + 10, signY + 7, 14, GOLD);
 
     // 7. Кузня Коваля
     if (ctx.GetManorLevel(ManorNodeId::Unlock_Blacksmith) > 0) {
@@ -660,12 +663,10 @@ void OutskirtsState::Draw(GameContext& ctx) {
         // Вивіска
         DrawRectangleRounded({ static_cast<float>(bx + 25), static_cast<float>(by - 42), 120.0f, 26.0f }, 0.25f, 4, Color{ 32, 24, 22, 230 });
         DrawRectangleLinesEx({ static_cast<float>(bx + 25), static_cast<float>(by - 42), 120.0f, 26.0f }, 1.5f, GOLD);
-        Ui::Text("BLACKSMITH", bx + 36, by - 38, 14, GOLD);
 
         if (std::abs(heroX_ - BLACKSMITH_X) < 75.0f) {
             DrawRectangleRounded({ static_cast<float>(bx + 10), static_cast<float>(by - 72), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
             DrawRectangleLinesEx({ static_cast<float>(bx + 10), static_cast<float>(by - 72), 150.0f, 24.0f }, 1.5f, LIME);
-            Ui::Text("[W / E] FORGE GEAR", bx + 18, by - 68, 13, LIME);
         }
     }
 
@@ -712,12 +713,10 @@ void OutskirtsState::Draw(GameContext& ctx) {
         // Вивіска
         DrawRectangleRounded({ static_cast<float>(ex - 65), static_cast<float>(ey - 188), 130.0f, 26.0f }, 0.25f, 4, Color{ 32, 18, 44, 230 });
         DrawRectangleLinesEx({ static_cast<float>(ex - 65), static_cast<float>(ey - 188), 130.0f, 26.0f }, 1.5f, MAGENTA);
-        Ui::Text("ENCHANTRESS", ex - 52, ey - 184, 14, MAGENTA);
 
         if (std::abs(heroX_ - ENCHANTRESS_X) < 75.0f) {
             DrawRectangleRounded({ static_cast<float>(ex - 75), static_cast<float>(ey - 218), 150.0f, 24.0f }, 0.25f, 4, Fade(BLACK, 0.82f));
             DrawRectangleLinesEx({ static_cast<float>(ex - 75), static_cast<float>(ey - 218), 150.0f, 24.0f }, 1.5f, LIME);
-            Ui::Text("[W / E] EQUIP RUNES", ex - 67, ey - 214, 13, LIME);
         }
     }
 
@@ -817,12 +816,10 @@ void OutskirtsState::Draw(GameContext& ctx) {
 
     DrawRectangleRounded({ static_cast<float>(cx - 40), static_cast<float>(cy - 116), 80.0f, 22.0f }, 0.25f, 4, Color{ 20, 16, 28, 230 });
     DrawRectangleRoundedLines({ static_cast<float>(cx - 40), static_cast<float>(cy - 116), 80.0f, 22.0f }, 0.25f, 4, 1.5f, GOLD);
-    Ui::Text("CHARON", cx - 28, cy - 112, 13, GOLD);
 
     if (nearCharon && activeMenu_ == ModalMenu::None && !charonSequenceActive_) {
         DrawRectangleRounded({ static_cast<float>(gx - 14), static_cast<float>(gy - 200), 168.0f, 26.0f }, 0.25f, 4, Fade(BLACK, 0.85f));
         DrawRectangleRoundedLines({ static_cast<float>(gx - 14), static_cast<float>(gy - 200), 168.0f, 26.0f }, 0.25f, 4, 1.5f, GOLD);
-        Ui::Text("[E / ENTER] PAY TOLL", gx - 2, gy - 195, 13, GOLD);
     }
 
     // 11. Рендер лицаря (зі стрибком, падінням та ударом мечем)
@@ -856,23 +853,62 @@ void OutskirtsState::Draw(GameContext& ctx) {
         }
     }
 
-    // 12. Нижня панель підказок керування у лобі
+    if (ctx.particles) {
+        ctx.particles->Draw();
+    }
+    EndMode2D();
+
+    // 12. Текст та підписи у світі через GetWorldToScreen2D (повна роздільність 1080p, без пікселізації)
+    Vector2 manorPos = GetWorldToScreen2D({ static_cast<float>(signX + 10), static_cast<float>(signY + 7) }, worldCam);
+    Ui::Text("<-- [M] MANOR", static_cast<int>(manorPos.x), static_cast<int>(manorPos.y), 20, GOLD);
+
+    if (ctx.GetManorLevel(ManorNodeId::Unlock_Blacksmith) > 0) {
+        int bx = static_cast<int>(BLACKSMITH_X - 85.0f);
+        int by = static_cast<int>(GROUND_Y - 150.0f);
+        Vector2 bsPos = GetWorldToScreen2D({ static_cast<float>(bx + 36), static_cast<float>(by - 38) }, worldCam);
+        Ui::Text("BLACKSMITH", static_cast<int>(bsPos.x), static_cast<int>(bsPos.y), 20, GOLD);
+        if (std::abs(heroX_ - BLACKSMITH_X) < 75.0f) {
+            Vector2 bsPrompt = GetWorldToScreen2D({ static_cast<float>(bx + 18), static_cast<float>(by - 68) }, worldCam);
+            Ui::Text("[W / E] FORGE GEAR", static_cast<int>(bsPrompt.x), static_cast<int>(bsPrompt.y), 18, LIME);
+        }
+    }
+
+    if (ctx.GetManorLevel(ManorNodeId::Unlock_Enchantress) > 0) {
+        int ex = static_cast<int>(ENCHANTRESS_X);
+        int ey = static_cast<int>(GROUND_Y);
+        Vector2 enchPos = GetWorldToScreen2D({ static_cast<float>(ex - 52), static_cast<float>(ey - 184) }, worldCam);
+        Ui::Text("ENCHANTRESS", static_cast<int>(enchPos.x), static_cast<int>(enchPos.y), 20, MAGENTA);
+        if (std::abs(heroX_ - ENCHANTRESS_X) < 75.0f) {
+            Vector2 enchPrompt = GetWorldToScreen2D({ static_cast<float>(ex - 67), static_cast<float>(ey - 214) }, worldCam);
+            Ui::Text("[W / E] EQUIP RUNES", static_cast<int>(enchPrompt.x), static_cast<int>(enchPrompt.y), 18, LIME);
+        }
+    }
+
+    Vector2 charonPos = GetWorldToScreen2D({ static_cast<float>(cx - 28), static_cast<float>(cy - 112) }, worldCam);
+    Ui::Text("CHARON", static_cast<int>(charonPos.x), static_cast<int>(charonPos.y), 19, GOLD);
+    if (nearCharon && activeMenu_ == ModalMenu::None && !charonSequenceActive_) {
+        Vector2 charonPrompt = GetWorldToScreen2D({ static_cast<float>(gx - 2), static_cast<float>(gy - 195) }, worldCam);
+        Ui::Text("[E / ENTER] PAY TOLL", static_cast<int>(charonPrompt.x), static_cast<int>(charonPrompt.y), 18, GOLD);
+    }
+
+    // 13. HUD та модальні вікна
+    Camera2D hudCam{};
+    hudCam.zoom = Config::SCALE_FACTOR;
+    BeginMode2D(hudCam);
+
+    // Нижня панель підказок керування
     int hintBarY = static_cast<int>(GROUND_Y + 98.0f);
     DrawRectangleRounded({ 160.0f, static_cast<float>(hintBarY), static_cast<float>(Config::VIRTUAL_WIDTH - 320), 32.0f }, 0.35f, 6, Color{ 14, 16, 26, 215 });
     DrawRectangleLinesEx({ 160.0f, static_cast<float>(hintBarY), static_cast<float>(Config::VIRTUAL_WIDTH - 320), 32.0f }, 1.5f, Color{ 60, 65, 85, 255 });
     Ui::Text("[A / D] MOVE   *   [SPACE] JUMP   *   [J / LMB] ATTACK   *   [W / E] INTERACT   *   [M] MANOR",
              205, hintBarY + 8, 14, Color{ 220, 228, 245, 255 });
 
-    // 13. Верхня інфо-панель
+    // Верхня інфо-панель
     DrawRectangle(0, 0, Config::VIRTUAL_WIDTH, 56, Fade(BLACK, 0.72f));
     Ui::Text("HEIR: " + ctx.activeHeir.name + " (" + Registry::GetClass(ctx.activeHeir.classType).name + ")", 24, 18, 18, GOLD);
     Ui::Text("GOLD: " + std::to_string(ctx.gold) + " G", 540, 18, 18, YELLOW);
     CalculatedStats curSt = ctx.ComputePlayerStats();
     Ui::Text("WEIGHT: " + std::to_string(curSt.currentWeight) + " / " + std::to_string(curSt.maxWeight), 780, 18, 18, SKYBLUE);
-
-    if (ctx.particles) {
-        ctx.particles->Draw();
-    }
 
     // 14. Модальні вікна NPC
     if (activeMenu_ == ModalMenu::Blacksmith) {
@@ -888,6 +924,8 @@ void OutskirtsState::Draw(GameContext& ctx) {
     if (settingsMenu_.IsOpen()) {
         settingsMenu_.Draw(ctx);
     }
+
+    EndMode2D();
 }
 
 void OutskirtsState::DrawBlacksmithModal(const GameContext& ctx) const {

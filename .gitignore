@@ -22,6 +22,7 @@ dist/
 # Runtime save data and logs
 rogue_legacy_save.json
 *.log
+screenshot*.png
 
 # IDE & Editor files
 .vscode/

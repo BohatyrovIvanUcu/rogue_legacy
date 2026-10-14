@@ -791,6 +791,12 @@ std::vector<Vector2> Room::GetActiveTorchScreenPositions() const {
 }
 
 void Room::Draw(const GameContext& ctx, const Player& player) const {
+    DrawBackgroundAndTiles(ctx, player);
+    DrawProps(ctx, player);
+    DrawEntities(ctx, player);
+}
+
+void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) const {
     if (!ctx.renderer) return;
 
     // 1. Фон біому
@@ -839,38 +845,61 @@ void Room::Draw(const GameContext& ctx, const Player& player) const {
             DrawRectangle(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE, Config::ROOM_PIXEL_HEIGHT - 8, 3 * Config::TILE_SIZE, 8, Fade(GOLD, 0.28f));
         }
     }
+}
 
-    // 5. Інтерактивні об'єкти та дроп
+void Room::DrawProps(const GameContext& ctx, [[maybe_unused]] const Player& player) const {
     for (const auto& it : interactables) {
         it.Draw(ctx);
-
-        // Підказка клавіші [W]/[E] біля скринь, порталів та дверей боса
-        if (it.active && CheckCollisionRecs(it.GetBounds(), player.GetBounds())) {
-            if ((it.kind == InteractableKind::Chest && !it.isOpened) ||
-                (it.kind == InteractableKind::FairyChest && !it.isOpened && !it.isLocked) ||
-                it.kind == InteractableKind::Teleporter ||
-                it.kind == InteractableKind::BossDoor) {
-                Vector2 hc = { it.GetCenter().x, it.pos.y - 24.0f };
-                Ui::Text("[W / E]", static_cast<int>(hc.x - 24.0f), static_cast<int>(hc.y), 15, GOLD);
-            }
-        }
     }
+}
 
-    // 6. Вороги та Бос
+void Room::DrawEntities(const GameContext& ctx, const Player& player) const {
     for (const auto& en : enemies) {
         en.Draw();
     }
     if (hasActiveBoss && activeBoss.active) {
         activeBoss.Draw();
     }
-
-    // 7. Гравець та снаряди
     player.Draw(ctx);
     for (const auto& proj : projectiles) {
         proj.Draw();
     }
+}
 
-    // 8. Банер умови Скрині Феї зверху по центру кімнати
+void Room::DrawEmissive([[maybe_unused]] const GameContext& ctx) const {
+    for (const auto& it : interactables) {
+        if (it.active && it.kind == InteractableKind::Torch) {
+            Vector2 c = it.GetCenter();
+            float flicker = std::sin(it.animTimer * 16.0f) * 2.5f;
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 12.0f), 28.0f + flicker, Fade(ORANGE, 0.35f), BLANK);
+            float fH = 14.0f + std::sin(it.animTimer * 20.0f) * 3.0f;
+            DrawTriangle({ c.x - 7.0f, c.y - 5.0f }, { c.x + 7.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH }, RED);
+            DrawTriangle({ c.x - 5.0f, c.y - 5.0f }, { c.x + 5.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.75f }, ORANGE);
+            DrawTriangle({ c.x - 2.5f, c.y - 5.0f }, { c.x + 2.5f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.45f }, YELLOW);
+            DrawCircleV({ c.x, c.y - 5.0f - fH * 0.25f }, 2.0f, WHITE);
+        }
+    }
+}
+
+void Room::DrawWorldUi([[maybe_unused]] const GameContext& ctx, const Player& player, const Camera2D& cam) const {
+    // 1. Підказка клавіші [W]/[E] біля скринь, порталів та дверей боса у повній роздільності 1080p
+    for (const auto& it : interactables) {
+        if (it.active && CheckCollisionRecs(it.GetBounds(), player.GetBounds())) {
+            if ((it.kind == InteractableKind::Chest && !it.isOpened) ||
+                (it.kind == InteractableKind::FairyChest && !it.isOpened && !it.isLocked) ||
+                it.kind == InteractableKind::Teleporter ||
+                it.kind == InteractableKind::BossDoor) {
+                Vector2 hc = { it.GetCenter().x, it.pos.y - 24.0f };
+                Vector2 sPos = GetWorldToScreen2D(hc, cam);
+                int tw = Ui::Measure("[W / E]", 18);
+                DrawRectangleRounded({ sPos.x - tw * 0.5f - 6.0f, sPos.y - 3.0f, static_cast<float>(tw + 12), 24.0f }, 0.35f, 4, Fade(BLACK, 0.75f));
+                DrawRectangleRoundedLines({ sPos.x - tw * 0.5f - 6.0f, sPos.y - 3.0f, static_cast<float>(tw + 12), 24.0f }, 0.35f, 4, 1.5f, GOLD);
+                Ui::Text("[W / E]", static_cast<int>(sPos.x - tw * 0.5f), static_cast<int>(sPos.y), 18, GOLD);
+            }
+        }
+    }
+
+    // 2. Банер умови Скрині Феї у повній роздільності 1080p
     if (roomType == RoomType::FairyChest && !chestOpened) {
         std::string banner = Registry::GetFairyConditionDesc(fairyCond);
         if (fairyCond == FairyCondition::TimeLimit && fairyTrialActive) {
@@ -879,10 +908,10 @@ void Room::Draw(const GameContext& ctx, const Player& player) const {
             banner += buf;
         }
         Color bCol = fairyTrialFailed ? RED : (fairyTrialCompleted ? LIME : SKYBLUE);
-        int bw = Ui::Measure(banner, 18);
-        int bx = (Config::VIRTUAL_WIDTH - bw) / 2;
-        DrawRectangle(bx - 14, 52, bw + 28, 30, Fade(BLACK, 0.72f));
-        DrawRectangleLines(bx - 14, 52, bw + 28, 30, bCol);
-        Ui::Text(banner, bx, 58, 18, bCol);
+        int bw = Ui::Measure(banner, 20);
+        int bx = (Config::RENDER_WIDTH - bw) / 2;
+        DrawRectangle(bx - 16, 56, bw + 32, 34, Fade(BLACK, 0.85f));
+        DrawRectangleLines(bx - 16, 56, bw + 32, 34, bCol);
+        Ui::Text(banner, bx, 63, 20, bCol);
     }
 }

@@ -406,22 +406,46 @@ namespace {
 void CastlePlayState::Draw(GameContext& ctx) {
     const Room& curRoom = castle_.GetRoom(curGx_, curGy_);
 
-    // 1. Захоплення сцени у RenderTexture2D через ShaderManager із 2D-камерою кімнати
     if (ctx.shaders) {
-        ctx.shaders->BeginSceneCapture(worldCam_);
-    }
+        // Оновлюємо стан debug-клавіш F5-F10
+        ctx.shaders->UpdateDebugHotkeys();
 
-    curRoom.Draw(ctx, player_);
-    if (ctx.particles) {
-        ctx.particles->Draw();
-    }
+        // 1. Прохід сцени: фон біому, золоті двері, тайли, пропси
+        ctx.shaders->BeginScenePass(worldCam_);
+        curRoom.DrawBackgroundAndTiles(ctx, player_);
+        curRoom.DrawProps(ctx, player_);
+        ctx.shaders->EndScenePass();
 
-    // Червоний спалах по краях при пораненні (вимкнений, якщо у спадкоємця риса CIP!)
-    if (player_.hurtFlashTimer > 0.0f && !ctx.CurrentHeirHasTrait(TraitType::CIP)) {
-        DrawRectangle(0, 0, Config::ROOM_PIXEL_WIDTH, Config::ROOM_PIXEL_HEIGHT, Fade(RED, 0.28f));
-    }
+        // 2. Прохід сутностей: вороги, боси, герой, снаряди у прозорий entityRT_
+        ctx.shaders->BeginEntityPass(worldCam_);
+        curRoom.DrawEntities(ctx, player_);
+        ctx.shaders->EndEntityPass();
 
-    if (ctx.shaders) {
+        // 3. Накладання сутностей із outline / silhouette шейдером на sceneRT_
+        ctx.shaders->CompositeEntitiesToScene();
+
+        // 4. Прохід освітлення: генерація карти світла
+        ctx.shaders->BeginLightPass(worldCam_);
+        ctx.shaders->EndLightPass();
+
+        // 5. Композит sceneRT_ * lightRT_ у litRT_
+        ctx.shaders->CompositeSceneAndLight();
+
+        // 6. Емісивні ефекти (вогонь, очі, магія, частинки) у BLEND_ADDITIVE поверх litRT_
+        ctx.shaders->BeginEmissivePass(worldCam_);
+        curRoom.DrawEmissive(ctx);
+        if (ctx.particles) {
+            ctx.particles->Draw();
+        }
+        if (player_.hurtFlashTimer > 0.0f && !ctx.CurrentHeirHasTrait(TraitType::CIP)) {
+            DrawRectangle(0, 0, Config::ROOM_PIXEL_WIDTH, Config::ROOM_PIXEL_HEIGHT, Fade(RED, 0.28f));
+        }
+        ctx.shaders->EndEmissivePass();
+
+        // 7. Bloom прохід (Pass-through на Фазі 1)
+        ctx.shaders->ApplyBloom();
+
+        // 8. Фінальний шейдер грейдингу (риси спадкоємців, grayscale F10) та вивід на екран з Point-фільтром
         std::vector<Vector2> worldTorches = curRoom.GetActiveTorchScreenPositions();
         std::vector<Vector2> screenTorches;
         screenTorches.reserve(worldTorches.size());
@@ -434,7 +458,7 @@ void CastlePlayState::Draw(GameContext& ctx) {
         Vector2 pShaderPos = { pScreen.x / Config::SCALE_FACTOR, pScreen.y / Config::SCALE_FACTOR };
 
         bool isDarkBiome = (curRoom.biome == BiomeType::LandOfDarkness);
-        ctx.shaders->EndSceneAndPresent(
+        ctx.shaders->PresentFinalScene(
             ctx,
             pShaderPos,
             isDarkBiome,
@@ -443,9 +467,14 @@ void CastlePlayState::Draw(GameContext& ctx) {
             player_.IsTimeStopActive(),
             screenTorches
         );
+    } else {
+        curRoom.Draw(ctx, player_);
+        if (ctx.particles) {
+            ctx.particles->Draw();
+        }
     }
 
-    // 2. Рендер автентичного HUD Rogue Legacy поверх шейдерів
+    // 9. Автентичний HUD Rogue Legacy у повній роздільності 1080p
     Camera2D hudCam{};
     hudCam.zoom = Config::SCALE_FACTOR;
     BeginMode2D(hudCam);
@@ -466,6 +495,9 @@ void CastlePlayState::Draw(GameContext& ctx) {
     }
 
     EndMode2D();
+
+    // 10. Текст та підписи у світі через GetWorldToScreen2D (повна роздільність 1080p, без пікселізації)
+    curRoom.DrawWorldUi(ctx, player_, worldCam_);
 }
 
 void CastlePlayState::DrawHud(const GameContext& ctx, [[maybe_unused]] const Room& curRoom) const {
