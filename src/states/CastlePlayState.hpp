@@ -1,0 +1,34 @@
+// === FILE: src/states/CastlePlayState.hpp ===
+#pragma once
+
+#include "states/IGameState.hpp"
+#include "world/CastleGenerator.hpp"
+#include "entities/Player.hpp"
+
+class CastlePlayState : public IGameState {
+public:
+    CastlePlayState() = default;
+    ~CastlePlayState() override = default;
+
+    void OnEnter(GameContext& ctx) override;
+    void OnExit(GameContext& ctx) override;
+    void Update(float dt, GameContext& ctx) override;
+    void Draw(GameContext& ctx) override;
+
+private:
+    void CheckRoomDoorTransitions(GameContext& ctx);
+    void DrawHud(const GameContext& ctx, const Room& curRoom) const;
+    void DrawMinimap(const GameContext& ctx, const Room& curRoom) const;
+    void DrawTeleporterOverlay(const GameContext& ctx) const;
+    void UpdateTeleporterOverlay(GameContext& ctx);
+
+private:
+    CastleGenerator castle_{};
+    Player player_{};
+    int curGx_ = Config::ENTRANCE_GRID_X;
+    int curGy_ = Config::ENTRANCE_GRID_Y;
+
+    bool teleporterMapOpen_ = false;
+    int tpCursorGx_ = Config::ENTRANCE_GRID_X;
+    int tpCursorGy_ = Config::ENTRANCE_GRID_Y;
+};

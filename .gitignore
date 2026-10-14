@@ -1,0 +1,29 @@
+# Build directories
+build/
+bin/
+obj/
+out/
+cmake-build-*/
+.cache/
+
+# Compiled binaries and libraries
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+rogue_legacy_cpp
+
+# Runtime save data and logs
+rogue_legacy_save.json
+*.log
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
