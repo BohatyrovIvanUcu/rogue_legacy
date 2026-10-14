@@ -1,0 +1,138 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build executable
+        run: cmake --build build --config Release -j
+
+      - name: Package Windows game
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/rogue_legacy_windows
+          $exe = (Get-ChildItem -Path build -Filter "rogue_legacy_cpp.exe" -Recurse | Select-Object -First 1)
+          if (-not $exe) { throw "rogue_legacy_cpp.exe not found in build directory!" }
+          Copy-Item $exe.FullName dist/rogue_legacy_windows/rogue_legacy.exe
+          Copy-Item README.md dist/rogue_legacy_windows/
+          Compress-Archive -Path dist/rogue_legacy_windows/* -DestinationPath rogue_legacy_windows_x64.zip
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rogue_legacy_windows_x64
+          path: rogue_legacy_windows_x64.zip
+          retention-days: 90
+
+  build-linux:
+    name: Build Linux x64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build executable
+        run: cmake --build build --config Release -j$(nproc)
+
+      - name: Package Linux game
+        run: |
+          mkdir -p dist/rogue_legacy_linux
+          cp build/rogue_legacy_cpp dist/rogue_legacy_linux/rogue_legacy
+          chmod +x dist/rogue_legacy_linux/rogue_legacy
+          cp README.md dist/rogue_legacy_linux/
+          cat << 'EOF' > dist/rogue_legacy_linux/start_game.sh
+          #!/usr/bin/env bash
+          cd "$(dirname "$0")"
+          chmod +x ./rogue_legacy
+          ./rogue_legacy "$@"
+          EOF
+          chmod +x dist/rogue_legacy_linux/start_game.sh
+          tar -czvf rogue_legacy_linux_x64.tar.gz -C dist/rogue_legacy_linux .
+          cd dist/rogue_legacy_linux && zip -r ../../rogue_legacy_linux_x64.zip . && cd ../..
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rogue_legacy_linux_x64
+          path: |
+            rogue_legacy_linux_x64.tar.gz
+            rogue_legacy_linux_x64.zip
+          retention-days: 90
+
+  release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Create release assets directory
+        run: mkdir -p release_assets
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rogue_legacy_windows_x64
+          path: release_assets
+
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: rogue_legacy_linux_x64
+          path: release_assets
+
+      - name: Publish Release to GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Rogue Legacy C++ Latest Release (Windows & Linux)"
+          body: |
+            ### 🎮 Rogue Legacy C++ Standalone Builds
+
+            Автоматичні готові збірки для **Windows** та **Linux** (без потреби встановлювати компілятори чи сторонні бібліотеки).
+
+            ---
+
+            #### 🪟 Для Windows:
+            1. Завантажте `rogue_legacy_windows_x64.zip`.
+            2. Розархівуйте архів у зручну теку.
+            3. Запустіть `rogue_legacy.exe`!
+
+            ---
+
+            #### 🐧 Для Linux:
+            1. Завантажте `rogue_legacy_linux_x64.tar.gz` (або `rogue_legacy_linux_x64.zip`).
+            2. Розархівуйте: `tar -xvf rogue_legacy_linux_x64.tar.gz`.
+            3. Запустіть `./start_game.sh` або `./rogue_legacy`!
+          files: |
+            release_assets/rogue_legacy_windows_x64.zip
+            release_assets/rogue_legacy_linux_x64.tar.gz
+            release_assets/rogue_legacy_linux_x64.zip
+          prerelease: false

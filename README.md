@@ -57,13 +57,22 @@ Featuring **100% pure procedural rendering** (no external sprite sheets required
 
 ---
 
-## Quick Download for Windows (No Compilation Required)
+## Quick Download (No Compilation Required)
 
-🎮 **Want to play immediately on Windows?**
-1. Go to the [**Releases Page**](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases) or download the latest package directly:
-   👉 **[Download rogue_legacy_windows_x64.zip](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_windows_x64.zip)**
-2. Extract the downloaded `.zip` file anywhere on your PC.
-3. Double-click `rogue_legacy.exe` and enjoy the game!
+🎮 **Want to play immediately?** Check the [**GitHub Releases**](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/latest) for precompiled binaries:
+
+### 🪟 Windows (64-bit)
+1. Download 👉 **[rogue_legacy_windows_x64.zip](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_windows_x64.zip)**
+2. Extract the `.zip` archive.
+3. Run `rogue_legacy.exe`!
+
+### 🐧 Linux (64-bit)
+1. Download 👉 **[rogue_legacy_linux_x64.tar.gz](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_linux_x64.tar.gz)** *(or [rogue_legacy_linux_x64.zip](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_linux_x64.zip))*
+2. Extract the archive:
+   ```bash
+   tar -xvf rogue_legacy_linux_x64.tar.gz
+   ```
+3. Run `./start_game.sh` (or `./rogue_legacy`)!
 
 ---
 
@@ -72,26 +81,28 @@ Featuring **100% pure procedural rendering** (no external sprite sheets required
 ### Prerequisites
 - CMake 3.20+
 - C++20 compatible compiler (GCC 11+, Clang 13+, or MSVC 2019+)
-- Git (Raylib and nlohmann/json are fetched automatically via CMake FetchContent)
+- Git (Raylib 5.0 and nlohmann/json are fetched automatically via CMake FetchContent)
+- On Linux (Ubuntu/Debian):
+  ```bash
+  sudo apt install -y build-essential cmake libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+  ```
 
 ### Windows Local Build:
-1. Double-click `build_windows.bat` in the repository root.
-   *(Or run `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release -j` in PowerShell/CMD).*
-2. The executable will be generated at `build\Release\rogue_legacy_cpp.exe` (and copied to `rogue_legacy.exe`).
+- Double-click `build_windows.bat` in the repository root.
+  *(Or run `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release -j`)*
 
-### Linux Build Instructions:
-```bash
-# Clone the repository
-git clone https://github.com/BohatyrovIvanUcu/rogue_legacy.git
-cd rogue_legacy
-
-# Create build directory and build
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j$(nproc)
-
-# Run the game
-./build/rogue_legacy_cpp
-```
+### Linux Local Build:
+- Run `./build_linux.sh` in the terminal:
+  ```bash
+  chmod +x build_linux.sh
+  ./build_linux.sh
+  ```
+- Or build manually:
+  ```bash
+  cmake -B build -DCMAKE_BUILD_TYPE=Release
+  cmake --build build -j$(nproc)
+  ./build/rogue_legacy_cpp
+  ```
 
 ---
 

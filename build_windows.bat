@@ -47,3 +47,4 @@ if exist build\Release\rogue_legacy_cpp.exe (
 echo.
 echo You can now launch rogue_legacy.exe to play!
 pause
+
