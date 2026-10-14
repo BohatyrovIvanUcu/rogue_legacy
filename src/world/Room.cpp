@@ -8,6 +8,7 @@
 #include "audio/SoundSynth.hpp"
 #include "gfx/ParticleSystem.hpp"
 #include "gfx/ProceduralRenderer.hpp"
+#include "gfx/Palette.hpp"
 #include "gfx/UiText.hpp"
 #include <cmath>
 #include <cstdlib>
@@ -563,8 +564,8 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
                                               Color{ 105, 118, 148, 255 };
                             ctx.particles->SpawnDebris(tCenter, debrisCol, 18);
                             ctx.particles->SpawnDust(tCenter, 10);
-                            ctx.particles->SpawnSparks(tCenter, GOLD, 8);
-                            ctx.particles->SpawnFloatingText({ tCenter.x, tr.y - 6.0f }, "SECRET WALL BROKEN!", GOLD, 20, true);
+                            ctx.particles->SpawnSparks(tCenter, GetPalette().fireGold[3], 8);
+                            ctx.particles->SpawnFloatingText({ tCenter.x, tr.y - 6.0f }, "SECRET WALL BROKEN!", GetPalette().fireGold[3], 20, true);
                         }
                     }
                 }
@@ -832,17 +833,18 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
 
     // 4. Візуалізація відкритих дверей по краях кімнати
     if (!isBossArenaActive) {
+        const auto& pal = GetPalette();
         if (doorMask & DoorMask::WEST) {
-            DrawRectangle(Config::ROOM_OFFSET_X, 6 * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(GOLD, 0.28f));
+            DrawRectangle(Config::ROOM_OFFSET_X, 6 * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(pal.fireGold[3], 0.28f));
         }
         if (doorMask & DoorMask::EAST) {
-            DrawRectangle(Config::ROOM_OFFSET_X + Config::ROOM_PIXEL_WIDTH - 8, 6 * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(GOLD, 0.28f));
+            DrawRectangle(Config::ROOM_OFFSET_X + Config::ROOM_PIXEL_WIDTH - 8, 6 * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(pal.fireGold[3], 0.28f));
         }
         if (doorMask & DoorMask::NORTH) {
-            DrawRectangle(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE, 0, 3 * Config::TILE_SIZE, 8, Fade(GOLD, 0.28f));
+            DrawRectangle(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE, 0, 3 * Config::TILE_SIZE, 8, Fade(pal.fireGold[3], 0.28f));
         }
         if (doorMask & DoorMask::SOUTH) {
-            DrawRectangle(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE, Config::ROOM_PIXEL_HEIGHT - 8, 3 * Config::TILE_SIZE, 8, Fade(GOLD, 0.28f));
+            DrawRectangle(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE, Config::ROOM_PIXEL_HEIGHT - 8, 3 * Config::TILE_SIZE, 8, Fade(pal.fireGold[3], 0.28f));
         }
     }
 }
@@ -867,16 +869,17 @@ void Room::DrawEntities(const GameContext& ctx, const Player& player) const {
 }
 
 void Room::DrawEmissive([[maybe_unused]] const GameContext& ctx) const {
+    const auto& pal = GetPalette();
     for (const auto& it : interactables) {
         if (it.active && it.kind == InteractableKind::Torch) {
             Vector2 c = it.GetCenter();
             float flicker = std::sin(it.animTimer * 16.0f) * 2.5f;
-            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 12.0f), 28.0f + flicker, Fade(ORANGE, 0.35f), BLANK);
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 12.0f), 28.0f + flicker, Fade(pal.fireGold[1], 0.35f), BLANK);
             float fH = 14.0f + std::sin(it.animTimer * 20.0f) * 3.0f;
-            DrawTriangle({ c.x - 7.0f, c.y - 5.0f }, { c.x + 7.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH }, RED);
-            DrawTriangle({ c.x - 5.0f, c.y - 5.0f }, { c.x + 5.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.75f }, ORANGE);
-            DrawTriangle({ c.x - 2.5f, c.y - 5.0f }, { c.x + 2.5f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.45f }, YELLOW);
-            DrawCircleV({ c.x, c.y - 5.0f - fH * 0.25f }, 2.0f, WHITE);
+            DrawTriangle({ c.x - 7.0f, c.y - 5.0f }, { c.x + 7.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH }, pal.fireGold[0]);
+            DrawTriangle({ c.x - 5.0f, c.y - 5.0f }, { c.x + 5.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.75f }, pal.fireGold[2]);
+            DrawTriangle({ c.x - 2.5f, c.y - 5.0f }, { c.x + 2.5f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.45f }, pal.fireGold[4]);
+            DrawCircleV({ c.x, c.y - 5.0f - fH * 0.25f }, 2.0f, Color{ 255, 255, 240, 255 });
         }
     }
 }

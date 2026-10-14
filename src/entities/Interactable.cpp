@@ -6,6 +6,7 @@
 #include "data/Registry.hpp"
 #include "audio/SoundSynth.hpp"
 #include "gfx/ParticleSystem.hpp"
+#include "gfx/Palette.hpp"
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
@@ -270,9 +271,10 @@ bool Interactable::OnHitByPlayer(
         active = false;
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::HitEnemy, 1.3f, 0.7f);
         if (ctx.particles) {
+            const auto& pal = GetPalette();
             Color debrisCol = (kind == InteractableKind::Torch)
-                              ? ORANGE
-                              : ((subVariant == 1) ? LIGHTGRAY : Color{ 140, 92, 46, 255 });
+                              ? pal.fireGold[3]
+                              : ((subVariant == 1) ? pal.metal[3] : pal.wood[2]);
             ctx.particles->SpawnDebris(GetCenter(), debrisCol, 12);
         }
 
@@ -381,25 +383,26 @@ void Interactable::GrantRuneOrGold(GameContext& ctx) {
 void Interactable::Draw(const GameContext& /*ctx*/) const {
     if (!active) return;
 
+    const auto& pal = GetPalette();
     Vector2 c = GetCenter();
     switch (kind) {
         case InteractableKind::Torch: {
             // Готичний кований настінний смолоскип
             // Кронштейн та чаша
-            DrawRectangle(static_cast<int>(c.x - 3.0f), static_cast<int>(c.y - 2.0f), 6, 22, Color{ 48, 50, 58, 255 });
-            DrawTriangle({ c.x - 8.0f, c.y + 14.0f }, { c.x + 8.0f, c.y + 14.0f }, { c.x, c.y + 2.0f }, Color{ 48, 50, 58, 255 });
-            DrawRectangle(static_cast<int>(c.x - 8.0f), static_cast<int>(c.y - 6.0f), 16, 6, Color{ 70, 75, 88, 255 });
+            DrawRectangle(static_cast<int>(c.x - 3.0f), static_cast<int>(c.y - 2.0f), 6, 22, pal.metal[1]);
+            DrawTriangle({ c.x - 8.0f, c.y + 14.0f }, { c.x + 8.0f, c.y + 14.0f }, { c.x, c.y + 2.0f }, pal.metal[1]);
+            DrawRectangle(static_cast<int>(c.x - 8.0f), static_cast<int>(c.y - 6.0f), 16, 6, pal.metal[2]);
 
             // Тепле радіальне сяйво на стіну
             float flicker = std::sin(animTimer * 16.0f) * 2.5f;
-            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 12.0f), 26.0f + flicker, Fade(ORANGE, 0.28f), Fade(BLACK, 0.0f));
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 12.0f), 26.0f + flicker, Fade(pal.fireGold[2], 0.28f), Fade(pal.outline, 0.0f));
 
             // Багатошарове живе полум'я
             float fH = 14.0f + std::sin(animTimer * 20.0f) * 3.0f;
-            DrawTriangle({ c.x - 7.0f, c.y - 5.0f }, { c.x + 7.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH }, RED);
-            DrawTriangle({ c.x - 5.0f, c.y - 5.0f }, { c.x + 5.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.75f }, ORANGE);
-            DrawTriangle({ c.x - 2.5f, c.y - 5.0f }, { c.x + 2.5f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.45f }, YELLOW);
-            DrawCircleV({ c.x, c.y - 5.0f - fH * 0.25f }, 2.0f, WHITE);
+            DrawTriangle({ c.x - 7.0f, c.y - 5.0f }, { c.x + 7.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH }, pal.bloodCloth[3]);
+            DrawTriangle({ c.x - 5.0f, c.y - 5.0f }, { c.x + 5.0f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.75f }, pal.fireGold[2]);
+            DrawTriangle({ c.x - 2.5f, c.y - 5.0f }, { c.x + 2.5f, c.y - 5.0f }, { c.x, c.y - 5.0f - fH * 0.45f }, pal.fireGold[3]);
+            DrawCircleV({ c.x, c.y - 5.0f - fH * 0.25f }, 2.0f, pal.metal[4]);
             break;
         }
 
@@ -407,49 +410,49 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
             if (subVariant == 0) {
                 // Дерев'яна дубова бочка з кованими обручами
                 Rectangle b = GetBounds();
-                DrawRectangleRounded(b, 0.35f, 4, Color{ 132, 82, 42, 255 });
-                DrawRectangleRoundedLines(b, 0.35f, 4, 1.5f, Color{ 68, 38, 18, 255 });
+                DrawRectangleRounded(b, 0.35f, 4, pal.wood[2]);
+                DrawRectangleRoundedLines(b, 0.35f, 4, 1.5f, pal.wood[0]);
                 // Вертикальні дошки бочки
                 for (int st = 1; st <= 2; ++st) {
                     float stx = b.x + b.width * (st * 0.33f);
-                    DrawLine(static_cast<int>(stx), static_cast<int>(b.y + 2.0f), static_cast<int>(stx), static_cast<int>(b.y + b.height - 2.0f), Color{ 88, 52, 25, 255 });
+                    DrawLine(static_cast<int>(stx), static_cast<int>(b.y + 2.0f), static_cast<int>(stx), static_cast<int>(b.y + b.height - 2.0f), pal.wood[1]);
                 }
                 // Залізні обручі з заклепками
-                DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + 7.0f), static_cast<int>(b.width), 4, Color{ 58, 62, 72, 255 });
-                DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + b.height - 11.0f), static_cast<int>(b.width), 4, Color{ 58, 62, 72, 255 });
-                DrawCircle(static_cast<int>(b.x + 6.0f), static_cast<int>(b.y + 9.0f), 1.5f, LIGHTGRAY);
-                DrawCircle(static_cast<int>(b.x + b.width - 6.0f), static_cast<int>(b.y + 9.0f), 1.5f, LIGHTGRAY);
+                DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + 7.0f), static_cast<int>(b.width), 4, pal.metal[2]);
+                DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + b.height - 11.0f), static_cast<int>(b.width), 4, pal.metal[2]);
+                DrawCircle(static_cast<int>(b.x + 6.0f), static_cast<int>(b.y + 9.0f), 1.5f, pal.metal[3]);
+                DrawCircle(static_cast<int>(b.x + b.width - 6.0f), static_cast<int>(b.y + 9.0f), 1.5f, pal.metal[3]);
             } else if (subVariant == 1) {
                 // Тренувальний манекен у шоломі зі щитом
-                DrawLineEx({ c.x, pos.y + 8.0f }, { c.x, GetBottom() }, 6.0f, Color{ 95, 65, 38, 255 });
-                DrawLineEx({ c.x - 14.0f, pos.y + 20.0f }, { c.x + 14.0f, pos.y + 20.0f }, 5.0f, Color{ 95, 65, 38, 255 });
+                DrawLineEx({ c.x, pos.y + 8.0f }, { c.x, GetBottom() }, 6.0f, pal.wood[2]);
+                DrawLineEx({ c.x - 14.0f, pos.y + 20.0f }, { c.x + 14.0f, pos.y + 20.0f }, 5.0f, pal.wood[2]);
                 // Мішковина торсу
-                DrawRectangleRounded({ c.x - 12.0f, pos.y + 14.0f, 24.0f, 22.0f }, 0.3f, 4, Color{ 175, 142, 98, 255 });
-                DrawRectangleRoundedLines({ c.x - 12.0f, pos.y + 14.0f, 24.0f, 22.0f }, 0.3f, 4, 1.5f, Color{ 115, 88, 52, 255 });
+                DrawRectangleRounded({ c.x - 12.0f, pos.y + 14.0f, 24.0f, 22.0f }, 0.3f, 4, pal.bone[2]);
+                DrawRectangleRoundedLines({ c.x - 12.0f, pos.y + 14.0f, 24.0f, 22.0f }, 0.3f, 4, 1.5f, pal.wood[1]);
                 // Солома, що стирчить
-                DrawLine(static_cast<int>(c.x - 10.0f), static_cast<int>(pos.y + 36.0f), static_cast<int>(c.x - 14.0f), static_cast<int>(pos.y + 42.0f), YELLOW);
-                DrawLine(static_cast<int>(c.x + 8.0f), static_cast<int>(pos.y + 36.0f), static_cast<int>(c.x + 12.0f), static_cast<int>(pos.y + 41.0f), YELLOW);
+                DrawLine(static_cast<int>(c.x - 10.0f), static_cast<int>(pos.y + 36.0f), static_cast<int>(c.x - 14.0f), static_cast<int>(pos.y + 42.0f), pal.fireGold[3]);
+                DrawLine(static_cast<int>(c.x + 8.0f), static_cast<int>(pos.y + 36.0f), static_cast<int>(c.x + 12.0f), static_cast<int>(pos.y + 41.0f), pal.fireGold[3]);
                 // Пом'ятий тренувальний шолом
-                DrawCircle(static_cast<int>(c.x), static_cast<int>(pos.y + 8.0f), 8.5f, Color{ 120, 125, 138, 255 });
-                DrawRectangle(static_cast<int>(c.x - 5.0f), static_cast<int>(pos.y + 8.0f), 10, 2, BLACK);
+                DrawCircle(static_cast<int>(c.x), static_cast<int>(pos.y + 8.0f), 8.5f, pal.metal[3]);
+                DrawRectangle(static_cast<int>(c.x - 5.0f), static_cast<int>(pos.y + 8.0f), 10, 2, pal.outline);
             } else {
                 // Готичний столик із золотим кубком
                 Rectangle b = GetBounds();
-                DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + 8.0f), static_cast<int>(b.width), 8, Color{ 110, 68, 38, 255 });
-                DrawRectangle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 16.0f), Color{ 80, 48, 25, 255 });
-                DrawRectangle(static_cast<int>(b.x + b.width - 9.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 16.0f), Color{ 80, 48, 25, 255 });
+                DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + 8.0f), static_cast<int>(b.width), 8, pal.wood[2]);
+                DrawRectangle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 16.0f), pal.wood[1]);
+                DrawRectangle(static_cast<int>(b.x + b.width - 9.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 16.0f), pal.wood[1]);
                 // Золотий кубок
-                DrawTriangle({ c.x + 6.0f, b.y + 7.0f }, { c.x, b.y - 5.0f }, { c.x - 6.0f, b.y + 7.0f }, GOLD);
-                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y - 5.0f), 4.5f, GOLD);
-                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y - 6.0f), 3.0f, MAROON); // вино всередині
+                DrawTriangle({ c.x + 6.0f, b.y + 7.0f }, { c.x, b.y - 5.0f }, { c.x - 6.0f, b.y + 7.0f }, pal.fireGold[3]);
+                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y - 5.0f), 4.5f, pal.fireGold[3]);
+                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y - 6.0f), 3.0f, pal.bloodCloth[1]); // вино всередині
             }
             break;
         }
 
         case InteractableKind::Chest: {
-            Color bodyCol = isSilverChest ? Color{ 180, 195, 220, 255 } : Color{ 145, 85, 38, 255 };
-            Color woodDark = isSilverChest ? Color{ 130, 145, 175, 255 } : Color{ 95, 52, 22, 255 };
-            Color trimCol = isSilverChest ? SKYBLUE : GOLD;
+            Color bodyCol = isSilverChest ? pal.metal[4] : pal.wood[3];
+            Color woodDark = isSilverChest ? pal.metal[3] : pal.wood[1];
+            Color trimCol = isSilverChest ? pal.moonMagic[3] : pal.fireGold[3];
             Rectangle b = GetBounds();
 
             if (!isOpened) {
@@ -458,7 +461,7 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
                 DrawRectangleRoundedLines(b, 0.22f, 4, 2.5f, woodDark);
                 // Горизонтальний шов кришки
                 float lidSeamY = b.y + b.height * 0.38f;
-                DrawLineEx({ b.x, lidSeamY }, { b.x + b.width, lidSeamY }, 2.0f, Color{ 45, 25, 12, 255 });
+                DrawLineEx({ b.x, lidSeamY }, { b.x + b.width, lidSeamY }, 2.0f, pal.wood[0]);
 
                 // Металеві оковки по краях та в центрі
                 DrawRectangle(static_cast<int>(b.x + 3.0f), static_cast<int>(b.y + 2.0f), 5, static_cast<int>(b.height - 4.0f), trimCol);
@@ -467,7 +470,7 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
 
                 // Замкова щілина
                 DrawCircle(static_cast<int>(c.x), static_cast<int>(lidSeamY + 3.0f), 4.0f, trimCol);
-                DrawCircle(static_cast<int>(c.x), static_cast<int>(lidSeamY + 3.0f), 2.0f, BLACK);
+                DrawCircle(static_cast<int>(c.x), static_cast<int>(lidSeamY + 3.0f), 2.0f, pal.outline);
             } else {
                 // Відкрита скриня: видно золото всередині
                 DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + 8.0f), static_cast<int>(b.width), static_cast<int>(b.height - 8.0f), bodyCol);
@@ -475,16 +478,16 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
                 // Відкинута кришка скрині
                 DrawRectangle(static_cast<int>(b.x + 2.0f), static_cast<int>(b.y), static_cast<int>(b.width - 4.0f), 8, woodDark);
                 // Сяючі золоті монети всередині
-                DrawCircle(static_cast<int>(c.x - 6.0f), static_cast<int>(b.y + 13.0f), 5.0f, GOLD);
-                DrawCircle(static_cast<int>(c.x + 6.0f), static_cast<int>(b.y + 13.0f), 5.0f, GOLD);
-                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y + 11.0f), 5.5f, YELLOW);
+                DrawCircle(static_cast<int>(c.x - 6.0f), static_cast<int>(b.y + 13.0f), 5.0f, pal.fireGold[3]);
+                DrawCircle(static_cast<int>(c.x + 6.0f), static_cast<int>(b.y + 13.0f), 5.0f, pal.fireGold[3]);
+                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y + 11.0f), 5.5f, pal.fireGold[4]);
             }
             break;
         }
 
         case InteractableKind::FairyChest: {
-            Color stoneCol = isLocked ? Color{ 58, 48, 68, 255 } : Color{ 36, 145, 115, 255 };
-            Color trimCol  = isLocked ? RED : MAGENTA;
+            Color stoneCol = isLocked ? pal.dungeon.stoneTile[1] : pal.garden.stoneTile[3];
+            Color trimCol  = isLocked ? pal.danger[2] : pal.moonMagic[3];
             Rectangle b = GetBounds();
 
             DrawRectangleRounded(b, 0.25f, 4, stoneCol);
@@ -498,48 +501,48 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
             Vector2 cryPos = { c.x, c.y + (isOpened ? 4.0f : crystalWave) };
             if (!isOpened) {
                 DrawCircleV(cryPos, 9.0f, Fade(trimCol, 0.35f));
-                DrawCircleV(cryPos, 6.0f, isLocked ? RED : SKYBLUE);
-                DrawCircleV(cryPos, 2.5f, WHITE);
+                DrawCircleV(cryPos, 6.0f, isLocked ? pal.danger[2] : pal.moonMagic[3]);
+                DrawCircleV(cryPos, 2.5f, pal.metal[4]);
             } else {
-                DrawCircleV(c, 5.0f, DARKGRAY);
+                DrawCircleV(c, 5.0f, pal.metal[2]);
             }
             break;
         }
 
         case InteractableKind::Teleporter: {
             // Магічний портальний круг
-            DrawRectangle(static_cast<int>(pos.x), static_cast<int>(GetBottom() - 10.0f), static_cast<int>(width), 10, Color{ 75, 82, 98, 255 });
-            DrawRectangleLines(static_cast<int>(pos.x), static_cast<int>(GetBottom() - 10.0f), static_cast<int>(width), 10, GOLD);
+            DrawRectangle(static_cast<int>(pos.x), static_cast<int>(GetBottom() - 10.0f), static_cast<int>(width), 10, pal.metal[2]);
+            DrawRectangleLines(static_cast<int>(pos.x), static_cast<int>(GetBottom() - 10.0f), static_cast<int>(width), 10, pal.fireGold[3]);
 
             // Пульсуюче коло порталу
             float pulse = 0.75f + 0.25f * std::sin(animTimer * 5.0f);
-            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 2.0f), 24.0f * pulse, Fade(SKYBLUE, 0.45f), Fade(BLACK, 0.0f));
-            DrawCircleV({ c.x, c.y - 2.0f }, 14.0f * pulse, Fade(SKYBLUE, 0.75f));
-            DrawCircleV({ c.x, c.y - 2.0f }, 7.0f * pulse, WHITE);
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y - 2.0f), 24.0f * pulse, Fade(pal.moonMagic[3], 0.45f), Fade(pal.outline, 0.0f));
+            DrawCircleV({ c.x, c.y - 2.0f }, 14.0f * pulse, Fade(pal.moonMagic[3], 0.75f));
+            DrawCircleV({ c.x, c.y - 2.0f }, 7.0f * pulse, pal.metal[4]);
             // Магічні іскри, що піднімаються
             for (int k = -1; k <= 1; ++k) {
                 float sy = std::fmod(animTimer * 28.0f + k * 14.0f, 32.0f);
-                DrawCircle(static_cast<int>(c.x + k * 10.0f), static_cast<int>(GetBottom() - 10.0f - sy), 2.0f, SKYBLUE);
+                DrawCircle(static_cast<int>(c.x + k * 10.0f), static_cast<int>(GetBottom() - 10.0f - sy), 2.0f, pal.moonMagic[3]);
             }
             break;
         }
 
         case InteractableKind::BossDoor: {
             Rectangle b = GetBounds();
-            DrawRectangleRec(b, Color{ 32, 16, 24, 255 });
-            DrawRectangleLinesEx(b, 4.0f, RED);
+            DrawRectangleRec(b, pal.dungeon.stoneBg[0]);
+            DrawRectangleLinesEx(b, 4.0f, pal.danger[2]);
             // Залізні заклепки на дверях боса
             for (int by = static_cast<int>(b.y + 16); by < static_cast<int>(b.y + b.height); by += 24) {
-                DrawCircle(static_cast<int>(b.x + 8.0f), by, 3.0f, GOLD);
-                DrawCircle(static_cast<int>(b.x + b.width - 8.0f), by, 3.0f, GOLD);
+                DrawCircle(static_cast<int>(b.x + 8.0f), by, 3.0f, pal.fireGold[3]);
+                DrawCircle(static_cast<int>(b.x + b.width - 8.0f), by, 3.0f, pal.fireGold[3]);
             }
             // Демонічний череп на воротах
             float glow = 0.6f + 0.4f * std::sin(animTimer * 4.5f);
-            DrawCircleV({ c.x, c.y - 12.0f }, 22.0f, Color{ 210, 205, 195, 255 });
-            DrawCircleV({ c.x - 7.5f, c.y - 14.0f }, 5.0f * glow, RED);
-            DrawCircleV({ c.x + 7.5f, c.y - 14.0f }, 5.0f * glow, RED);
-            DrawCircleV({ c.x - 7.5f, c.y - 14.0f }, 2.0f, WHITE);
-            DrawCircleV({ c.x + 7.5f, c.y - 14.0f }, 2.0f, WHITE);
+            DrawCircleV({ c.x, c.y - 12.0f }, 22.0f, pal.bone[3]);
+            DrawCircleV({ c.x - 7.5f, c.y - 14.0f }, 5.0f * glow, pal.danger[2]);
+            DrawCircleV({ c.x + 7.5f, c.y - 14.0f }, 5.0f * glow, pal.danger[2]);
+            DrawCircleV({ c.x - 7.5f, c.y - 14.0f }, 2.0f, pal.metal[4]);
+            DrawCircleV({ c.x + 7.5f, c.y - 14.0f }, 2.0f, pal.metal[4]);
             break;
         }
 
@@ -547,46 +550,46 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
             if (subVariant == 0) {
                 // Золота монета з обертанням у 3D та бликом
                 float spinW = std::max(2.5f, 7.5f * std::abs(std::cos(animTimer * 8.5f)));
-                DrawEllipse(static_cast<int>(c.x), static_cast<int>(c.y), spinW, 7.5f, GOLD);
-                DrawEllipseLines(static_cast<int>(c.x), static_cast<int>(c.y), spinW, 7.5f, ORANGE);
-                DrawCircleV({ c.x, c.y }, 2.5f, YELLOW);
-                DrawCircleV({ c.x - 1.5f, c.y - 1.5f }, 1.2f, WHITE);
+                DrawEllipse(static_cast<int>(c.x), static_cast<int>(c.y), spinW, 7.5f, pal.fireGold[3]);
+                DrawEllipseLines(static_cast<int>(c.x), static_cast<int>(c.y), spinW, 7.5f, pal.fireGold[2]);
+                DrawCircleV({ c.x, c.y }, 2.5f, pal.fireGold[4]);
+                DrawCircleV({ c.x - 1.5f, c.y - 1.5f }, 1.2f, pal.metal[4]);
             } else {
                 // Шкіряний мішечок золота (50g)
-                DrawCircleV({ c.x, c.y + 3.0f }, 10.5f, Color{ 175, 125, 65, 255 });
-                DrawTriangle({ c.x + 7.0f, c.y - 8.0f }, { c.x - 7.0f, c.y - 8.0f }, { c.x, c.y - 1.0f }, Color{ 175, 125, 65, 255 });
+                DrawCircleV({ c.x, c.y + 3.0f }, 10.5f, pal.wood[3]);
+                DrawTriangle({ c.x + 7.0f, c.y - 8.0f }, { c.x - 7.0f, c.y - 8.0f }, { c.x, c.y - 1.0f }, pal.wood[3]);
                 // Мотузка з золотою зав'язкою
-                DrawLineEx({ c.x - 6.0f, c.y - 4.0f }, { c.x + 6.0f, c.y - 4.0f }, 2.5f, GOLD);
-                DrawCircleV({ c.x, c.y + 4.0f }, 4.0f, GOLD);
-                DrawCircleV({ c.x, c.y + 4.0f }, 2.0f, YELLOW);
+                DrawLineEx({ c.x - 6.0f, c.y - 4.0f }, { c.x + 6.0f, c.y - 4.0f }, 2.5f, pal.fireGold[3]);
+                DrawCircleV({ c.x, c.y + 4.0f }, 4.0f, pal.fireGold[3]);
+                DrawCircleV({ c.x, c.y + 4.0f }, 2.0f, pal.fireGold[4]);
             }
             break;
         }
 
         case InteractableKind::MeatDrop: {
             // Апетитний смажений окіст на кістці
-            DrawEllipse(static_cast<int>(c.x - 3.0f), static_cast<int>(c.y), 11.5f, 8.0f, Color{ 195, 95, 38, 255 });
-            DrawEllipseLines(static_cast<int>(c.x - 3.0f), static_cast<int>(c.y), 11.5f, 8.0f, Color{ 135, 55, 18, 255 });
+            DrawEllipse(static_cast<int>(c.x - 3.0f), static_cast<int>(c.y), 11.5f, 8.0f, pal.fireGold[1]);
+            DrawEllipseLines(static_cast<int>(c.x - 3.0f), static_cast<int>(c.y), 11.5f, 8.0f, pal.bloodCloth[1]);
             // Смужки запікання на грилі
-            DrawLine(static_cast<int>(c.x - 7.0f), static_cast<int>(c.y - 4.0f), static_cast<int>(c.x - 2.0f), static_cast<int>(c.y + 4.0f), Color{ 110, 42, 12, 255 });
-            DrawLine(static_cast<int>(c.x - 2.0f), static_cast<int>(c.y - 4.0f), static_cast<int>(c.x + 3.0f), static_cast<int>(c.y + 4.0f), Color{ 110, 42, 12, 255 });
+            DrawLine(static_cast<int>(c.x - 7.0f), static_cast<int>(c.y - 4.0f), static_cast<int>(c.x - 2.0f), static_cast<int>(c.y + 4.0f), pal.bloodCloth[0]);
+            DrawLine(static_cast<int>(c.x - 2.0f), static_cast<int>(c.y - 4.0f), static_cast<int>(c.x + 3.0f), static_cast<int>(c.y + 4.0f), pal.bloodCloth[0]);
             // Біла кісточка
-            DrawRectangle(static_cast<int>(c.x + 6.0f), static_cast<int>(c.y - 2.5f), 9, 5, RAYWHITE);
-            DrawCircle(static_cast<int>(c.x + 15.0f), static_cast<int>(c.y - 3.0f), 3.2f, RAYWHITE);
-            DrawCircle(static_cast<int>(c.x + 15.0f), static_cast<int>(c.y + 3.0f), 3.2f, RAYWHITE);
+            DrawRectangle(static_cast<int>(c.x + 6.0f), static_cast<int>(c.y - 2.5f), 9, 5, pal.bone[4]);
+            DrawCircle(static_cast<int>(c.x + 15.0f), static_cast<int>(c.y - 3.0f), 3.2f, pal.bone[4]);
+            DrawCircle(static_cast<int>(c.x + 15.0f), static_cast<int>(c.y + 3.0f), 3.2f, pal.bone[4]);
             break;
         }
 
         case InteractableKind::ManaDrop: {
             // Скляна колба з сяючим блакитним зіллям мани
-            DrawCircleV({ c.x, c.y + 3.0f }, 9.0f, Fade(Color{ 45, 140, 245, 255 }, 0.85f));
-            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y + 3.0f), 9.0f, SKYBLUE);
+            DrawCircleV({ c.x, c.y + 3.0f }, 9.0f, Fade(pal.moonMagic[2], 0.85f));
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y + 3.0f), 9.0f, pal.moonMagic[3]);
             // Бульбашки та блік скла
-            DrawCircleV({ c.x - 3.0f, c.y + 1.0f }, 3.5f, WHITE);
-            DrawCircleV({ c.x + 2.0f, c.y + 4.0f }, 2.0f, WHITE);
+            DrawCircleV({ c.x - 3.0f, c.y + 1.0f }, 3.5f, pal.metal[4]);
+            DrawCircleV({ c.x + 2.0f, c.y + 4.0f }, 2.0f, pal.metal[4]);
             // Горлечко з корком
-            DrawRectangle(static_cast<int>(c.x - 3.5f), static_cast<int>(c.y - 8.5f), 7, 5, LIGHTGRAY);
-            DrawRectangle(static_cast<int>(c.x - 2.5f), static_cast<int>(c.y - 12.0f), 5, 4, Color{ 135, 95, 55, 255 });
+            DrawRectangle(static_cast<int>(c.x - 3.5f), static_cast<int>(c.y - 8.5f), 7, 5, pal.metal[3]);
+            DrawRectangle(static_cast<int>(c.x - 2.5f), static_cast<int>(c.y - 12.0f), 5, 4, pal.wood[2]);
             break;
         }
     }

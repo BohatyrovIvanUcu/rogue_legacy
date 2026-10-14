@@ -1,5 +1,6 @@
 #include "gfx/ParticleSystem.hpp"
 #include "gfx/UiText.hpp"
+#include "gfx/Palette.hpp"
 #include "core/Config.hpp"
 #include <cmath>
 #include <cstdlib>
@@ -56,11 +57,12 @@ void ParticleSystem::Update(float dt) {
 }
 
 void ParticleSystem::Draw() const {
+    const auto& pal = GetPalette();
     for (const auto& log : decoyLogs_) {
         float alpha = std::clamp(log.life / 0.4f, 0.0f, 1.0f);
         Rectangle rec = { log.pos.x, log.pos.y, 18.0f, 36.0f };
-        DrawRectanglePro(rec, { 9.0f, 18.0f }, log.rotation, Fade(Color{ 125, 78, 38, 255 }, alpha));
-        DrawRectanglePro({ log.pos.x, log.pos.y, 12.0f, 36.0f }, { 6.0f, 18.0f }, log.rotation, Fade(Color{ 160, 105, 55, 255 }, alpha));
+        DrawRectanglePro(rec, { 9.0f, 18.0f }, log.rotation, Fade(pal.wood[1], alpha));
+        DrawRectanglePro({ log.pos.x, log.pos.y, 12.0f, 36.0f }, { 6.0f, 18.0f }, log.rotation, Fade(pal.wood[3], alpha));
     }
 
     for (const auto& p : particles_) {
@@ -85,19 +87,20 @@ void ParticleSystem::Draw() const {
         int drawX = static_cast<int>(ft.pos.x) - textW / 2;
         int drawY = static_cast<int>(ft.pos.y);
 
-        Ui::Text(ft.text, drawX + 1, drawY + 1, fSize, Fade(BLACK, alpha));
+        Ui::Text(ft.text, drawX + 1, drawY + 1, fSize, Fade(pal.outline, alpha));
         Ui::Text(ft.text, drawX, drawY, fSize, Fade(ft.color, alpha));
     }
 }
 
 void ParticleSystem::SpawnBlood(Vector2 pos, int count) {
+    const auto& pal = GetPalette();
     for (int i = 0; i < count; ++i) {
         Particle p;
         p.pos = pos;
         float angle = RandRange(-3.14159f, 0.0f);
         float speed = RandRange(80.0f, 340.0f);
         p.vel = { std::cos(angle) * speed, std::sin(angle) * speed - 60.0f };
-        p.color = (i % 2 == 0) ? Color{ 200, 20, 30, 255 } : Color{ 145, 10, 20, 255 };
+        p.color = (i % 2 == 0) ? pal.bloodCloth[2] : pal.bloodCloth[1];
         p.size = RandRange(4.0f, 8.0f);
         p.maxLife = RandRange(0.28f, 0.58f);
         p.life = p.maxLife;
@@ -108,13 +111,14 @@ void ParticleSystem::SpawnBlood(Vector2 pos, int count) {
 }
 
 void ParticleSystem::SpawnSparks(Vector2 pos, Color tint, int count) {
+    const auto& pal = GetPalette();
     for (int i = 0; i < count; ++i) {
         Particle p;
         p.pos = pos;
         float angle = RandRange(0.0f, 6.28318f);
         float speed = RandRange(120.0f, 420.0f);
         p.vel = { std::cos(angle) * speed, std::sin(angle) * speed };
-        p.color = (i % 3 == 0) ? WHITE : tint;
+        p.color = (i % 3 == 0) ? pal.fireGold[4] : tint;
         p.size = RandRange(3.0f, 6.5f);
         p.maxLife = RandRange(0.18f, 0.36f);
         p.life = p.maxLife;
@@ -125,11 +129,12 @@ void ParticleSystem::SpawnSparks(Vector2 pos, Color tint, int count) {
 }
 
 void ParticleSystem::SpawnDust(Vector2 pos, int count) {
+    const auto& pal = GetPalette();
     for (int i = 0; i < count; ++i) {
         Particle p;
         p.pos = { pos.x + RandRange(-10.0f, 10.0f), pos.y + RandRange(-4.0f, 2.0f) };
         p.vel = { RandRange(-75.0f, 75.0f), RandRange(-65.0f, -15.0f) };
-        p.color = Color{ 205, 200, 190, 200 };
+        p.color = pal.bone[2];
         p.size = RandRange(5.0f, 10.0f);
         p.maxLife = RandRange(0.22f, 0.42f);
         p.life = p.maxLife;
@@ -172,11 +177,12 @@ void ParticleSystem::SpawnDebris(Vector2 pos, Color tint, int count) {
 }
 
 void ParticleSystem::SpawnGasCloud(Vector2 pos) {
+    const auto& pal = GetPalette();
     for (int i = 0; i < 14; ++i) {
         Particle p;
         p.pos = { pos.x + RandRange(-10.0f, 10.0f), pos.y + RandRange(-6.0f, 6.0f) };
         p.vel = { RandRange(-65.0f, 65.0f), RandRange(-50.0f, 15.0f) };
-        p.color = (i % 2 == 0) ? Color{ 120, 155, 45, 210 } : Color{ 105, 95, 35, 210 };
+        p.color = (i % 2 == 0) ? pal.poisonSlime[2] : pal.poisonSlime[1];
         p.size = RandRange(8.0f, 16.0f);
         p.maxLife = RandRange(0.45f, 0.85f);
         p.life = p.maxLife;
@@ -187,6 +193,7 @@ void ParticleSystem::SpawnGasCloud(Vector2 pos) {
 }
 
 void ParticleSystem::SpawnExplosion(Vector2 pos, float radius, Color tint) {
+    const auto& pal = GetPalette();
     int count = std::clamp(static_cast<int>(radius * 0.35f), 20, 75);
     for (int i = 0; i < count; ++i) {
         Particle p;
@@ -194,7 +201,7 @@ void ParticleSystem::SpawnExplosion(Vector2 pos, float radius, Color tint) {
         float angle = RandRange(0.0f, 6.28318f);
         float speed = RandRange(60.0f, radius * 2.2f);
         p.vel = { std::cos(angle) * speed, std::sin(angle) * speed };
-        p.color = (i % 3 == 0) ? GOLD : tint;
+        p.color = (i % 3 == 0) ? pal.fireGold[3] : tint;
         p.size = RandRange(6.0f, 14.0f);
         p.maxLife = RandRange(0.25f, 0.55f);
         p.life = p.maxLife;
@@ -225,7 +232,7 @@ void ParticleSystem::SpawnDecoyLog(Vector2 pos) {
     log.rotation = RandRange(-25.0f, 25.0f);
     log.life = 1.20f;
     decoyLogs_.push_back(log);
-    SpawnSmoke(pos, Color{ 220, 220, 230, 230 }, 20);
+    SpawnSmoke(pos, GetPalette().bone[2], 20);
 }
 
 void ParticleSystem::SpawnFloatingText(

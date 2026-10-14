@@ -1,4 +1,5 @@
 #include "gfx/ProceduralRenderer.hpp"
+#include "gfx/Palette.hpp"
 #include "gfx/UiText.hpp"
 #include "data/Registry.hpp"
 #include "core/Config.hpp"
@@ -7,23 +8,25 @@
 #include <algorithm>
 
 Color ProceduralRenderer::GetTierPrimaryColor(EquipTier tier, Color defaultCol) {
+    const auto& pal = GetPalette();
     switch (tier) {
-        case EquipTier::Squire:   return Color{ 140, 148, 160, 255 };
-        case EquipTier::Silver:   return Color{ 215, 228, 245, 255 };
-        case EquipTier::Imperial: return Color{ 195, 55, 65, 255 };
-        case EquipTier::Royal:    return Color{ 245, 198, 50, 255 };
-        case EquipTier::Dark:     return Color{ 55, 35, 85, 255 };
+        case EquipTier::Squire:   return pal.metal[3];
+        case EquipTier::Silver:   return pal.metal[4];
+        case EquipTier::Imperial: return pal.bloodCloth[3];
+        case EquipTier::Royal:    return pal.fireGold[3];
+        case EquipTier::Dark:     return pal.dungeon.stoneTile[3];
         default:                  return defaultCol;
     }
 }
 
 Color ProceduralRenderer::GetTierSecondaryColor(EquipTier tier, Color defaultCol) {
+    const auto& pal = GetPalette();
     switch (tier) {
-        case EquipTier::Squire:   return Color{ 170, 50, 50, 255 };
-        case EquipTier::Silver:   return Color{ 80, 150, 235, 255 };
-        case EquipTier::Imperial: return Color{ 240, 195, 65, 255 };
-        case EquipTier::Royal:    return Color{ 155, 40, 195, 255 };
-        case EquipTier::Dark:     return Color{ 225, 35, 85, 255 };
+        case EquipTier::Squire:   return pal.bloodCloth[2];
+        case EquipTier::Silver:   return pal.moonMagic[3];
+        case EquipTier::Imperial: return pal.fireGold[3];
+        case EquipTier::Royal:    return pal.moonMagic[4];
+        case EquipTier::Dark:     return pal.bloodCloth[4];
         default:                  return defaultCol;
     }
 }
@@ -41,8 +44,9 @@ namespace {
         bool isDownStriking,
         float animTime
     ) {
-        Color bladeBaseCol = ProceduralRenderer::GetTierPrimaryColor(tier, Color{ 225, 232, 245, 255 });
-        Color hiltCol      = ProceduralRenderer::GetTierSecondaryColor(tier, GOLD);
+        const auto& pal = GetPalette();
+        Color bladeBaseCol = ProceduralRenderer::GetTierPrimaryColor(tier, pal.metal[4]);
+        Color hiltCol      = ProceduralRenderer::GetTierSecondaryColor(tier, pal.fireGold[3]);
 
         Vector2 dirVec = { tipPos.x - handPos.x, tipPos.y - handPos.y };
         float len = std::hypot(dirVec.x, dirVec.y);
@@ -61,35 +65,35 @@ namespace {
 
         // 1. Навершя (Pommel)
         float pommelR = 4.4f * sx;
-        DrawCircleV(pommelPos, pommelR + 0.8f, Fade(BLACK, alpha));
+        DrawCircleV(pommelPos, pommelR + 0.8f, Fade(pal.outline, alpha));
         DrawCircleV(pommelPos, pommelR, Fade(hiltCol, alpha));
-        DrawCircleV({ pommelPos.x - 1.0f * sx, pommelPos.y - 1.0f * sy }, 1.4f * sx, Fade(WHITE, alpha * 0.8f));
+        DrawCircleV({ pommelPos.x - 1.0f * sx, pommelPos.y - 1.0f * sy }, 1.4f * sx, Fade(pal.metal[4], alpha * 0.8f));
         // Самоцвіт у наверші залежно від тиру
         if (tier == EquipTier::Silver) {
-            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(SKYBLUE, alpha));
+            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(pal.moonMagic[3], alpha));
         } else if (tier == EquipTier::Imperial) {
-            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(RED, alpha));
+            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(pal.bloodCloth[3], alpha));
         } else if (tier == EquipTier::Royal) {
-            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(MAGENTA, alpha));
+            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(pal.moonMagic[4], alpha));
         } else if (tier == EquipTier::Dark) {
-            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(Color{ 255, 40, 80, 255 }, alpha));
+            DrawCircleV(pommelPos, pommelR * 0.55f, Fade(pal.bloodCloth[4], alpha));
         }
 
         // 2. Руків'я (Grip)
-        Color gripCol = Color{ 48, 32, 22, 255 }; // темна шкіра
-        DrawLineEx(pommelPos, guardPos, 4.5f * sy, Fade(BLACK, alpha));
+        Color gripCol = pal.wood[1];
+        DrawLineEx(pommelPos, guardPos, 4.5f * sy, Fade(pal.outline, alpha));
         DrawLineEx(pommelPos, guardPos, 3.2f * sy, Fade(gripCol, alpha));
         for (int g = 1; g <= 3; ++g) {
             float gt = g * 0.25f;
             Vector2 gPt = { pommelPos.x + (guardPos.x - pommelPos.x) * gt, pommelPos.y + (guardPos.y - pommelPos.y) * gt };
             DrawLineEx({ gPt.x - n.x * 2.2f * sx, gPt.y - n.y * 2.2f * sx },
-                       { gPt.x + n.x * 2.2f * sx, gPt.y + n.y * 2.2f * sx }, 1.5f, Fade(GOLD, alpha));
+                       { gPt.x + n.x * 2.2f * sx, gPt.y + n.y * 2.2f * sx }, 1.5f, Fade(pal.fireGold[3], alpha));
         }
 
         // 3. Гарда (Crossguard) із золотими крилами та рубіном по центру
         Vector2 gL = { guardPos.x - n.x * guardHalfW, guardPos.y - n.y * guardHalfW };
         Vector2 gR = { guardPos.x + n.x * guardHalfW, guardPos.y + n.y * guardHalfW };
-        DrawLineEx({ gL.x - u.x * 0.8f, gL.y - u.y * 0.8f }, { gR.x - u.x * 0.8f, gR.y - u.y * 0.8f }, 5.2f * sy, Fade(BLACK, alpha));
+        DrawLineEx({ gL.x - u.x * 0.8f, gL.y - u.y * 0.8f }, { gR.x - u.x * 0.8f, gR.y - u.y * 0.8f }, 5.2f * sy, Fade(pal.outline, alpha));
         DrawLineEx(gL, gR, 4.2f * sy, Fade(hiltCol, alpha));
         DrawCircleV(gL, 3.0f * sx, Fade(hiltCol, alpha));
         DrawCircleV(gR, 3.0f * sx, Fade(hiltCol, alpha));
@@ -102,15 +106,15 @@ namespace {
         Vector2 bTaperL = { guardPos.x + u.x * taperStart - n.x * (bladeWidth * 0.5f), guardPos.y + u.y * taperStart - n.y * (bladeWidth * 0.5f) };
         Vector2 bTaperR = { guardPos.x + u.x * taperStart + n.x * (bladeWidth * 0.5f), guardPos.y + u.y * taperStart + n.y * (bladeWidth * 0.5f) };
 
-        Color lightEdge  = ColorTint(bladeBaseCol, WHITE);
-        Color shadedEdge = ColorTint(bladeBaseCol, Color{ 180, 192, 215, 255 });
+        Color lightEdge  = ColorTint(bladeBaseCol, pal.metal[4]);
+        Color shadedEdge = ColorTint(bladeBaseCol, pal.metal[2]);
         if (tier == EquipTier::Dark) {
-            lightEdge  = Color{ 62, 42, 85, 255 };
-            shadedEdge = Color{ 28, 18, 42, 255 };
+            lightEdge  = pal.dungeon.stoneTile[3];
+            shadedEdge = pal.dungeon.stoneTile[1];
         }
 
-        // Темний контур леза
-        Color outlineCol = Color{ 32, 36, 48, 255 };
+        // Контур леза
+        Color outlineCol = pal.outline;
         DrawLineEx(bBaseL, bTaperL, 2.0f * sx, Fade(outlineCol, alpha));
         DrawLineEx(bTaperL, tipPos, 2.0f * sx, Fade(outlineCol, alpha));
         DrawLineEx(bBaseR, bTaperR, 2.0f * sx, Fade(outlineCol, alpha));
@@ -127,21 +131,21 @@ namespace {
         DrawTriangle(guardPos, bTaperR, midCore, Fade(shadedEdge, alpha));
         DrawTriangle(midCore, tipPos, bTaperR, Fade(shadedEdge, alpha));
 
-        // 5. Автентичний сяючий блакитний дол меча (Cyan glowing fuller beam)
+        // 5. Автентичний сяючий блакитний дол меча
         Vector2 fullerStart = { guardPos.x + u.x * (3.0f * sx), guardPos.y + u.y * (3.0f * sx) };
         Vector2 fullerEnd   = { guardPos.x + u.x * fullerLen,   guardPos.y + u.y * fullerLen };
         
-        Color fullerGlow = Color{ 0, 195, 255, 255 };
-        if (tier == EquipTier::Imperial) fullerGlow = Color{ 255, 95, 25, 255 };
-        else if (tier == EquipTier::Royal) fullerGlow = Color{ 215, 60, 255, 255 };
-        else if (tier == EquipTier::Dark) fullerGlow = Color{ 255, 25, 65, 255 };
+        Color fullerGlow = pal.moonMagic[3];
+        if (tier == EquipTier::Imperial) fullerGlow = pal.fireGold[3];
+        else if (tier == EquipTier::Royal) fullerGlow = pal.moonMagic[4];
+        else if (tier == EquipTier::Dark) fullerGlow = pal.bloodCloth[3];
 
         // Темний жолобок долу
-        DrawLineEx(fullerStart, fullerEnd, 5.0f * sy, Fade(Color{ 18, 36, 64, 255 }, alpha * 0.95f));
+        DrawLineEx(fullerStart, fullerEnd, 5.0f * sy, Fade(pal.metal[0], alpha * 0.95f));
         // Яскравий неоновий промінь долу
         DrawLineEx(fullerStart, fullerEnd, 3.4f * sy, Fade(fullerGlow, alpha * 0.95f));
         // Біло-блакитне ядро сяйва
-        DrawLineEx(fullerStart, fullerEnd, 1.5f * sy, Fade(Color{ 225, 250, 255, 255 }, alpha * 0.95f));
+        DrawLineEx(fullerStart, fullerEnd, 1.5f * sy, Fade(pal.moonMagic[4], alpha * 0.95f));
 
         // Загострений кінець долу
         Vector2 fTipL = { fullerEnd.x - n.x * 2.0f * sy - u.x * 2.0f * sx, fullerEnd.y - n.y * 2.0f * sy - u.y * 2.0f * sx };
@@ -149,35 +153,35 @@ namespace {
         Vector2 fApex = { fullerEnd.x + u.x * 3.5f * sx, fullerEnd.y + u.y * 3.5f * sx };
         DrawTriangle(fTipL, fApex, fTipR, Fade(fullerGlow, alpha));
 
-        // 6. Червоний рубін по центру гарди (Crimson Red Ruby with glint)
-        DrawCircleV(guardPos, 4.4f * sx, Fade(BLACK, alpha));
-        DrawCircleV(guardPos, 3.6f * sx, Fade(Color{ 235, 25, 45, 255 }, alpha));
-        DrawCircleV({ guardPos.x - 1.0f * sx, guardPos.y - 1.0f * sy }, 1.3f * sx, Fade(WHITE, alpha * 0.9f));
+        // 6. Червоний рубін по центру гарди
+        DrawCircleV(guardPos, 4.4f * sx, Fade(pal.outline, alpha));
+        DrawCircleV(guardPos, 3.6f * sx, Fade(pal.bloodCloth[3], alpha));
+        DrawCircleV({ guardPos.x - 1.0f * sx, guardPos.y - 1.0f * sy }, 1.3f * sx, Fade(pal.metal[4], alpha * 0.9f));
 
         // Спецефекти клинка за тирами
         if (tier == EquipTier::Silver) {
             float rPulse = 0.5f + 0.5f * std::sin(animTime * 6.0f);
-            DrawLineEx(guardPos, fullerEnd, 2.2f * sx, Fade(SKYBLUE, alpha * 0.7f * rPulse));
+            DrawLineEx(guardPos, fullerEnd, 2.2f * sx, Fade(pal.moonMagic[3], alpha * 0.7f * rPulse));
         } else if (tier == EquipTier::Imperial) {
             float fPulse = 0.6f + 0.4f * std::sin(animTime * 14.0f);
-            DrawLineEx(bBaseL, tipPos, 2.2f * sx, Fade(ORANGE, alpha * 0.7f * fPulse));
-            DrawLineEx(bBaseR, tipPos, 2.2f * sx, Fade(RED, alpha * 0.7f * fPulse));
+            DrawLineEx(bBaseL, tipPos, 2.2f * sx, Fade(pal.fireGold[3], alpha * 0.7f * fPulse));
+            DrawLineEx(bBaseR, tipPos, 2.2f * sx, Fade(pal.bloodCloth[3], alpha * 0.7f * fPulse));
         } else if (tier == EquipTier::Royal) {
             float rPulse = 0.55f + 0.45f * std::sin(animTime * 8.0f);
-            DrawLineEx(guardPos, fullerEnd, 2.5f * sx, Fade(PURPLE, alpha * 0.85f * rPulse));
-            DrawCircleV({ guardPos.x + u.x * (len * 0.4f), guardPos.y + u.y * (len * 0.4f) }, 2.8f * sx, Fade(GOLD, alpha));
+            DrawLineEx(guardPos, fullerEnd, 2.5f * sx, Fade(pal.moonMagic[4], alpha * 0.85f * rPulse));
+            DrawCircleV({ guardPos.x + u.x * (len * 0.4f), guardPos.y + u.y * (len * 0.4f) }, 2.8f * sx, Fade(pal.fireGold[3], alpha));
         } else if (tier == EquipTier::Dark) {
-            DrawLineEx(bBaseL, tipPos, 2.2f * sx, Fade(RED, alpha * 0.85f));
-            DrawLineEx(bBaseR, tipPos, 2.2f * sx, Fade(Color{ 255, 30, 80, 255 }, alpha * 0.85f));
+            DrawLineEx(bBaseL, tipPos, 2.2f * sx, Fade(pal.bloodCloth[3], alpha * 0.85f));
+            DrawLineEx(bBaseR, tipPos, 2.2f * sx, Fade(pal.bloodCloth[4], alpha * 0.85f));
         }
 
-        DrawCircleV(tipPos, 2.2f * sx, Fade(WHITE, alpha * 0.95f));
+        DrawCircleV(tipPos, 2.2f * sx, Fade(pal.metal[4], alpha * 0.95f));
 
         // Аеродинамічні лінії вітру при pogo downstrike
         if (isDownStriking) {
-            DrawLineEx({ bTaperL.x - 4.0f * sx, bTaperL.y - 14.0f * sy }, { bTaperL.x - 4.0f * sx, bTaperL.y + 6.0f * sy }, 2.0f, Fade(WHITE, 0.65f));
-            DrawLineEx({ bTaperR.x + 4.0f * sx, bTaperR.y - 14.0f * sy }, { bTaperR.x + 4.0f * sx, bTaperR.y + 6.0f * sy }, 2.0f, Fade(WHITE, 0.65f));
-            DrawCircleV(tipPos, 5.0f * sx, Fade(WHITE, 0.8f));
+            DrawLineEx({ bTaperL.x - 4.0f * sx, bTaperL.y - 14.0f * sy }, { bTaperL.x - 4.0f * sx, bTaperL.y + 6.0f * sy }, 2.0f, Fade(pal.metal[4], 0.65f));
+            DrawLineEx({ bTaperR.x + 4.0f * sx, bTaperR.y - 14.0f * sy }, { bTaperR.x + 4.0f * sx, bTaperR.y + 6.0f * sy }, 2.0f, Fade(pal.metal[4], 0.65f));
+            DrawCircleV(tipPos, 5.0f * sx, Fade(pal.metal[4], 0.8f));
         }
     }
 
@@ -190,25 +194,26 @@ namespace {
         ClassType classType,
         EquipTier tier
     ) {
+        const auto& pal = GetPalette();
         float sw = 18.0f * sx;
         float sh = 38.0f * sy;
         float x = centerPos.x;
         float y = centerPos.y;
 
-        Color shieldBase = (classType == ClassType::Paladin_Upgraded) ? Color{ 48, 88, 148, 255 } : Color{ 68, 75, 92, 255 };
-        Color rimColor   = GOLD;
+        Color shieldBase = (classType == ClassType::Paladin_Upgraded) ? pal.moonMagic[2] : pal.metal[2];
+        Color rimColor   = pal.fireGold[3];
         if (tier == EquipTier::Silver) {
-            shieldBase = Color{ 175, 195, 220, 255 };
-            rimColor   = SKYBLUE;
+            shieldBase = pal.metal[4];
+            rimColor   = pal.moonMagic[3];
         } else if (tier == EquipTier::Imperial) {
-            shieldBase = Color{ 165, 42, 52, 255 };
-            rimColor   = GOLD;
+            shieldBase = pal.bloodCloth[2];
+            rimColor   = pal.fireGold[3];
         } else if (tier == EquipTier::Royal) {
-            shieldBase = Color{ 85, 28, 98, 255 };
-            rimColor   = GOLD;
+            shieldBase = pal.dungeon.stoneTile[2];
+            rimColor   = pal.fireGold[3];
         } else if (tier == EquipTier::Dark) {
-            shieldBase = Color{ 32, 22, 42, 255 };
-            rimColor   = RED;
+            shieldBase = pal.dungeon.stoneTile[1];
+            rimColor   = pal.bloodCloth[3];
         }
 
         // Тіло геральдичного щита (Heater Shield)
@@ -229,11 +234,11 @@ namespace {
 
         // Центральний умбон
         DrawCircle(static_cast<int>(x), static_cast<int>(y - 3.0f * sy), 5.5f * sx, Fade(rimColor, alpha));
-        DrawCircle(static_cast<int>(x), static_cast<int>(y - 3.0f * sy), 3.0f * sx, Fade(WHITE, alpha * 0.75f));
+        DrawCircle(static_cast<int>(x), static_cast<int>(y - 3.0f * sy), 3.0f * sx, Fade(pal.metal[4], alpha * 0.75f));
 
         // Геральдичний золотий хрест
-        DrawLineEx({ x - sw * 0.38f, y - 3.0f * sy }, { x + sw * 0.38f, y - 3.0f * sy }, 2.0f * sy, Fade(GOLD, alpha * 0.85f));
-        DrawLineEx({ x, y - sh * 0.35f }, { x, y + sh * 0.25f }, 2.0f * sx, Fade(GOLD, alpha * 0.85f));
+        DrawLineEx({ x - sw * 0.38f, y - 3.0f * sy }, { x + sw * 0.38f, y - 3.0f * sy }, 2.0f * sy, Fade(pal.fireGold[3], alpha * 0.85f));
+        DrawLineEx({ x, y - sh * 0.35f }, { x, y + sh * 0.25f }, 2.0f * sx, Fade(pal.fireGold[3], alpha * 0.85f));
     }
 }
 
@@ -242,6 +247,7 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
         return;
     }
 
+    const auto& pal = GetPalette();
     float alpha = p.isMistForm ? 0.38f : 1.0f;
     float sx = p.scaleX;
     float sy = p.scaleY;
@@ -265,13 +271,13 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
         Vector2 w1 = shoulderPos;
         Vector2 w2 = { shoulderPos.x - dir * 34.0f * sx, shoulderPos.y - 20.0f * sy + wingFlap };
         Vector2 w3 = { shoulderPos.x - dir * 24.0f * sx, shoulderPos.y + 12.0f * sy + wingFlap * 0.5f };
-        DrawTriangle(w1, w2, w3, Fade(Color{ 210, 55, 35, 255 }, alpha));
-        DrawTriangle(w3, w2, w1, Fade(Color{ 175, 40, 25, 255 }, alpha));
-        DrawLineEx(w1, w2, 3.0f * sx, Fade(GOLD, alpha));
-        DrawCircleV(w2, 3.0f * sx, Fade(BLACK, alpha)); // кіготь крила
+        DrawTriangle(w1, w2, w3, Fade(pal.bloodCloth[2], alpha));
+        DrawTriangle(w3, w2, w1, Fade(pal.bloodCloth[1], alpha));
+        DrawLineEx(w1, w2, 3.0f * sx, Fade(pal.fireGold[3], alpha));
+        DrawCircleV(w2, 3.0f * sx, Fade(pal.outline, alpha)); // кіготь крила
     } else {
-        Color capeOuter = GetTierSecondaryColor(p.capeTier, Color{ 185, 35, 45, 255 });
-        Color capeInner = ColorTint(capeOuter, Color{ 110, 110, 130, 255 });
+        Color capeOuter = GetTierSecondaryColor(p.capeTier, pal.bloodCloth[2]);
+        Color capeInner = ColorTint(capeOuter, pal.metal[1]);
         float speedRatio = std::clamp(std::abs(p.velocity.x) / 290.0f, 0.0f, 1.4f);
         constexpr int CAPE_SEGMENTS = 7;
         Vector2 prevPt = shoulderPos;
@@ -289,8 +295,8 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
     }
 
     // 2. Ноги з наколінниками та сабатонами (Sabaton boots)
-    Color limbColor = GetTierPrimaryColor(p.limbsTier, Color{ 95, 100, 115, 255 });
-    Color limbHighlight = ColorTint(limbColor, WHITE);
+    Color limbColor = GetTierPrimaryColor(p.limbsTier, pal.metal[2]);
+    Color limbHighlight = ColorTint(limbColor, pal.metal[4]);
     float runCycle = (std::abs(p.velocity.x) > 15.0f) ? std::sin(p.animTime * 16.0f) * 8.0f * sx : 0.0f;
     float legW = 7.5f * sx;
     float legH = 14.5f * sy;
@@ -301,29 +307,29 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
         DrawRectangleRec({ curX - legW * 0.5f, legY, legW, legH * 0.55f }, Fade(limbColor, alpha));
         // Наколінник (Poleyn)
         DrawCircle(static_cast<int>(curX), static_cast<int>(legY + legH * 0.5f), 4.2f * sx, Fade(limbHighlight, alpha));
-        DrawCircle(static_cast<int>(curX), static_cast<int>(legY + legH * 0.5f), 1.6f * sx, Fade(GOLD, alpha)); // золота заклепка
+        DrawCircle(static_cast<int>(curX), static_cast<int>(legY + legH * 0.5f), 1.6f * sx, Fade(pal.fireGold[3], alpha)); // золота заклепка
         // Поножі та сабатон (латний черевик)
         DrawRectangleRec({ curX - legW * 0.5f, legY + legH * 0.5f, legW, legH * 0.5f }, Fade(limbColor, alpha));
-        DrawRectangleRec({ curX - legW * 0.5f + dir * 1.5f * sx, legY + legH - 3.5f * sy, legW + 3.0f * sx, 3.5f * sy }, Fade(Color{ 45, 48, 56, 255 }, alpha));
+        DrawRectangleRec({ curX - legW * 0.5f + dir * 1.5f * sx, legY + legH - 3.5f * sy, legW + 3.0f * sx, 3.5f * sy }, Fade(pal.metal[1], alpha));
     };
 
     DrawDetailedLeg(c.x - 4.5f * sx, c.y + 12.5f * sy, runCycle);
     DrawDetailedLeg(c.x + 4.5f * sx, c.y + 12.5f * sy, -runCycle);
 
     // 3. Тулуб у готичній кірасі з поясом та настегнниками
-    Color defaultTorso = Color{ 130, 138, 152, 255 };
+    Color defaultTorso = pal.metal[2];
     if (p.classType == ClassType::Mage_Base || p.classType == ClassType::Archmage_Upgraded) {
-        defaultTorso = Color{ 55, 78, 180, 255 };
+        defaultTorso = pal.moonMagic[1];
     } else if (p.classType == ClassType::Shinobi_Base || p.classType == ClassType::Hokage_Upgraded) {
-        defaultTorso = Color{ 36, 38, 50, 255 };
+        defaultTorso = pal.metal[0];
     } else if (p.classType == ClassType::Lich_Base || p.classType == ClassType::LichKing_Upgraded) {
-        defaultTorso = Color{ 80, 32, 120, 255 };
+        defaultTorso = pal.dungeon.stoneTile[1];
     } else if (p.classType == ClassType::Miner_Base || p.classType == ClassType::Spelunker_Upgraded) {
-        defaultTorso = Color{ 155, 108, 48, 255 };
+        defaultTorso = pal.wood[2];
     }
 
     Color chestCol = GetTierPrimaryColor(p.chestTier, defaultTorso);
-    Color trimCol  = GetTierSecondaryColor(p.chestTier, GOLD);
+    Color trimCol  = GetTierSecondaryColor(p.chestTier, pal.fireGold[3]);
 
     Rectangle torsoRec = { c.x - bodyW * 0.5f, c.y - bodyH * 0.42f, bodyW, bodyH };
     DrawRectangleRounded(torsoRec, 0.22f, 4, Fade(chestCol, alpha));
@@ -341,8 +347,8 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
 
     // Шкіряний пояс із пряжкою
     float beltY = torsoRec.y + bodyH - 6.0f * sy;
-    DrawRectangleRec({ torsoRec.x + 2.0f * sx, beltY, bodyW - 4.0f * sx, 5.0f * sy }, Fade(Color{ 45, 30, 22, 255 }, alpha));
-    DrawRectangleRec({ c.x + dir * 1.0f * sx - 3.5f * sx, beltY, 7.0f * sx, 5.0f * sy }, Fade(GOLD, alpha));
+    DrawRectangleRec({ torsoRec.x + 2.0f * sx, beltY, bodyW - 4.0f * sx, 5.0f * sy }, Fade(pal.wood[0], alpha));
+    DrawRectangleRec({ c.x + dir * 1.0f * sx - 3.5f * sx, beltY, 7.0f * sx, 5.0f * sy }, Fade(pal.fireGold[3], alpha));
 
     // Наплічники (Pauldrons)
     auto DrawPauldron = [&](Vector2 pPos) {
@@ -354,31 +360,31 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
     DrawPauldron({ c.x + dir * 9.0f * sx, torsoRec.y + 4.0f * sy });
 
     // 4. Голова і шолом
-    Color helmCol  = GetTierPrimaryColor(p.helmTier, Color{ 165, 175, 190, 255 });
-    Color plumeCol = GetTierSecondaryColor(p.helmTier, Color{ 220, 45, 55, 255 });
+    Color helmCol  = GetTierPrimaryColor(p.helmTier, pal.metal[3]);
+    Color plumeCol = GetTierSecondaryColor(p.helmTier, pal.bloodCloth[3]);
 
     // Купол шолома
     DrawCircleV(headPos, headR, Fade(helmCol, alpha));
-    DrawCircleLines(static_cast<int>(headPos.x), static_cast<int>(headPos.y), headR, Fade(Color{ 40, 45, 55, 255 }, alpha));
+    DrawCircleLines(static_cast<int>(headPos.x), static_cast<int>(headPos.y), headR, Fade(pal.outline, alpha));
     // Блик світла на куполі шолома
-    DrawCircle(static_cast<int>(headPos.x - dir * 2.5f * sx), static_cast<int>(headPos.y - headR * 0.45f), headR * 0.4f, Fade(WHITE, alpha * 0.35f));
+    DrawCircle(static_cast<int>(headPos.x - dir * 2.5f * sx), static_cast<int>(headPos.y - headR * 0.45f), headR * 0.4f, Fade(pal.metal[4], alpha * 0.35f));
 
     // Очна щілина шолома (Visor) з вогником очей лицаря
     Vector2 visorCenter = { headPos.x + dir * headR * 0.40f, headPos.y - headR * 0.05f };
     Rectangle visorRec = { visorCenter.x - 4.5f * sx, visorCenter.y - 2.5f * sy, 9.0f * sx, 5.0f * sy };
-    DrawRectangleRec(visorRec, Fade(Color{ 18, 20, 28, 255 }, alpha));
-    DrawRectangleLinesEx(visorRec, 1.2f * sx, Fade(Color{ 60, 65, 80, 255 }, alpha));
+    DrawRectangleRec(visorRec, Fade(pal.outline, alpha));
+    DrawRectangleLinesEx(visorRec, 1.2f * sx, Fade(pal.metal[2], alpha));
 
     // Світло очей крізь забрало
     if (p.classType == ClassType::Lich_Base || p.classType == ClassType::LichKing_Upgraded) {
-        DrawCircleV({ visorCenter.x + dir * 1.0f * sx, visorCenter.y }, 2.5f * sx, Fade(LIME, alpha));
+        DrawCircleV({ visorCenter.x + dir * 1.0f * sx, visorCenter.y }, 2.5f * sx, Fade(pal.poisonSlime[3], alpha));
     } else {
-        DrawCircleV({ visorCenter.x + dir * 1.0f * sx, visorCenter.y }, 2.0f * sx, Fade(Color{ 255, 235, 140, 255 }, alpha));
+        DrawCircleV({ visorCenter.x + dir * 1.0f * sx, visorCenter.y }, 2.0f * sx, Fade(pal.fireGold[3], alpha));
     }
 
     // Вентиляційні отвори на підборідді шолома (bevor slits)
     for (int vs = 0; vs < 3; ++vs) {
-        DrawCircle(static_cast<int>(headPos.x + dir * (3.0f + vs * 2.5f) * sx), static_cast<int>(headPos.y + headR * 0.45f), 1.0f * sx, Fade(BLACK, alpha * 0.7f));
+        DrawCircle(static_cast<int>(headPos.x + dir * (3.0f + vs * 2.5f) * sx), static_cast<int>(headPos.y + headR * 0.45f), 1.0f * sx, Fade(pal.outline, alpha * 0.7f));
     }
 
     // Класові головні убори та прикраси
@@ -390,58 +396,58 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
                 { headPos.x - 4.0f * sx, headPos.y - headR * 0.6f },
                 { headPos.x + 4.0f * sx, headPos.y - headR * 0.6f },
                 { headPos.x + dir * 16.0f * sx, headPos.y - headR * 1.8f },
-                Fade(RAYWHITE, alpha)
+                Fade(pal.bone[4], alpha)
             );
             DrawTriangle(
                 { headPos.x - 4.0f * sx, headPos.y - headR * 0.6f },
                 { headPos.x - dir * 16.0f * sx, headPos.y - headR * 1.7f },
                 { headPos.x + 2.0f * sx, headPos.y - headR * 0.6f },
-                Fade(RAYWHITE, alpha)
+                Fade(pal.bone[4], alpha)
             );
             // Хутряний комір
-            DrawRectangleRounded({ torsoRec.x - 2.0f * sx, torsoRec.y, bodyW + 4.0f * sx, 8.0f * sy }, 0.4f, 4, Fade(Color{ 95, 68, 48, 255 }, alpha));
+            DrawRectangleRounded({ torsoRec.x - 2.0f * sx, torsoRec.y, bodyW + 4.0f * sx, 8.0f * sy }, 0.4f, 4, Fade(pal.wood[1], alpha));
             break;
         }
         case ClassType::Mage_Base:
         case ClassType::Archmage_Upgraded: {
             // Гостроверхий чаклунський капелюх із крисами
-            DrawEllipse(static_cast<int>(headPos.x), static_cast<int>(headPos.y - headR * 0.65f), headR * 1.35f, 4.0f * sy, Fade(Color{ 45, 32, 115, 255 }, alpha));
+            DrawEllipse(static_cast<int>(headPos.x), static_cast<int>(headPos.y - headR * 0.65f), headR * 1.35f, 4.0f * sy, Fade(pal.moonMagic[0], alpha));
             DrawTriangle(
                 { headPos.x + headR * 1.15f, headPos.y - headR * 0.65f },
                 { headPos.x - dir * 6.0f * sx, headPos.y - headR * 2.6f },
                 { headPos.x - headR * 1.15f, headPos.y - headR * 0.65f },
-                Fade(Color{ 68, 48, 168, 255 }, alpha)
+                Fade(pal.moonMagic[1], alpha)
             );
-            DrawCircleV({ headPos.x - dir * 6.0f * sx, headPos.y - headR * 2.6f }, 3.5f * sx, Fade(GOLD, alpha));
+            DrawCircleV({ headPos.x - dir * 6.0f * sx, headPos.y - headR * 2.6f }, 3.5f * sx, Fade(pal.fireGold[3], alpha));
             break;
         }
         case ClassType::Shinobi_Base:
         case ClassType::Hokage_Upgraded: {
             // Пов'язка ніндзя з металевою пластиною
-            DrawRectangleRec({ headPos.x - headR, headPos.y - 4.5f * sy, headR * 2.0f, 6.0f * sy }, Fade(RED, alpha));
-            DrawRectangleRec({ headPos.x - 5.0f * sx, headPos.y - 4.5f * sy, 10.0f * sx, 5.0f * sy }, Fade(LIGHTGRAY, alpha));
+            DrawRectangleRec({ headPos.x - headR, headPos.y - 4.5f * sy, headR * 2.0f, 6.0f * sy }, Fade(pal.bloodCloth[2], alpha));
+            DrawRectangleRec({ headPos.x - 5.0f * sx, headPos.y - 4.5f * sy, 10.0f * sx, 5.0f * sy }, Fade(pal.metal[3], alpha));
             // Хвости пов'язки, що майорять на вітрі
             float tailWave = std::sin(p.animTime * 14.0f) * 4.0f * sy;
             DrawLineEx(
                 { headPos.x - dir * headR, headPos.y - 3.0f * sy },
                 { headPos.x - dir * (headR + 18.0f * sx), headPos.y - 5.0f * sy + tailWave },
-                3.2f * sy, Fade(RED, alpha)
+                3.2f * sy, Fade(pal.bloodCloth[2], alpha)
             );
             break;
         }
         case ClassType::Miner_Base:
         case ClassType::Spelunker_Upgraded: {
             // Шахтарська каска з ліхтарем
-            DrawCircleSector(headPos, headR * 1.15f, 180.0f, 360.0f, 12, Fade(GOLD, alpha));
+            DrawCircleSector(headPos, headR * 1.15f, 180.0f, 360.0f, 12, Fade(pal.fireGold[3], alpha));
             Vector2 lampPos = { headPos.x + dir * headR * 0.88f, headPos.y - headR * 0.50f };
-            DrawRectangleRec({ lampPos.x - 3.0f * sx, lampPos.y - 3.0f * sy, 6.0f * sx, 6.0f * sy }, Fade(DARKGRAY, alpha));
-            DrawCircleV(lampPos, 4.5f * sx, p.headlampOn ? YELLOW : GRAY);
+            DrawRectangleRec({ lampPos.x - 3.0f * sx, lampPos.y - 3.0f * sy, 6.0f * sx, 6.0f * sy }, Fade(pal.metal[1], alpha));
+            DrawCircleV(lampPos, 4.5f * sx, p.headlampOn ? pal.fireGold[4] : pal.metal[2]);
             if (p.headlampOn) {
                 // Конус променя шахтарського ліхтаря
-                DrawCircleV(lampPos, 9.0f * sx, Fade(YELLOW, 0.40f));
+                DrawCircleV(lampPos, 9.0f * sx, Fade(pal.fireGold[3], 0.40f));
                 Vector2 beam1 = { lampPos.x + dir * 140.0f * sx, lampPos.y - 35.0f * sy };
                 Vector2 beam2 = { lampPos.x + dir * 140.0f * sx, lampPos.y + 45.0f * sy };
-                DrawTriangle(lampPos, beam2, beam1, Fade(YELLOW, 0.08f));
+                DrawTriangle(lampPos, beam2, beam1, Fade(pal.fireGold[3], 0.08f));
             }
             break;
         }
@@ -454,7 +460,7 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
                     { cxk + 3.0f * sx, headPos.y - headR * 0.8f },
                     { cxk, headPos.y - headR * (1.75f + (k == 0 ? 0.35f : 0.0f)) },
                     { cxk - 3.0f * sx, headPos.y - headR * 0.8f },
-                    Fade(GOLD, alpha)
+                    Fade(pal.fireGold[3], alpha)
                 );
             }
             break;
@@ -483,7 +489,7 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
 
     // 6. Меч та атака
     float bladeLen = 48.0f * sx;
-    Color bladeCol = GetTierPrimaryColor(p.swordTier, Color{ 225, 232, 245, 255 });
+    Color bladeCol = GetTierPrimaryColor(p.swordTier, pal.metal[4]);
 
     if (p.isDownStriking) {
         // Pogo Downstrike: клинок спрямований вертикально вниз
@@ -516,13 +522,13 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
                 Vector2 outer2 = { handPos.x + dir * std::cos(a2) * (bladeLen * 1.06f), handPos.y + std::sin(a2) * (bladeLen * 1.06f) };
 
                 Color arcColor = bladeCol;
-                if (p.swordTier == EquipTier::Imperial) arcColor = ORANGE;
-                else if (p.swordTier == EquipTier::Royal) arcColor = GOLD;
-                else if (p.swordTier == EquipTier::Dark) arcColor = RED;
+                if (p.swordTier == EquipTier::Imperial) arcColor = pal.fireGold[2];
+                else if (p.swordTier == EquipTier::Royal) arcColor = pal.fireGold[3];
+                else if (p.swordTier == EquipTier::Dark) arcColor = pal.bloodCloth[3];
 
                 DrawTriangle(inner1, outer1, outer2, Fade(arcColor, arcAlpha));
                 DrawTriangle(inner1, outer2, inner2, Fade(arcColor, arcAlpha));
-                DrawLineEx(outer1, outer2, 2.2f * sx, Fade(WHITE, arcAlpha * 2.2f));
+                DrawLineEx(outer1, outer2, 2.2f * sx, Fade(pal.metal[4], arcAlpha * 2.2f));
             }
         }
 
@@ -576,33 +582,12 @@ void ProceduralRenderer::DrawHeroPreview(
 }
 
 void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int roomGy) const {
-    Color bgTop{};
-    Color bgBottom{};
-    Color brickLine{};
+    const auto& pal = GetPalette();
+    const auto& bp = pal.GetBiome(biome);
 
-    switch (biome) {
-        case BiomeType::CastleHamson:
-            bgTop     = Color{ 28, 32, 46, 255 };
-            bgBottom  = Color{ 16, 18, 28, 255 };
-            brickLine = Color{ 38, 43, 62, 255 };
-            break;
-        case BiomeType::ForestAbkhazia:
-            bgTop     = Color{ 18, 38, 28, 255 };
-            bgBottom  = Color{ 10, 22, 16, 255 };
-            brickLine = Color{ 28, 56, 40, 255 };
-            break;
-        case BiomeType::TheMaya:
-            bgTop     = Color{ 52, 42, 32, 255 };
-            bgBottom  = Color{ 30, 22, 18, 255 };
-            brickLine = Color{ 74, 58, 44, 255 };
-            break;
-        case BiomeType::LandOfDarkness:
-        default:
-            bgTop     = Color{ 18, 12, 26, 255 };
-            bgBottom  = Color{ 8, 5, 14, 255 };
-            brickLine = Color{ 32, 20, 48, 255 };
-            break;
-    }
+    Color bgTop    = bp.stoneBg[1]; // Luminance ~8%
+    Color bgBottom = bp.stoneBg[0]; // Luminance ~5%
+    Color brickLine = bp.stoneBg[2]; // Luminance ~12%
 
     DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT, bgTop, bgBottom);
 
@@ -618,55 +603,32 @@ void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int ro
     for (int i = 0; i < 3; ++i) {
         int wx = 260 + i * 380;
         int wy = 210 + ((seed + i) % 2) * 60;
-        DrawRectangle(wx - 36, wy, 72, 140, Fade(BLACK, 0.35f));
-        DrawCircle(wx, wy, 36.0f, Fade(BLACK, 0.35f));
+        DrawRectangle(wx - 36, wy, 72, 140, Fade(pal.outline, 0.45f));
+        DrawCircle(wx, wy, 36.0f, Fade(pal.outline, 0.45f));
         if (biome == BiomeType::CastleHamson || biome == BiomeType::TheMaya) {
-            DrawCircle(wx, wy, 28.0f, Fade(SKYBLUE, 0.12f));
-            DrawRectangle(wx - 28, wy, 56, 132, Fade(SKYBLUE, 0.08f));
+            DrawCircle(wx, wy, 28.0f, Fade(pal.moonMagic[2], 0.12f));
+            DrawRectangle(wx - 28, wy, 56, 132, Fade(pal.moonMagic[2], 0.08f));
         } else if (biome == BiomeType::ForestAbkhazia) {
-            DrawCircle(wx, wy, 28.0f, Fade(GREEN, 0.12f));
+            DrawCircle(wx, wy, 28.0f, Fade(pal.poisonSlime[2], 0.12f));
+        } else {
+            DrawCircle(wx, wy, 28.0f, Fade(pal.bloodCloth[2], 0.12f));
         }
     }
 }
 
 void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType biome, float trapTimer, float illusionAlpha) const {
+    const auto& pal = GetPalette();
+    const auto& bp = pal.GetBiome(biome);
+
     int x = Config::ROOM_OFFSET_X + col * Config::TILE_SIZE;
     int y = Config::ROOM_OFFSET_Y + row * Config::TILE_SIZE;
     int s = Config::TILE_SIZE;
 
     if (tileCode == '#') {
-        Color baseCol{};
-        Color borderCol{};
-        Color highlightCol{};
-        Color shadowCol{};
-
-        switch (biome) {
-            case BiomeType::CastleHamson:
-                baseCol      = Color{ 68, 76, 98, 255 };
-                borderCol    = Color{ 36, 40, 54, 255 };
-                highlightCol = Color{ 105, 118, 148, 255 };
-                shadowCol    = Color{ 48, 54, 70, 255 };
-                break;
-            case BiomeType::ForestAbkhazia:
-                baseCol      = Color{ 52, 85, 58, 255 };
-                borderCol    = Color{ 26, 44, 30, 255 };
-                highlightCol = Color{ 86, 138, 92, 255 };
-                shadowCol    = Color{ 38, 62, 42, 255 };
-                break;
-            case BiomeType::TheMaya:
-                baseCol      = Color{ 138, 118, 92, 255 };
-                borderCol    = Color{ 78, 62, 46, 255 };
-                highlightCol = Color{ 188, 164, 132, 255 };
-                shadowCol    = Color{ 108, 90, 68, 255 };
-                break;
-            case BiomeType::LandOfDarkness:
-            default:
-                baseCol      = Color{ 52, 38, 72, 255 };
-                borderCol    = Color{ 24, 15, 36, 255 };
-                highlightCol = Color{ 92, 68, 125, 255 };
-                shadowCol    = Color{ 38, 26, 54, 255 };
-                break;
-        }
+        Color baseCol      = bp.stoneTile[2]; // Luminance 25-35%
+        Color borderCol    = pal.outline;
+        Color highlightCol = bp.stoneTile[4];
+        Color shadowCol    = bp.stoneTile[1];
 
         // Base stone block
         DrawRectangle(x, y, s, s, baseCol);
@@ -702,14 +664,14 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
     } else if (tileCode == '=') {
         // Detailed wooden suspension platform with iron fittings
         int platH = 14;
-        Color woodMain    = Color{ 142, 94, 52, 255 };
-        Color woodShade   = Color{ 96, 60, 30, 255 };
-        Color woodHi      = Color{ 188, 134, 82, 255 };
-        Color ironCol     = Color{ 58, 62, 70, 255 };
-        Color ironHi      = Color{ 120, 130, 145, 255 };
+        Color woodMain    = pal.wood[3];
+        Color woodShade   = pal.wood[1];
+        Color woodHi      = pal.wood[4];
+        Color ironCol     = pal.metal[2];
+        Color ironHi      = pal.metal[3];
 
         // Soft drop shadow beneath platform
-        DrawRectangle(x, y + platH, s, 4, Fade(BLACK, 0.35f));
+        DrawRectangle(x, y + platH, s, 4, Fade(pal.outline, 0.45f));
 
         // Main plank
         DrawRectangle(x, y, s, platH, woodMain);
@@ -736,11 +698,12 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
             DrawCircle(x + s - 5, y + platH - 4, 1.5f, ironHi);
         }
     } else if (tileCode == '^') {
-        // High-detail steel ground spikes
-        Color spikeDark  = Color{ 75, 82, 95, 255 };
-        Color spikeMid   = Color{ 145, 158, 175, 255 };
-        Color spikeLight = Color{ 225, 235, 248, 255 };
-        Color spikeBase  = Color{ 45, 48, 58, 255 };
+        // High-detail steel ground spikes (danger accent)
+        Color spikeDark  = pal.metal[1];
+        Color spikeMid   = pal.metal[3];
+        Color spikeLight = pal.metal[4];
+        Color spikeBase  = pal.metal[0];
+        Color dangerTip  = pal.danger[2];
 
         // Steel base plate
         DrawRectangle(x, y + s - 6, s, 6, spikeBase);
@@ -763,14 +726,15 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
             // Specular blade center crease
             DrawLineV({ apexX, apexY }, { apexX, by }, spikeLight);
             // Red danger tip
-            DrawTriangle({ bx + 6.0f, by - 24.0f }, { apexX, apexY }, { bx + 10.0f, by - 24.0f }, Color{ 200, 35, 45, 220 });
+            DrawTriangle({ bx + 6.0f, by - 24.0f }, { apexX, apexY }, { bx + 10.0f, by - 24.0f }, dangerTip);
         }
     } else if (tileCode == 'v') {
         // High-detail ceiling spikes / stalactites
-        Color spikeDark  = Color{ 75, 82, 95, 255 };
-        Color spikeMid   = Color{ 145, 158, 175, 255 };
-        Color spikeLight = Color{ 225, 235, 248, 255 };
-        Color spikeBase  = Color{ 45, 48, 58, 255 };
+        Color spikeDark  = pal.metal[1];
+        Color spikeMid   = pal.metal[3];
+        Color spikeLight = pal.metal[4];
+        Color spikeBase  = pal.metal[0];
+        Color dangerTip  = pal.danger[2];
 
         DrawRectangle(x, y, s, 6, spikeBase);
         DrawLine(x, y + 6, x + s, y + 6, spikeDark);
@@ -784,12 +748,13 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
             DrawTriangle({ apexX, ty }, { apexX, apexY }, { bx + 16.0f, ty }, spikeDark);
             DrawTriangle({ bx, ty }, { apexX, apexY }, { apexX, ty }, spikeMid);
             DrawLineV({ apexX, ty }, { apexX, apexY }, spikeLight);
+            DrawTriangle({ bx + 6.0f, ty + 24.0f }, { apexX, apexY }, { bx + 10.0f, ty + 24.0f }, dangerTip);
         }
     } else if (tileCode == '~') {
         // Retractable mechanical spike plate
-        Color plateCol   = Color{ 62, 58, 68, 255 };
-        Color plateEdge  = Color{ 110, 105, 120, 255 };
-        Color slotCol    = Color{ 22, 18, 26, 255 };
+        Color plateCol   = pal.metal[2];
+        Color plateEdge  = pal.metal[3];
+        Color slotCol    = pal.outline;
 
         DrawRectangle(x, y + s - 8, s, 8, plateCol);
         DrawLine(x, y + s - 8, x + s, y + s - 8, plateEdge);
@@ -802,7 +767,7 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
         float ext = std::clamp(std::sin(trapTimer * 3.5f) * 1.4f, 0.0f, 1.0f);
         if (ext > 0.08f) {
             float h = 30.0f * ext;
-            Color tipGlow = (ext > 0.8f) ? Color{ 240, 50, 60, 255 } : Color{ 180, 40, 50, 255 };
+            Color tipGlow = (ext > 0.8f) ? pal.danger[3] : pal.danger[2];
 
             for (int i = 0; i < 3; ++i) {
                 float bx = static_cast<float>(x + i * 16);
@@ -810,18 +775,18 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
                 float apexX = bx + 8.0f;
                 float apexY = by - h;
 
-                DrawTriangle({ bx + 13.0f, by }, { apexX, apexY }, { apexX, by }, Color{ 90, 85, 100, 255 });
-                DrawTriangle({ apexX, by }, { apexX, apexY }, { bx + 3.0f, by }, Color{ 160, 155, 175, 255 });
-                DrawLineV({ apexX, apexY }, { apexX, by }, WHITE);
+                DrawTriangle({ bx + 13.0f, by }, { apexX, apexY }, { apexX, by }, pal.metal[2]);
+                DrawTriangle({ apexX, by }, { apexX, apexY }, { bx + 3.0f, by }, pal.metal[3]);
+                DrawLineV({ apexX, apexY }, { apexX, by }, pal.metal[4]);
                 DrawTriangle({ bx + 6.0f, by - h * 0.7f }, { apexX, apexY }, { bx + 10.0f, by - h * 0.7f }, tipGlow);
             }
         }
     } else if (tileCode == 'D') {
         // Деталізований гном'ячий тунель-арка (Dwarf Tunnel Crawlspace)
-        Color archStone   = Color{ 48, 52, 68, 255 };
-        Color archTrim    = Color{ 88, 98, 125, 255 };
-        Color innerDark   = Color{ 18, 15, 24, 255 };
-        Color bronzeGlow  = Color{ 212, 148, 56, 255 };
+        Color archStone   = bp.stoneTile[2];
+        Color archTrim    = bp.stoneTile[3];
+        Color innerDark   = pal.outline;
+        Color bronzeGlow  = pal.fireGold[3];
 
         // Кам'яна кладка обрамлення
         DrawRectangle(x, y, s, s, archStone);
@@ -837,7 +802,7 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
         DrawLine(x + s - 7, y + 16, x + s - 7, y + s - 1, archTrim);
 
         // М'яке бурштинове сяйво з глибини тунелю
-        DrawCircleGradient(x + s / 2, y + s / 2 + 4, 15.0f, Fade(GOLD, 0.28f), BLANK);
+        DrawCircleGradient(x + s / 2, y + s / 2 + 4, 15.0f, Fade(pal.fireGold[3], 0.28f), BLANK);
 
         // Рунічний гліф шолома Карлика над склепінням
         Vector2 glyphPos = { static_cast<float>(x + s / 2), static_cast<float>(y + 9) };
@@ -853,38 +818,9 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
         DrawRectangle(x + 4, y + s - 3, s - 8, 3, bronzeGlow);
     } else if (tileCode == 'X') {
         // Секретна стіна, яку можна розбити мечем чи закляттям (Cracked Secret Wall)
-        Color baseCol{};
-        Color borderCol{};
-        Color highlightCol{};
-        Color shadowCol{};
-
-        switch (biome) {
-            case BiomeType::CastleHamson:
-                baseCol      = Color{ 68, 76, 98, 255 };
-                borderCol    = Color{ 36, 40, 54, 255 };
-                highlightCol = Color{ 105, 118, 148, 255 };
-                shadowCol    = Color{ 48, 54, 70, 255 };
-                break;
-            case BiomeType::ForestAbkhazia:
-                baseCol      = Color{ 52, 85, 58, 255 };
-                borderCol    = Color{ 26, 44, 30, 255 };
-                highlightCol = Color{ 86, 138, 92, 255 };
-                shadowCol    = Color{ 38, 62, 42, 255 };
-                break;
-            case BiomeType::TheMaya:
-                baseCol      = Color{ 138, 118, 92, 255 };
-                borderCol    = Color{ 78, 62, 46, 255 };
-                highlightCol = Color{ 188, 164, 132, 255 };
-                shadowCol    = Color{ 108, 90, 68, 255 };
-                break;
-            case BiomeType::LandOfDarkness:
-            default:
-                baseCol      = Color{ 52, 38, 72, 255 };
-                borderCol    = Color{ 24, 15, 36, 255 };
-                highlightCol = Color{ 92, 68, 125, 255 };
-                shadowCol    = Color{ 38, 26, 54, 255 };
-                break;
-        }
+        Color baseCol      = bp.stoneTile[2];
+        Color borderCol    = pal.outline;
+        Color highlightCol = bp.stoneTile[4];
 
         // Базовий блок каменю
         DrawRectangle(x, y, s, s, baseCol);
@@ -893,8 +829,8 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
 
         // Пульсація золотого світіння у тріщинах
         float pulse = 0.5f + 0.5f * std::sin(trapTimer * 4.0f + col * 0.7f + row * 1.1f);
-        Color crackGlow = ColorAlpha(GOLD, 0.45f + 0.35f * pulse);
-        Color crackShadow = Color{ 16, 12, 22, 255 };
+        Color crackGlow = ColorAlpha(pal.fireGold[3], 0.45f + 0.35f * pulse);
+        Color crackShadow = pal.outline;
 
         // Звивисті глибокі тріщини розлому
         Vector2 p0 = { static_cast<float>(x + 8), static_cast<float>(y) };
@@ -934,38 +870,9 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
         DrawLine(x + s - 1, y, x + s - 1, y + s - 1, borderCol);
     } else if (tileCode == 'I') {
         // Ілюзорна стіна (Illusion Wall) — розчиняється при наближенні гравця
-        Color baseCol{};
-        Color borderCol{};
-        Color highlightCol{};
-        Color shadowCol{};
-
-        switch (biome) {
-            case BiomeType::CastleHamson:
-                baseCol      = Color{ 68, 76, 98, 255 };
-                borderCol    = Color{ 36, 40, 54, 255 };
-                highlightCol = Color{ 105, 118, 148, 255 };
-                shadowCol    = Color{ 48, 54, 70, 255 };
-                break;
-            case BiomeType::ForestAbkhazia:
-                baseCol      = Color{ 52, 85, 58, 255 };
-                borderCol    = Color{ 26, 44, 30, 255 };
-                highlightCol = Color{ 86, 138, 92, 255 };
-                shadowCol    = Color{ 38, 62, 42, 255 };
-                break;
-            case BiomeType::TheMaya:
-                baseCol      = Color{ 138, 118, 92, 255 };
-                borderCol    = Color{ 78, 62, 46, 255 };
-                highlightCol = Color{ 188, 164, 132, 255 };
-                shadowCol    = Color{ 108, 90, 68, 255 };
-                break;
-            case BiomeType::LandOfDarkness:
-            default:
-                baseCol      = Color{ 52, 38, 72, 255 };
-                borderCol    = Color{ 24, 15, 36, 255 };
-                highlightCol = Color{ 92, 68, 125, 255 };
-                shadowCol    = Color{ 38, 26, 54, 255 };
-                break;
-        }
+        Color baseCol      = bp.stoneTile[2];
+        Color borderCol    = pal.outline;
+        Color highlightCol = bp.stoneTile[4];
 
         Color bCol   = ColorAlpha(baseCol, illusionAlpha);
         Color brdCol = ColorAlpha(borderCol, illusionAlpha);
@@ -988,12 +895,13 @@ void ProceduralRenderer::DrawTile(char tileCode, int col, int row, BiomeType bio
         // Легке магічне мерехтіння рун при розчиненні ілюзії
         if (illusionAlpha < 0.90f) {
             float shimmer = 0.5f + 0.5f * std::sin(trapTimer * 5.0f + col + row);
-            DrawCircle(x + halfS, y + halfS, 4.0f, Fade(SKYBLUE, (1.0f - illusionAlpha) * 0.7f * shimmer));
+            DrawCircle(x + halfS, y + halfS, 4.0f, Fade(pal.moonMagic[3], (1.0f - illusionAlpha) * 0.7f * shimmer));
         }
     }
 }
 
 void ProceduralRenderer::DrawGoldenBossDoor(Vector2 bottomCenter, const std::array<bool, 5>& bossDefeated, float time) const {
+    const auto& pal = GetPalette();
     float doorW = 124.0f;
     float doorH = 176.0f;
     float left = bottomCenter.x - doorW * 0.5f;
@@ -1002,45 +910,45 @@ void ProceduralRenderer::DrawGoldenBossDoor(Vector2 bottomCenter, const std::arr
     bool allFourSlain = bossDefeated[0] && bossDefeated[1] && bossDefeated[2] && bossDefeated[3];
 
     // Heavy gothic stone archway surround
-    DrawRectangleRec({ left - 14.0f, top - 18.0f, doorW + 28.0f, doorH + 18.0f }, Color{ 42, 38, 52, 255 });
-    DrawRectangleLinesEx({ left - 14.0f, top - 18.0f, doorW + 28.0f, doorH + 18.0f }, 3.0f, Color{ 78, 72, 92, 255 });
+    DrawRectangleRec({ left - 14.0f, top - 18.0f, doorW + 28.0f, doorH + 18.0f }, pal.dungeon.stoneTile[1]);
+    DrawRectangleLinesEx({ left - 14.0f, top - 18.0f, doorW + 28.0f, doorH + 18.0f }, 3.0f, pal.dungeon.stoneTile[3]);
 
     // Keystone arch peak
     DrawTriangle(
         { bottomCenter.x - 22.0f, top - 18.0f },
         { bottomCenter.x, top - 32.0f },
         { bottomCenter.x + 22.0f, top - 18.0f },
-        Color{ 58, 52, 70, 255 }
+        pal.dungeon.stoneTile[2]
     );
     DrawTriangleLines(
         { bottomCenter.x - 22.0f, top - 18.0f },
         { bottomCenter.x, top - 32.0f },
         { bottomCenter.x + 22.0f, top - 18.0f },
-        GOLD
+        pal.fireGold[3]
     );
 
     // Inner door frame
-    Color doorFill = allFourSlain ? Color{ 16, 10, 28, 255 } : Color{ 150, 110, 28, 255 };
+    Color doorFill = allFourSlain ? pal.outline : pal.fireGold[1];
     DrawRectangleRec({ left, top, doorW, doorH }, doorFill);
-    DrawRectangleLinesEx({ left, top, doorW, doorH }, 6.0f, GOLD);
+    DrawRectangleLinesEx({ left, top, doorW, doorH }, 6.0f, pal.fireGold[3]);
 
     // Ornate dual door panels
     float halfW = doorW * 0.5f;
-    DrawRectangleRec({ left + 6.0f, top + 6.0f, halfW - 8.0f, doorH - 12.0f }, Color{ 120, 85, 20, 255 });
-    DrawRectangleRec({ left + halfW + 2.0f, top + 6.0f, halfW - 8.0f, doorH - 12.0f }, Color{ 120, 85, 20, 255 });
+    DrawRectangleRec({ left + 6.0f, top + 6.0f, halfW - 8.0f, doorH - 12.0f }, pal.fireGold[0]);
+    DrawRectangleRec({ left + halfW + 2.0f, top + 6.0f, halfW - 8.0f, doorH - 12.0f }, pal.fireGold[0]);
 
     if (!allFourSlain) {
         // Massive central gold seam & heavy iron sealing bar
-        DrawLineEx({ bottomCenter.x, top }, { bottomCenter.x, bottomCenter.y }, 4.0f, Color{ 85, 60, 14, 255 });
+        DrawLineEx({ bottomCenter.x, top }, { bottomCenter.x, bottomCenter.y }, 4.0f, pal.fireGold[0]);
         // Heavy locking crossbars
-        DrawRectangleRec({ left + 16.0f, bottomCenter.y - 100.0f, doorW - 32.0f, 16.0f }, Color{ 68, 48, 16, 255 });
-        DrawRectangleLinesEx({ left + 16.0f, bottomCenter.y - 100.0f, doorW - 32.0f, 16.0f }, 2.0f, GOLD);
+        DrawRectangleRec({ left + 16.0f, bottomCenter.y - 100.0f, doorW - 32.0f, 16.0f }, pal.wood[1]);
+        DrawRectangleLinesEx({ left + 16.0f, bottomCenter.y - 100.0f, doorW - 32.0f, 16.0f }, 2.0f, pal.fireGold[3]);
 
         // Lion-head knocker / handle rings
-        DrawCircle(static_cast<int>(bottomCenter.x - 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 7.0f, GOLD);
-        DrawCircle(static_cast<int>(bottomCenter.x - 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 4.0f, Color{ 68, 48, 16, 255 });
-        DrawCircle(static_cast<int>(bottomCenter.x + 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 7.0f, GOLD);
-        DrawCircle(static_cast<int>(bottomCenter.x + 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 4.0f, Color{ 68, 48, 16, 255 });
+        DrawCircle(static_cast<int>(bottomCenter.x - 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 7.0f, pal.fireGold[3]);
+        DrawCircle(static_cast<int>(bottomCenter.x - 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 4.0f, pal.wood[1]);
+        DrawCircle(static_cast<int>(bottomCenter.x + 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 7.0f, pal.fireGold[3]);
+        DrawCircle(static_cast<int>(bottomCenter.x + 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 4.0f, pal.wood[1]);
     } else {
         // Void portal energy vortex swirling when unlocked
         float pulse = 0.8f + 0.2f * std::sin(time * 5.0f);
@@ -1048,8 +956,8 @@ void ProceduralRenderer::DrawGoldenBossDoor(Vector2 bottomCenter, const std::arr
             static_cast<int>(bottomCenter.x),
             static_cast<int>(bottomCenter.y - doorH * 0.5f),
             56.0f * pulse,
-            Color{ 200, 60, 255, 200 },
-            Color{ 10, 5, 20, 255 }
+            pal.moonMagic[3],
+            pal.outline
         );
         // Golden celestial rays leaking from portal
         for (int r = 0; r < 8; ++r) {
@@ -1058,7 +966,7 @@ void ProceduralRenderer::DrawGoldenBossDoor(Vector2 bottomCenter, const std::arr
                 bottomCenter.x + std::cos(ang) * 52.0f,
                 (bottomCenter.y - doorH * 0.5f) + std::sin(ang) * 52.0f
             };
-            DrawLineEx({ bottomCenter.x, bottomCenter.y - doorH * 0.5f }, rayEnd, 2.0f, Fade(GOLD, 0.45f));
+            DrawLineEx({ bottomCenter.x, bottomCenter.y - doorH * 0.5f }, rayEnd, 2.0f, Fade(pal.fireGold[3], 0.45f));
         }
     }
 
@@ -1071,26 +979,26 @@ void ProceduralRenderer::DrawGoldenBossDoor(Vector2 bottomCenter, const std::arr
         {  30.0f,  -58.0f }
     }};
     const std::array<Color, 4> sealColors = {{
-        SKYBLUE, RED, ORANGE, LIME
+        pal.moonMagic[3], pal.bloodCloth[3], pal.fireGold[3], pal.poisonSlime[3]
     }};
 
     for (size_t i = 0; i < 4; ++i) {
         Vector2 sp = { bottomCenter.x + sealOffsets[i].x, bottomCenter.y + sealOffsets[i].y };
         // Outer filigree medallion ring
-        DrawCircleV(sp, 18.0f, Color{ 32, 28, 40, 255 });
-        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 18.0f, GOLD);
-        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 15.0f, Color{ 80, 60, 18, 255 });
+        DrawCircleV(sp, 18.0f, pal.dungeon.stoneBg[1]);
+        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 18.0f, pal.fireGold[3]);
+        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 15.0f, pal.fireGold[1]);
 
         if (bossDefeated[i]) {
             // Radiant boss soul gem
             float gemPulse = 1.0f + 0.15f * std::sin(time * 4.0f + i * 1.57f);
             DrawCircleGradient(static_cast<int>(sp.x), static_cast<int>(sp.y), 13.0f * gemPulse, sealColors[i], Fade(sealColors[i], 0.2f));
             DrawCircleV(sp, 9.0f, sealColors[i]);
-            DrawCircleV(sp, 4.0f, WHITE); // Gem facet glint
+            DrawCircleV(sp, 4.0f, pal.metal[4]); // Gem facet glint
         } else {
             // Dormant empty socket with dark runic core
-            DrawCircleV(sp, 10.0f, Color{ 22, 18, 28, 255 });
-            DrawCircleV(sp, 5.0f, Color{ 55, 48, 65, 255 });
+            DrawCircleV(sp, 10.0f, pal.outline);
+            DrawCircleV(sp, 5.0f, pal.dungeon.stoneTile[1]);
         }
     }
 }
@@ -1799,18 +1707,19 @@ void ProceduralRenderer::DrawManorNodeIcon(Vector2 c, ManorNodeId id, bool unloc
 }
 
 void ProceduralRenderer::DrawDetailedCharon(Vector2 pos, float animTime, bool highlight) const {
+    const auto& pal = GetPalette();
     float cx = pos.x;
     float cy = pos.y;
 
     // Drifting dark soul mist at feet
     float mistW = 60.0f + std::sin(animTime * 2.5f) * 10.0f;
-    DrawEllipse(static_cast<int>(cx), static_cast<int>(cy - 3.0f), mistW, 10.0f, Fade(Color{ 35, 20, 50, 255 }, 0.45f));
-    DrawEllipse(static_cast<int>(cx), static_cast<int>(cy - 6.0f), mistW * 0.7f, 6.0f, Fade(Color{ 20, 45, 60, 255 }, 0.35f));
+    DrawEllipse(static_cast<int>(cx), static_cast<int>(cy - 3.0f), mistW, 10.0f, Fade(pal.dungeon.stoneBg[2], 0.45f));
+    DrawEllipse(static_cast<int>(cx), static_cast<int>(cy - 6.0f), mistW * 0.7f, 6.0f, Fade(pal.dungeon.stoneBg[1], 0.35f));
 
     // Flowing dark cowl / ragged robes
-    Color robeBase = Color{ 24, 18, 32, 255 };
-    Color robeFold = Color{ 38, 28, 50, 255 };
-    Color robeHi   = highlight ? GOLD : Color{ 55, 42, 70, 255 };
+    Color robeBase = pal.dungeon.stoneBg[1];
+    Color robeFold = pal.dungeon.stoneBg[2];
+    Color robeHi   = highlight ? pal.fireGold[3] : pal.dungeon.stoneTile[2];
 
     // Body cloak
     DrawTriangle({ cx - 26.0f, cy }, { cx + 26.0f, cy }, { cx, cy - 78.0f }, robeBase);
@@ -1818,45 +1727,45 @@ void ProceduralRenderer::DrawDetailedCharon(Vector2 pos, float animTime, bool hi
     DrawTriangle({ cx + 6.0f, cy }, { cx + 22.0f, cy }, { cx + 3.0f, cy - 72.0f }, robeFold);
 
     // Deep shadowed hood
-    DrawCircle(static_cast<int>(cx), static_cast<int>(cy - 72.0f), 15.0f, Color{ 14, 10, 20, 255 });
+    DrawCircle(static_cast<int>(cx), static_cast<int>(cy - 72.0f), 15.0f, pal.outline);
     DrawCircleLines(static_cast<int>(cx), static_cast<int>(cy - 72.0f), 15.0f, robeHi);
 
     // Twin glowing red/crimson soul eyes
     float eyePulse = 0.8f + 0.2f * std::sin(animTime * 4.0f);
-    DrawCircleV({ cx - 4.5f, cy - 72.0f }, 3.5f * eyePulse, RED);
-    DrawCircleV({ cx + 4.5f, cy - 72.0f }, 3.5f * eyePulse, RED);
-    DrawCircleV({ cx - 4.5f, cy - 72.0f }, 1.5f, WHITE);
-    DrawCircleV({ cx + 4.5f, cy - 72.0f }, 1.5f, WHITE);
+    DrawCircleV({ cx - 4.5f, cy - 72.0f }, 3.5f * eyePulse, pal.bloodCloth[3]);
+    DrawCircleV({ cx + 4.5f, cy - 72.0f }, 3.5f * eyePulse, pal.bloodCloth[3]);
+    DrawCircleV({ cx - 4.5f, cy - 72.0f }, 1.5f, pal.metal[4]);
+    DrawCircleV({ cx + 4.5f, cy - 72.0f }, 1.5f, pal.metal[4]);
 
     // Skeletal right arm holding tall Reaper Scythe
     Vector2 handPos = { cx - 18.0f, cy - 42.0f };
-    DrawLineEx({ cx - 8.0f, cy - 55.0f }, handPos, 3.0f, RAYWHITE);
+    DrawLineEx({ cx - 8.0f, cy - 55.0f }, handPos, 3.0f, pal.bone[4]);
 
     // Tall curved Reaper Scythe
     Vector2 scytheBase = { cx - 22.0f, cy };
     Vector2 scytheTop  = { cx - 14.0f, cy - 105.0f };
-    DrawLineEx(scytheBase, scytheTop, 3.5f, Color{ 75, 50, 30, 255 });
+    DrawLineEx(scytheBase, scytheTop, 3.5f, pal.wood[2]);
     // Scythe blade
     Vector2 bladeTip = { cx + 20.0f, cy - 98.0f };
-    DrawTriangle(scytheTop, { scytheTop.x - 8.0f, scytheTop.y + 12.0f }, bladeTip, Color{ 220, 230, 245, 255 });
-    DrawLineEx(scytheTop, bladeTip, 2.0f, WHITE);
-    DrawLineEx({ scytheTop.x - 8.0f, scytheTop.y + 12.0f }, bladeTip, 1.5f, Color{ 120, 130, 145, 255 });
+    DrawTriangle(scytheTop, { scytheTop.x - 8.0f, scytheTop.y + 12.0f }, bladeTip, pal.metal[4]);
+    DrawLineEx(scytheTop, bladeTip, 2.0f, pal.metal[4]);
+    DrawLineEx({ scytheTop.x - 8.0f, scytheTop.y + 12.0f }, bladeTip, 1.5f, pal.metal[2]);
 
     // Skeletal left arm holding brass Soul Lantern
     Vector2 lanternArm = { cx + 20.0f, cy - 48.0f };
-    DrawLineEx({ cx + 8.0f, cy - 56.0f }, lanternArm, 2.5f, RAYWHITE);
+    DrawLineEx({ cx + 8.0f, cy - 56.0f }, lanternArm, 2.5f, pal.bone[4]);
     // Chain
-    DrawLineEx(lanternArm, { lanternArm.x + 4.0f, lanternArm.y + 12.0f }, 1.5f, GOLD);
+    DrawLineEx(lanternArm, { lanternArm.x + 4.0f, lanternArm.y + 12.0f }, 1.5f, pal.fireGold[3]);
     Vector2 lanternCenter = { lanternArm.x + 4.0f, lanternArm.y + 20.0f };
 
     // Brass Lantern frame
-    DrawRectangle(static_cast<int>(lanternCenter.x - 6.0f), static_cast<int>(lanternCenter.y - 8.0f), 12, 16, Color{ 45, 35, 20, 255 });
-    DrawRectangleLines(static_cast<int>(lanternCenter.x - 6.0f), static_cast<int>(lanternCenter.y - 8.0f), 12, 16, GOLD);
+    DrawRectangle(static_cast<int>(lanternCenter.x - 6.0f), static_cast<int>(lanternCenter.y - 8.0f), 12, 16, pal.wood[1]);
+    DrawRectangleLines(static_cast<int>(lanternCenter.x - 6.0f), static_cast<int>(lanternCenter.y - 8.0f), 12, 16, pal.fireGold[3]);
     // Dancing turquoise soul flame
     float flameGlow = 8.0f + 3.0f * std::sin(animTime * 7.0f);
-    DrawCircleGradient(static_cast<int>(lanternCenter.x), static_cast<int>(lanternCenter.y), flameGlow * 1.8f, Fade(Color{ 40, 220, 210, 255 }, 0.45f), BLANK);
-    DrawCircleV(lanternCenter, flameGlow * 0.7f, Color{ 80, 245, 225, 255 });
-    DrawCircleV(lanternCenter, flameGlow * 0.35f, WHITE);
+    DrawCircleGradient(static_cast<int>(lanternCenter.x), static_cast<int>(lanternCenter.y), flameGlow * 1.8f, Fade(pal.moonMagic[3], 0.45f), BLANK);
+    DrawCircleV(lanternCenter, flameGlow * 0.7f, pal.moonMagic[3]);
+    DrawCircleV(lanternCenter, flameGlow * 0.35f, pal.moonMagic[4]);
 }
 
 // ============================================================================

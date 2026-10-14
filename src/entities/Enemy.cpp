@@ -5,6 +5,7 @@
 #include "core/GameContext.hpp"
 #include "audio/SoundSynth.hpp"
 #include "gfx/ParticleSystem.hpp"
+#include "gfx/Palette.hpp"
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
@@ -465,25 +466,26 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
 void Enemy::Draw() const {
     if (!active) return;
 
+    const auto& pal = GetPalette();
     Vector2 c = GetCenter();
     float alpha = isDementiaPhantom ? 0.55f : 1.0f;
 
-    Color tierTint = WHITE;
+    Color tierTint = pal.bone[4];
     if (isDementiaPhantom) {
-        tierTint = Color{ 190, 90, 255, 255 };
+        tierTint = pal.moonMagic[3];
     } else if (tier == 2) {
-        tierTint = Color{ 130, 205, 255, 255 };
+        tierTint = pal.moonMagic[3];
     } else if (tier == 3) {
-        tierTint = Color{ 255, 195, 70, 255 };
+        tierTint = pal.fireGold[3];
     }
     if (hurtFlashTimer > 0.0f) {
-        tierTint = RED;
+        tierTint = pal.bloodCloth[3];
     }
 
     switch (type) {
         case EnemyType::Skeleton: {
-            Color boneCol = isDementiaPhantom ? tierTint : ColorTint(Color{ 236, 232, 222, 255 }, tierTint);
-            Color shadowBone = ColorTint(boneCol, Color{ 160, 155, 145, 255 });
+            Color boneCol = isDementiaPhantom ? tierTint : ColorTint(pal.bone[3], tierTint);
+            Color shadowBone = ColorTint(boneCol, pal.bone[1]);
 
             // 1. Череп з очницями та зубами
             float skullY = pos.y + 10.0f;
@@ -492,27 +494,27 @@ void Enemy::Draw() const {
 
             // Шолом для тиру 2 або 3
             if (tier >= 2) {
-                DrawCircleSector({ c.x, skullY - 1.0f }, 10.5f, 180.0f, 360.0f, 12, Fade(Color{ 75, 78, 88, 255 }, alpha));
-                DrawLineEx({ c.x - 11.0f, skullY - 1.0f }, { c.x + 11.0f, skullY - 1.0f }, 2.5f, Fade(GOLD, alpha));
+                DrawCircleSector({ c.x, skullY - 1.0f }, 10.5f, 180.0f, 360.0f, 12, Fade(pal.metal[2], alpha));
+                DrawLineEx({ c.x - 11.0f, skullY - 1.0f }, { c.x + 11.0f, skullY - 1.0f }, 2.5f, Fade(pal.fireGold[3], alpha));
                 if (tier == 3) {
-                    DrawTriangle({ c.x - 2.0f, skullY - 11.0f }, { c.x + 2.0f, skullY - 11.0f }, { c.x, skullY - 17.0f }, Fade(GOLD, alpha));
+                    DrawTriangle({ c.x - 2.0f, skullY - 11.0f }, { c.x + 2.0f, skullY - 11.0f }, { c.x, skullY - 17.0f }, Fade(pal.fireGold[3], alpha));
                 }
             }
 
             // Очниці та носова западина
             Vector2 eyeL = { c.x - 3.8f, skullY - 0.5f };
             Vector2 eyeR = { c.x + 3.8f, skullY - 0.5f };
-            DrawCircleV(eyeL, 3.0f, Fade(BLACK, alpha));
-            DrawCircleV(eyeR, 3.0f, Fade(BLACK, alpha));
+            DrawCircleV(eyeL, 3.0f, Fade(pal.outline, alpha));
+            DrawCircleV(eyeR, 3.0f, Fade(pal.outline, alpha));
             // Вогники очей
-            DrawCircleV(eyeL, 1.6f, Fade(RED, alpha));
-            DrawCircleV(eyeR, 1.6f, Fade(RED, alpha));
+            DrawCircleV(eyeL, 1.6f, Fade(pal.bloodCloth[3], alpha));
+            DrawCircleV(eyeR, 1.6f, Fade(pal.bloodCloth[3], alpha));
             // Носова порожнина
-            DrawTriangle({ c.x, skullY + 2.0f }, { c.x - 1.6f, skullY + 4.5f }, { c.x + 1.6f, skullY + 4.5f }, Fade(BLACK, alpha));
+            DrawTriangle({ c.x, skullY + 2.0f }, { c.x - 1.6f, skullY + 4.5f }, { c.x + 1.6f, skullY + 4.5f }, Fade(pal.outline, alpha));
             // Щелепа з зубами
             DrawRectangle(static_cast<int>(c.x - 5.0f), static_cast<int>(skullY + 5.0f), 10, 4, Fade(boneCol, alpha));
             for (int t = -3; t <= 3; t += 3) {
-                DrawLine(static_cast<int>(c.x + t), static_cast<int>(skullY + 5.0f), static_cast<int>(c.x + t), static_cast<int>(skullY + 8.5f), Fade(BLACK, alpha * 0.7f));
+                DrawLine(static_cast<int>(c.x + t), static_cast<int>(skullY + 5.0f), static_cast<int>(c.x + t), static_cast<int>(skullY + 8.5f), Fade(pal.outline, alpha * 0.7f));
             }
 
             // 2. Хребет та ребра
@@ -534,9 +536,9 @@ void Enemy::Draw() const {
             DrawLineEx(shoulder, hand, 3.0f, Fade(boneCol, alpha));
             // Іржавий меч скелета
             Vector2 bladeTip = { hand.x + facingDir * 22.0f, hand.y - 14.0f };
-            DrawLineEx(hand, bladeTip, 4.5f, Fade(Color{ 145, 95, 75, 255 }, alpha));
-            DrawLineEx({ hand.x - facingDir * 4.0f, hand.y + 3.0f }, { hand.x + facingDir * 4.0f, hand.y - 3.0f }, 3.0f, Fade(DARKGRAY, alpha)); // гарда
-            DrawCircleV(bladeTip, 2.0f, Fade(LIGHTGRAY, alpha));
+            DrawLineEx(hand, bladeTip, 4.5f, Fade(pal.wood[2], alpha));
+            DrawLineEx({ hand.x - facingDir * 4.0f, hand.y + 3.0f }, { hand.x + facingDir * 4.0f, hand.y - 3.0f }, 3.0f, Fade(pal.metal[2], alpha)); // гарда
+            DrawCircleV(bladeTip, 2.0f, Fade(pal.metal[4], alpha));
 
             // 4. Ноги, що крокують
             float step = std::sin(animTimer * 12.0f) * 6.0f;
@@ -548,53 +550,53 @@ void Enemy::Draw() const {
         }
 
         case EnemyType::FloatingEye: {
-            Color sclera = isTelegraphing ? Color{ 255, 115, 115, 255 } : ColorTint(Color{ 240, 235, 228, 255 }, tierTint);
-            Color iris   = (tier == 1) ? Color{ 245, 150, 40, 255 } : ((tier == 2) ? Color{ 175, 45, 215, 255 } : Color{ 225, 35, 45, 255 });
+            Color sclera = isTelegraphing ? pal.bloodCloth[3] : ColorTint(pal.bone[4], tierTint);
+            Color iris   = (tier == 1) ? pal.fireGold[2] : ((tier == 2) ? pal.moonMagic[3] : pal.bloodCloth[3]);
             float floatPulse = 1.0f + 0.05f * std::sin(animTimer * 8.0f);
 
             // Тінь ширяння під оком
-            DrawEllipse(static_cast<int>(c.x), static_cast<int>(pos.y + height + 4.0f), 12.0f, 4.0f, Fade(BLACK, 0.28f * alpha));
+            DrawEllipse(static_cast<int>(c.x), static_cast<int>(pos.y + height + 4.0f), 12.0f, 4.0f, Fade(pal.outline, 0.35f * alpha));
 
             // М'ясисті війкові шипи навколо ока
             for (int sp = 0; sp < 6; ++sp) {
                 float sa = sp * (6.2831853f / 6.0f) + animTimer * 2.0f;
                 Vector2 sBase = { c.x + std::cos(sa) * 15.0f, c.y + std::sin(sa) * 15.0f };
                 Vector2 sTip  = { c.x + std::cos(sa) * 21.0f, c.y + std::sin(sa) * 21.0f };
-                DrawLineEx(sBase, sTip, 2.5f, Fade(Color{ 160, 45, 60, 255 }, alpha));
+                DrawLineEx(sBase, sTip, 2.5f, Fade(pal.bloodCloth[1], alpha));
             }
 
             // Очне яблуко
             DrawCircleV(c, 16.5f * floatPulse, Fade(sclera, alpha));
-            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 16.5f * floatPulse, Fade(Color{ 140, 35, 45, 255 }, alpha));
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 16.5f * floatPulse, Fade(pal.bloodCloth[0], alpha));
 
             // Червоні капілярні кровоносні судини
             for (int v = 0; v < 4; ++v) {
                 float va = v * 1.57f + 0.3f;
                 Vector2 v1 = { c.x + std::cos(va) * 15.0f, c.y + std::sin(va) * 15.0f };
                 Vector2 v2 = { c.x + std::cos(va) * 9.0f, c.y + std::sin(va) * 9.0f };
-                DrawLineEx(v1, v2, 1.2f, Fade(Color{ 200, 30, 45, 255 }, alpha * 0.75f));
+                DrawLineEx(v1, v2, 1.2f, Fade(pal.bloodCloth[2], alpha * 0.75f));
             }
 
             // Райдужка з градієнтним сяйвом
             DrawCircleV(c, 9.0f, Fade(iris, alpha));
-            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 9.0f, Fade(ColorTint(iris, BLACK), alpha));
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 9.0f, Fade(pal.outline, alpha));
 
             // Зіниця (вертикальна хижа щілина)
             float pupilW = isTelegraphing ? 5.5f : 3.5f;
-            DrawEllipse(static_cast<int>(c.x), static_cast<int>(c.y), pupilW, 7.5f, BLACK);
+            DrawEllipse(static_cast<int>(c.x), static_cast<int>(c.y), pupilW, 7.5f, pal.outline);
             // Білий блик світла
-            DrawCircleV({ c.x - 3.0f, c.y - 3.5f }, 2.0f, Fade(WHITE, alpha * 0.95f));
+            DrawCircleV({ c.x - 3.0f, c.y - 3.5f }, 2.0f, Fade(pal.bone[4], alpha * 0.95f));
 
             if (isTelegraphing) {
-                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 22.0f + std::sin(animTimer * 20.0f) * 4.0f, Fade(RED, 0.75f));
+                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 22.0f + std::sin(animTimer * 20.0f) * 4.0f, Fade(pal.danger[2], 0.75f));
             }
             break;
         }
 
         case EnemyType::ShieldKnight: {
-            Color armorCol  = ColorTint(Color{ 95, 105, 125, 255 }, tierTint);
-            Color armorDark = ColorTint(armorCol, Color{ 55, 60, 75, 255 });
-            Color goldTrim  = (tier == 2) ? SKYBLUE : ((tier == 3) ? GOLD : Color{ 175, 145, 65, 255 });
+            Color armorCol  = ColorTint(pal.metal[3], tierTint);
+            Color armorDark = ColorTint(armorCol, pal.metal[1]);
+            Color goldTrim  = (tier == 2) ? pal.moonMagic[3] : ((tier == 3) ? pal.fireGold[3] : pal.fireGold[2]);
 
             // 1. Поножі та сабатони
             float knightWalk = std::sin(animTimer * 10.0f) * 4.0f;
@@ -619,25 +621,25 @@ void Enemy::Draw() const {
             // 3. Великий лицарський шолом (Great Helm)
             Vector2 helmC = { c.x, pos.y + 11.0f };
             DrawCircleV(helmC, 11.0f, Fade(armorCol, alpha));
-            DrawCircleLines(static_cast<int>(helmC.x), static_cast<int>(helmC.y), 11.0f, Fade(BLACK, alpha));
+            DrawCircleLines(static_cast<int>(helmC.x), static_cast<int>(helmC.y), 11.0f, Fade(pal.outline, alpha));
 
             // Плюмаж на шоломі лицаря
-            Color plumeColor = (tier == 1) ? RED : ((tier == 2) ? SKYBLUE : GOLD);
+            Color plumeColor = (tier == 1) ? pal.bloodCloth[3] : ((tier == 2) ? pal.moonMagic[3] : pal.fireGold[3]);
             float pWave = std::sin(animTimer * 12.0f) * 3.5f;
             DrawLineEx({ helmC.x, helmC.y - 10.0f }, { helmC.x - facingDir * 12.0f, helmC.y - 18.0f + pWave }, 4.5f, Fade(plumeColor, alpha));
 
             // Хрестоподібне забрало та палаючі очі
-            DrawRectangle(static_cast<int>(helmC.x + facingDir * 3.0f - 4.0f), static_cast<int>(helmC.y - 2.5f), 8, 4, BLACK);
-            DrawCircleV({ helmC.x + facingDir * 5.0f, helmC.y - 1.0f }, 2.5f, isTelegraphing ? YELLOW : (tier == 2 ? SKYBLUE : RED));
+            DrawRectangle(static_cast<int>(helmC.x + facingDir * 3.0f - 4.0f), static_cast<int>(helmC.y - 2.5f), 8, 4, pal.outline);
+            DrawCircleV({ helmC.x + facingDir * 5.0f, helmC.y - 1.0f }, 2.5f, isTelegraphing ? pal.fireGold[3] : (tier == 2 ? pal.moonMagic[3] : pal.bloodCloth[3]));
 
             // 4. Величезний баштовий щит (Tower Shield / Pavise)
             Rectangle shRec = GetShieldHitbox();
-            DrawRectangleRounded(shRec, 0.18f, 4, Fade(Color{ 45, 52, 68, 255 }, alpha));
+            DrawRectangleRounded(shRec, 0.18f, 4, Fade(pal.metal[1], alpha));
             DrawRectangleRoundedLines(shRec, 0.18f, 4, 3.0f, Fade(goldTrim, alpha));
             // Металевий умбон щита та заклепки
             Vector2 shC = { shRec.x + shRec.width * 0.5f, shRec.y + shRec.height * 0.42f };
             DrawCircleV(shC, 6.5f, Fade(goldTrim, alpha));
-            DrawCircleV(shC, 3.0f, Fade(WHITE, alpha * 0.8f));
+            DrawCircleV(shC, 3.0f, Fade(pal.metal[4], alpha * 0.8f));
             DrawCircleV({ shRec.x + 5.0f, shRec.y + 6.0f }, 2.0f, Fade(goldTrim, alpha));
             DrawCircleV({ shRec.x + shRec.width - 5.0f, shRec.y + 6.0f }, 2.0f, Fade(goldTrim, alpha));
             DrawCircleV({ shRec.x + 5.0f, shRec.y + shRec.height - 6.0f }, 2.0f, Fade(goldTrim, alpha));
@@ -646,18 +648,18 @@ void Enemy::Draw() const {
             // 5. Меч лицаря, що визирає з-за щита
             Vector2 swHilt = { c.x - facingDir * 8.0f, pos.y + 24.0f };
             Vector2 swTip  = { c.x + facingDir * (isTelegraphing ? 38.0f : 16.0f), pos.y + (isTelegraphing ? 8.0f : 2.0f) };
-            DrawLineEx(swHilt, swTip, 5.0f, Fade(Color{ 220, 228, 240, 255 }, alpha));
+            DrawLineEx(swHilt, swTip, 5.0f, Fade(pal.metal[4], alpha));
             DrawLineEx({ swHilt.x - 3.0f, swHilt.y + 3.0f }, { swHilt.x + 3.0f, swHilt.y - 3.0f }, 4.0f, Fade(goldTrim, alpha));
-            DrawCircleV(swTip, 2.5f, Fade(WHITE, alpha));
+            DrawCircleV(swTip, 2.5f, Fade(pal.metal[4], alpha));
             break;
         }
 
         case EnemyType::FireMage: {
-            Color robeCol = ColorTint(Color{ 145, 32, 42, 255 }, tierTint);
-            Color trimCol = (tier == 2) ? SKYBLUE : ((tier == 3) ? GOLD : ORANGE);
+            Color robeCol = ColorTint(pal.bloodCloth[1], tierTint);
+            Color trimCol = (tier == 2) ? pal.moonMagic[3] : ((tier == 3) ? pal.fireGold[3] : pal.fireGold[2]);
 
             // Тінь левітації
-            DrawEllipse(static_cast<int>(c.x), static_cast<int>(GetBottom() + 3.0f), 14.0f, 4.0f, Fade(BLACK, 0.35f * alpha));
+            DrawEllipse(static_cast<int>(c.x), static_cast<int>(GetBottom() + 3.0f), 14.0f, 4.0f, Fade(pal.outline, 0.35f * alpha));
 
             // 1. Складчаста мантія чаклуна
             float hoverWave = std::sin(animTimer * 6.0f) * 3.0f;
@@ -676,35 +678,35 @@ void Enemy::Draw() const {
             // 2. Глибокий капюшон з пітьмою всередині
             Vector2 hoodC = { c.x, pos.y + 12.0f + hoverWave };
             DrawCircleV(hoodC, 10.0f, Fade(robeCol, alpha));
-            DrawCircleV(hoodC, 7.5f, Fade(Color{ 16, 12, 22, 255 }, alpha)); // темрява всередині
+            DrawCircleV(hoodC, 7.5f, Fade(pal.outline, alpha)); // темрява всередині
             // Палаючі очі мага
-            DrawCircleV({ hoodC.x + facingDir * 3.5f, hoodC.y - 0.5f }, 2.5f, isTelegraphing ? YELLOW : RED);
-            DrawCircleV({ hoodC.x + facingDir * 3.5f, hoodC.y - 0.5f }, 1.2f, WHITE);
+            DrawCircleV({ hoodC.x + facingDir * 3.5f, hoodC.y - 0.5f }, 2.5f, isTelegraphing ? pal.fireGold[3] : pal.bloodCloth[3]);
+            DrawCircleV({ hoodC.x + facingDir * 3.5f, hoodC.y - 0.5f }, 1.2f, pal.bone[4]);
 
             // 3. Магічний посох із вогняним кристалом
             Vector2 staffBase = { c.x - facingDir * 12.0f, GetBottom() + hoverWave };
             Vector2 staffTop  = { c.x - facingDir * 12.0f, pos.y - 6.0f + hoverWave };
-            DrawLineEx(staffBase, staffTop, 3.5f, Fade(Color{ 68, 48, 34, 255 }, alpha));
+            DrawLineEx(staffBase, staffTop, 3.5f, Fade(pal.wood[1], alpha));
             // Вогняне ядро на верхівці посоха
             float orbPulse = 1.0f + 0.25f * std::sin(animTimer * 16.0f);
-            DrawCircleV(staffTop, 6.5f * orbPulse, Fade(ORANGE, alpha * 0.85f));
-            DrawCircleV(staffTop, 3.5f * orbPulse, Fade(YELLOW, alpha));
+            DrawCircleV(staffTop, 6.5f * orbPulse, Fade(pal.fireGold[2], alpha * 0.85f));
+            DrawCircleV(staffTop, 3.5f * orbPulse, Fade(pal.fireGold[4], alpha));
 
             if (isTelegraphing) {
                 // Аура заряджання закляття навколо мага
-                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 26.0f + std::sin(animTimer * 25.0f) * 5.0f, Fade(ORANGE, 0.7f));
+                DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 26.0f + std::sin(animTimer * 25.0f) * 5.0f, Fade(pal.fireGold[3], 0.7f));
                 for (int i = -1; i <= 1; ++i) {
                     Vector2 mark = { lockedAttackTarget.x + i * 52.0f, lockedAttackTarget.y };
-                    DrawCircleV(mark, 12.0f + std::sin(animTimer * 20.0f) * 3.0f, Fade(RED, 0.65f));
-                    DrawCircleLines(static_cast<int>(mark.x), static_cast<int>(mark.y), 15.0f, ORANGE);
+                    DrawCircleV(mark, 12.0f + std::sin(animTimer * 20.0f) * 3.0f, Fade(pal.danger[2], 0.65f));
+                    DrawCircleLines(static_cast<int>(mark.x), static_cast<int>(mark.y), 15.0f, pal.fireGold[3]);
                 }
             }
             break;
         }
 
         case EnemyType::Warg: {
-            Color furCol   = ColorTint(Color{ 85, 68, 58, 255 }, tierTint);
-            Color darkMane = ColorTint(furCol, Color{ 48, 38, 32, 255 });
+            Color furCol   = ColorTint(pal.wood[2], tierTint);
+            Color darkMane = ColorTint(furCol, pal.wood[0]);
 
             // 1. М'язисте хутряне тіло з гребенем шерсті
             Rectangle bodyRec = { pos.x + 6.0f, pos.y + 10.0f, width - 12.0f, height - 16.0f };
@@ -724,10 +726,10 @@ void Enemy::Draw() const {
             // Морда та ікла
             Vector2 snout = { headC.x + facingDir * 8.0f, headC.y + 3.0f };
             DrawRectangleRec({ snout.x - 3.0f, snout.y - 2.0f, 6.0f, 5.0f }, Fade(furCol, alpha));
-            DrawTriangle({ snout.x, snout.y + 3.0f }, { snout.x + facingDir * 2.0f, snout.y + 3.0f }, { snout.x + facingDir * 1.0f, snout.y + 7.0f }, Fade(WHITE, alpha)); // біле ікло
+            DrawTriangle({ snout.x, snout.y + 3.0f }, { snout.x + facingDir * 2.0f, snout.y + 3.0f }, { snout.x + facingDir * 1.0f, snout.y + 7.0f }, Fade(pal.bone[4], alpha)); // біле ікло
             // Око хижака
-            DrawCircleV({ headC.x + facingDir * 4.0f, headC.y - 1.0f }, 2.8f, RED);
-            DrawCircleV({ headC.x + facingDir * 4.0f, headC.y - 1.0f }, 1.2f, YELLOW);
+            DrawCircleV({ headC.x + facingDir * 4.0f, headC.y - 1.0f }, 2.8f, pal.bloodCloth[3]);
+            DrawCircleV({ headC.x + facingDir * 4.0f, headC.y - 1.0f }, 1.2f, pal.fireGold[3]);
 
             // 3. Лапи з пазурами, що біжать
             float legRun = std::sin(animTimer * 18.0f) * 7.0f;
@@ -735,13 +737,13 @@ void Enemy::Draw() const {
             Vector2 fLeg1 = { headX - facingDir * 4.0f, GetBottom() - 10.0f };
             Vector2 fLeg2 = { headX + facingDir * legRun, GetBottom() };
             DrawLineEx(fLeg1, fLeg2, 4.0f, Fade(darkMane, alpha));
-            DrawCircleV(fLeg2, 2.5f, Fade(BLACK, alpha)); // кіготь
+            DrawCircleV(fLeg2, 2.5f, Fade(pal.outline, alpha)); // кіготь
             // Задня лапа
             float rearX = (facingDir >= 0.0f) ? (pos.x + 10.0f) : (GetRight() - 10.0f);
             Vector2 rLeg1 = { rearX, GetBottom() - 10.0f };
             Vector2 rLeg2 = { rearX - facingDir * legRun, GetBottom() };
             DrawLineEx(rLeg1, rLeg2, 4.0f, Fade(darkMane, alpha));
-            DrawCircleV(rLeg2, 2.5f, Fade(BLACK, alpha));
+            DrawCircleV(rLeg2, 2.5f, Fade(pal.outline, alpha));
 
             // 4. Пухнастий вовчий хвіст
             float tailX = (facingDir >= 0.0f) ? pos.x : GetRight();
@@ -751,29 +753,29 @@ void Enemy::Draw() const {
         }
 
         case EnemyType::WallTurret: {
-            Color stoneCol = isTelegraphing ? Color{ 225, 110, 75, 255 } : ColorTint(Color{ 105, 112, 126, 255 }, tierTint);
+            Color stoneCol = isTelegraphing ? pal.fireGold[2] : ColorTint(pal.stoneTile[3], tierTint);
             Rectangle b = GetBounds();
 
             // Кам'яна основа з кладкою
             DrawRectangleRec(b, stoneCol);
-            DrawRectangleLinesEx(b, 2.5f, Color{ 48, 52, 60, 255 });
-            DrawLineEx({ b.x, b.y + b.height * 0.5f }, { b.x + b.width, b.y + b.height * 0.5f }, 1.5f, Color{ 48, 52, 60, 255 });
+            DrawRectangleLinesEx(b, 2.5f, pal.stoneTile[1]);
+            DrawLineEx({ b.x, b.y + b.height * 0.5f }, { b.x + b.width, b.y + b.height * 0.5f }, 1.5f, pal.stoneTile[1]);
 
             // Металеві заклепки по кутах
-            DrawCircle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + 4.0f), 2.0f, GOLD);
-            DrawCircle(static_cast<int>(b.x + b.width - 4.0f), static_cast<int>(b.y + 4.0f), 2.0f, GOLD);
-            DrawCircle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + b.height - 4.0f), 2.0f, GOLD);
-            DrawCircle(static_cast<int>(b.x + b.width - 4.0f), static_cast<int>(b.y + b.height - 4.0f), 2.0f, GOLD);
+            DrawCircle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + 4.0f), 2.0f, pal.fireGold[3]);
+            DrawCircle(static_cast<int>(b.x + b.width - 4.0f), static_cast<int>(b.y + 4.0f), 2.0f, pal.fireGold[3]);
+            DrawCircle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + b.height - 4.0f), 2.0f, pal.fireGold[3]);
+            DrawCircle(static_cast<int>(b.x + b.width - 4.0f), static_cast<int>(b.y + b.height - 4.0f), 2.0f, pal.fireGold[3]);
 
             // Сопло гармати / паща горгульї
             Vector2 cannonC = { c.x + facingDir * 8.0f, c.y };
-            DrawCircleV(cannonC, 10.0f, Color{ 36, 38, 44, 255 });
-            DrawCircleLines(static_cast<int>(cannonC.x), static_cast<int>(cannonC.y), 10.0f, BLACK);
+            DrawCircleV(cannonC, 10.0f, pal.metal[1]);
+            DrawCircleLines(static_cast<int>(cannonC.x), static_cast<int>(cannonC.y), 10.0f, pal.outline);
 
             // Палаюче жерло гармати перед пострілом
             float charge = isTelegraphing ? (0.7f + 0.3f * std::sin(animTimer * 25.0f)) : 0.2f;
-            DrawCircleV(cannonC, 6.0f, Fade(isTelegraphing ? ORANGE : RED, charge * 0.9f));
-            DrawCircleV(cannonC, 3.0f, Fade(YELLOW, charge));
+            DrawCircleV(cannonC, 6.0f, Fade(isTelegraphing ? pal.danger[2] : pal.bloodCloth[3], charge * 0.9f));
+            DrawCircleV(cannonC, 3.0f, Fade(pal.fireGold[3], charge));
             break;
         }
 
@@ -784,12 +786,12 @@ void Enemy::Draw() const {
     // Смужка здоров'я над пораненим ворогом та індикатор оглушення (Stun)
     if (hp < maxHp && !isDementiaPhantom && type != EnemyType::WallTurret) {
         float ratio = std::clamp(static_cast<float>(hp) / static_cast<float>(maxHp), 0.0f, 1.0f);
-        DrawRectangle(static_cast<int>(c.x - 18.0f), static_cast<int>(pos.y - 10.0f), 36, 5, BLACK);
-        DrawRectangle(static_cast<int>(c.x - 17.0f), static_cast<int>(pos.y - 9.0f), static_cast<int>(34.0f * ratio), 3, RED);
+        DrawRectangle(static_cast<int>(c.x - 18.0f), static_cast<int>(pos.y - 10.0f), 36, 5, pal.outline);
+        DrawRectangle(static_cast<int>(c.x - 17.0f), static_cast<int>(pos.y - 9.0f), static_cast<int>(34.0f * ratio), 3, pal.bloodCloth[3]);
     }
 
     if (stunTimer > 0.0f) {
         float starX = c.x + std::cos(animTimer * 14.0f) * 12.0f;
-        DrawCircleV({ starX, pos.y - 14.0f }, 4.0f, YELLOW);
+        DrawCircleV({ starX, pos.y - 14.0f }, 4.0f, pal.fireGold[3]);
     }
 }

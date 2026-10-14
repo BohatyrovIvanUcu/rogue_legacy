@@ -7,6 +7,7 @@
 #include "audio/SoundSynth.hpp"
 #include "gfx/ParticleSystem.hpp"
 #include "gfx/UiText.hpp"
+#include "gfx/Palette.hpp"
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
@@ -679,6 +680,7 @@ bool Boss::CheckPlayerContact(const Rectangle& playerBounds, Vector2& outContact
 void Boss::Draw() const {
     if (!active) return;
 
+    const auto& pal = GetPalette();
     Vector2 c = GetCenter();
     bool flash = (hurtFlashTimer > 0.0f);
 
@@ -691,40 +693,40 @@ void Boss::Draw() const {
                 float wave = std::sin(animTimer * 5.0f + i) * 12.0f;
                 Vector2 mid = { c.x + std::cos(a) * 55.0f + std::sin(a) * wave, c.y + std::sin(a) * 55.0f - std::cos(a) * wave };
                 Vector2 tip = { c.x + std::cos(a) * 88.0f, c.y + std::sin(a) * 88.0f };
-                Color tentCol = flash ? WHITE : ((i % 2 == 0) ? Color{ 145, 25, 52, 255 } : Color{ 95, 18, 35, 255 });
+                Color tentCol = flash ? pal.metal[4] : ((i % 2 == 0) ? pal.bloodCloth[2] : pal.bloodCloth[1]);
                 DrawLineEx(c, mid, 9.0f, tentCol);
                 DrawLineEx(mid, tip, 5.0f, tentCol);
-                DrawCircleV(tip, 4.0f, flash ? RED : Color{ 220, 60, 80, 255 }); // отруйний шип
+                DrawCircleV(tip, 4.0f, flash ? pal.danger[2] : pal.bloodCloth[3]); // отруйний шип
             }
 
             // 2. Очне яблуко з кровоносними судинами
-            Color eyeSclera = flash ? RED : Color{ 240, 232, 225, 255 };
+            Color eyeSclera = flash ? pal.danger[2] : pal.bone[4];
             DrawCircleV(c, 58.0f, eyeSclera);
-            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 58.0f, Color{ 120, 25, 38, 255 });
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 58.0f, pal.bloodCloth[1]);
             for (int v = 0; v < 8; ++v) {
                 float va = v * 0.785f + 0.2f;
                 Vector2 vOut = { c.x + std::cos(va) * 56.0f, c.y + std::sin(va) * 56.0f };
                 Vector2 vIn  = { c.x + std::cos(va) * 32.0f, c.y + std::sin(va) * 32.0f };
-                DrawLineEx(vOut, vIn, 2.0f, Fade(Color{ 190, 30, 45, 255 }, 0.65f));
+                DrawLineEx(vOut, vIn, 2.0f, Fade(pal.bloodCloth[2], 0.65f));
             }
 
             // 3. Багатошарова кривава райдужка
             float irisR = 30.0f + std::sin(animTimer * 4.0f) * 2.0f;
-            DrawCircleV(c, irisR, Color{ 215, 30, 45, 255 });
-            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), irisR, MAROON);
-            DrawCircleV(c, irisR * 0.65f, ORANGE);
+            DrawCircleV(c, irisR, pal.bloodCloth[3]);
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), irisR, pal.bloodCloth[1]);
+            DrawCircleV(c, irisR * 0.65f, pal.fireGold[2]);
 
             // 4. Демонічна щілинна зіниця
-            DrawEllipse(static_cast<int>(c.x), static_cast<int>(c.y), 8.0f, irisR * 0.75f, BLACK);
+            DrawEllipse(static_cast<int>(c.x), static_cast<int>(c.y), 8.0f, irisR * 0.75f, pal.outline);
             // Блики світла
-            DrawCircleV({ c.x - 10.0f, c.y - 12.0f }, 7.0f, WHITE);
-            DrawCircleV({ c.x - 4.0f, c.y - 6.0f }, 3.5f, WHITE);
+            DrawCircleV({ c.x - 10.0f, c.y - 12.0f }, 7.0f, pal.metal[4]);
+            DrawCircleV({ c.x - 4.0f, c.y - 6.0f }, 3.5f, pal.metal[4]);
             break;
         }
 
         case BossType::Alexander: {
             // Гігантський рогатий череп Alexander
-            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y), 75.0f, Fade(PURPLE, 0.45f), Fade(BLACK, 0.0f));
+            DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y), 75.0f, Fade(pal.moonMagic[1], 0.45f), Fade(pal.outline, 0.0f));
 
             // 1. Величні закручені роги
             for (int side = -1; side <= 1; side += 2) {
@@ -732,44 +734,44 @@ void Boss::Draw() const {
                 Vector2 hBase = { c.x + s * 28.0f, c.y - 24.0f };
                 Vector2 hMid  = { c.x + s * 72.0f, c.y - 65.0f };
                 Vector2 hTip  = { c.x + s * 95.0f, c.y - 35.0f };
-                DrawLineEx(hBase, hMid, 14.0f, DARKGRAY);
-                DrawLineEx(hMid, hTip, 8.0f, DARKGRAY);
+                DrawLineEx(hBase, hMid, 14.0f, pal.metal[2]);
+                DrawLineEx(hMid, hTip, 8.0f, pal.metal[2]);
                 // Золоті кільця на рогах
-                DrawCircleV(hMid, 7.5f, GOLD);
-                DrawCircleV(hTip, 4.0f, GOLD);
+                DrawCircleV(hMid, 7.5f, pal.fireGold[3]);
+                DrawCircleV(hTip, 4.0f, pal.fireGold[3]);
             }
 
             // 2. Масивна кістка черепа
-            Color skullCol = flash ? RED : Color{ 232, 226, 212, 255 };
-            Color boneShade = ColorTint(skullCol, Color{ 160, 155, 145, 255 });
+            Color skullCol = flash ? pal.danger[2] : pal.bone[4];
+            Color boneShade = ColorTint(skullCol, pal.bone[2]);
             DrawCircleV({ c.x, c.y - 8.0f }, 46.0f, skullCol);
             DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y - 8.0f), 46.0f, boneShade);
 
             // Тріщини на черепі
-            DrawLineEx({ c.x - 12.0f, c.y - 42.0f }, { c.x - 4.0f, c.y - 28.0f }, 2.0f, Fade(BLACK, 0.65f));
-            DrawLineEx({ c.x - 4.0f, c.y - 28.0f }, { c.x + 8.0f, c.y - 20.0f }, 1.5f, Fade(BLACK, 0.65f));
+            DrawLineEx({ c.x - 12.0f, c.y - 42.0f }, { c.x - 4.0f, c.y - 28.0f }, 2.0f, Fade(pal.outline, 0.65f));
+            DrawLineEx({ c.x - 4.0f, c.y - 28.0f }, { c.x + 8.0f, c.y - 20.0f }, 1.5f, Fade(pal.outline, 0.65f));
 
             // Верхня щелепа
             DrawRectangleRounded({ c.x - 26.0f, c.y + 14.0f, 52.0f, 26.0f }, 0.25f, 4, skullCol);
             DrawRectangleRoundedLines({ c.x - 26.0f, c.y + 14.0f, 52.0f, 26.0f }, 0.25f, 4, 2.0f, boneShade);
             // Зуби
             for (int t = -20; t <= 20; t += 10) {
-                DrawRectangle(static_cast<int>(c.x + t - 2), static_cast<int>(c.y + 24.0f), 5, 12, RAYWHITE);
-                DrawRectangleLines(static_cast<int>(c.x + t - 2), static_cast<int>(c.y + 24.0f), 5, 12, BLACK);
+                DrawRectangle(static_cast<int>(c.x + t - 2), static_cast<int>(c.y + 24.0f), 5, 12, pal.bone[4]);
+                DrawRectangleLines(static_cast<int>(c.x + t - 2), static_cast<int>(c.y + 24.0f), 5, 12, pal.outline);
             }
 
             // Носова западина
-            DrawTriangle({ c.x, c.y + 6.0f }, { c.x - 4.5f, c.y + 16.0f }, { c.x + 4.5f, c.y + 16.0f }, BLACK);
+            DrawTriangle({ c.x, c.y + 6.0f }, { c.x - 4.5f, c.y + 16.0f }, { c.x + 4.5f, c.y + 16.0f }, pal.outline);
 
             // 3. Величезні чорні очниці з магічним фіолетовим вогнем
             for (int side = -1; side <= 1; side += 2) {
                 float s = static_cast<float>(side);
                 Vector2 eyePos = { c.x + s * 17.0f, c.y - 6.0f };
-                DrawCircleV(eyePos, 13.0f, BLACK);
+                DrawCircleV(eyePos, 13.0f, pal.outline);
                 // Духовне полум'я в очах
                 float fSize = 6.0f + std::sin(animTimer * 12.0f + s) * 2.0f;
-                DrawCircleV(eyePos, fSize, MAGENTA);
-                DrawCircleV(eyePos, fSize * 0.5f, WHITE);
+                DrawCircleV(eyePos, fSize, pal.moonMagic[3]);
+                DrawCircleV(eyePos, fSize * 0.5f, pal.metal[4]);
             }
             break;
         }
@@ -783,31 +785,31 @@ void Boss::Draw() const {
                 float fa = f * (6.2831853f / 12.0f) + animTimer * 2.2f;
                 float fLen = 65.0f + std::sin(animTimer * 20.0f + f) * 16.0f;
                 Vector2 fTip = { c.x + std::cos(fa) * fLen, c.y + std::sin(fa) * fLen };
-                DrawLineEx(c, fTip, 7.0f, Fade(RED, 0.55f));
-                DrawCircleV(fTip, 4.0f, ORANGE);
+                DrawLineEx(c, fTip, 7.0f, Fade(pal.danger[2], 0.55f));
+                DrawCircleV(fTip, 4.0f, pal.fireGold[2]);
             }
 
             // 2. Шари палаючої плазми
-            DrawCircleV(c, 56.0f * pulse, Fade(RED, 0.45f));
-            DrawCircleV(c, 44.0f * pulse, flash ? WHITE : Color{ 245, 95, 25, 255 });
-            DrawCircleV(c, 30.0f * pulse, YELLOW);
-            DrawCircleV(c, 16.0f * pulse, WHITE);
+            DrawCircleV(c, 56.0f * pulse, Fade(pal.danger[2], 0.45f));
+            DrawCircleV(c, 44.0f * pulse, flash ? pal.metal[4] : pal.fireGold[2]);
+            DrawCircleV(c, 30.0f * pulse, pal.fireGold[3]);
+            DrawCircleV(c, 16.0f * pulse, pal.fireGold[4]);
 
             // 3. Зловісне кам'яно-лавове обличчя демона
-            DrawCircleV({ c.x - 14.0f, c.y - 6.0f }, 7.5f, MAROON);
-            DrawCircleV({ c.x + 14.0f, c.y - 6.0f }, 7.5f, MAROON);
-            DrawCircleV({ c.x - 14.0f, c.y - 6.0f }, 3.5f, WHITE); // вогняні зіниці
-            DrawCircleV({ c.x + 14.0f, c.y - 6.0f }, 3.5f, WHITE);
+            DrawCircleV({ c.x - 14.0f, c.y - 6.0f }, 7.5f, pal.bloodCloth[1]);
+            DrawCircleV({ c.x + 14.0f, c.y - 6.0f }, 7.5f, pal.bloodCloth[1]);
+            DrawCircleV({ c.x - 14.0f, c.y - 6.0f }, 3.5f, pal.metal[4]); // вогняні зіниці
+            DrawCircleV({ c.x + 14.0f, c.y - 6.0f }, 3.5f, pal.metal[4]);
             // Палаюча паща
-            DrawTriangle({ c.x - 12.0f, c.y + 14.0f }, { c.x + 12.0f, c.y + 14.0f }, { c.x, c.y + 24.0f }, MAROON);
+            DrawTriangle({ c.x - 12.0f, c.y + 14.0f }, { c.x + 12.0f, c.y + 14.0f }, { c.x, c.y + 24.0f }, pal.bloodCloth[1]);
             break;
         }
 
         case BossType::Herodotus: {
             // Велетенський давній слайм Herodotus
             for (const auto& u : slimeUnits) {
-                Color sBase = (u.hurtFlashTimer > 0.0f) ? WHITE : Color{ 55, 195, 75, 215 };
-                Color sRim  = Color{ 25, 125, 45, 255 };
+                Color sBase = (u.hurtFlashTimer > 0.0f) ? pal.metal[4] : pal.poisonSlime[3];
+                Color sRim  = pal.poisonSlime[1];
                 float squash = u.onGround ? 1.15f : 0.90f;
                 float rx = u.radius * squash;
                 float ry = u.radius / squash;
@@ -817,21 +819,21 @@ void Boss::Draw() const {
                 DrawEllipseLines(static_cast<int>(u.pos.x), static_cast<int>(u.pos.y), rx, ry, sRim);
 
                 // Внутрішнє ядро слайма
-                DrawCircleV({ u.pos.x, u.pos.y }, u.radius * 0.38f, Color{ 30, 140, 50, 255 });
-                DrawCircleV({ u.pos.x - rx * 0.3f, u.pos.y - ry * 0.3f }, u.radius * 0.22f, Fade(WHITE, 0.45f)); // блік
+                DrawCircleV({ u.pos.x, u.pos.y }, u.radius * 0.38f, pal.poisonSlime[2]);
+                DrawCircleV({ u.pos.x - rx * 0.3f, u.pos.y - ry * 0.3f }, u.radius * 0.22f, Fade(pal.metal[4], 0.45f)); // блік
 
                 // Виразні очі
                 float eyeOffX = u.radius * 0.28f;
                 float eyeOffY = u.radius * 0.16f;
                 float eyeR    = std::max(4.0f, 4.5f * u.scale);
                 // Білки очей
-                DrawCircleV({ u.pos.x - eyeOffX, u.pos.y - eyeOffY }, eyeR, RAYWHITE);
-                DrawCircleV({ u.pos.x + eyeOffX, u.pos.y - eyeOffY }, eyeR, RAYWHITE);
+                DrawCircleV({ u.pos.x - eyeOffX, u.pos.y - eyeOffY }, eyeR, pal.bone[4]);
+                DrawCircleV({ u.pos.x + eyeOffX, u.pos.y - eyeOffY }, eyeR, pal.bone[4]);
                 // Зіниці
-                DrawCircleV({ u.pos.x - eyeOffX + 1.0f, u.pos.y - eyeOffY }, eyeR * 0.55f, BLACK);
-                DrawCircleV({ u.pos.x + eyeOffX + 1.0f, u.pos.y - eyeOffY }, eyeR * 0.55f, BLACK);
-                DrawCircleV({ u.pos.x - eyeOffX + 0.5f, u.pos.y - eyeOffY - 1.0f }, eyeR * 0.25f, WHITE);
-                DrawCircleV({ u.pos.x + eyeOffX + 0.5f, u.pos.y - eyeOffY - 1.0f }, eyeR * 0.25f, WHITE);
+                DrawCircleV({ u.pos.x - eyeOffX + 1.0f, u.pos.y - eyeOffY }, eyeR * 0.55f, pal.outline);
+                DrawCircleV({ u.pos.x + eyeOffX + 1.0f, u.pos.y - eyeOffY }, eyeR * 0.55f, pal.outline);
+                DrawCircleV({ u.pos.x - eyeOffX + 0.5f, u.pos.y - eyeOffY - 1.0f }, eyeR * 0.25f, pal.metal[4]);
+                DrawCircleV({ u.pos.x + eyeOffX + 0.5f, u.pos.y - eyeOffY - 1.0f }, eyeR * 0.25f, pal.metal[4]);
             }
             break;
         }
@@ -839,12 +841,12 @@ void Boss::Draw() const {
         case BossType::JohannesTraitor: {
             if (phase == 1) {
                 // Фаза 1: Темний лицар Johannes (The Traitor)
-                Color armor     = flash ? RED : Color{ 38, 30, 55, 255 };
-                Color goldTrim  = Color{ 215, 175, 60, 255 };
+                Color armor     = flash ? pal.danger[2] : pal.metal[1];
+                Color goldTrim  = pal.fireGold[3];
 
                 // Розвіваючий темний плащ
                 float cWave = std::sin(animTimer * 10.0f) * 6.0f;
-                DrawTriangle({ c.x, pos.y + 14.0f }, { c.x - facingDir * 32.0f, GetBottom() + cWave }, { c.x - facingDir * 12.0f, GetBottom() }, Color{ 75, 20, 35, 255 });
+                DrawTriangle({ c.x, pos.y + 14.0f }, { c.x - facingDir * 32.0f, GetBottom() + cWave }, { c.x - facingDir * 12.0f, GetBottom() }, pal.bloodCloth[1]);
 
                 // Важкі латні ноги
                 DrawRectangleRec({ pos.x + 8.0f, GetBottom() - 18.0f, 10.0f, 18.0f }, armor);
@@ -869,24 +871,24 @@ void Boss::Draw() const {
                 DrawTriangle({ hC.x - 8.0f, hC.y - 4.0f }, { hC.x - 18.0f, hC.y - 18.0f }, { hC.x - 4.0f, hC.y - 10.0f }, goldTrim);
                 DrawTriangle({ hC.x + 8.0f, hC.y - 4.0f }, { hC.x + 4.0f, hC.y - 10.0f }, { hC.x + 18.0f, hC.y - 18.0f }, goldTrim);
                 // Очна щілина з кривавим вогнем
-                DrawRectangle(static_cast<int>(hC.x + facingDir * 3.0f - 5.0f), static_cast<int>(hC.y - 2.0f), 10, 4, BLACK);
-                DrawCircleV({ hC.x + facingDir * 4.5f, hC.y }, 2.5f, RED);
-                DrawCircleV({ hC.x + facingDir * 4.5f, hC.y }, 1.2f, WHITE);
+                DrawRectangle(static_cast<int>(hC.x + facingDir * 3.0f - 5.0f), static_cast<int>(hC.y - 2.0f), 10, 4, pal.outline);
+                DrawCircleV({ hC.x + facingDir * 4.5f, hC.y }, 2.5f, pal.bloodCloth[3]);
+                DrawCircleV({ hC.x + facingDir * 4.5f, hC.y }, 1.2f, pal.metal[4]);
 
-                // Подвійні рунічні клинки (Magenta + Cyan)
+                // Подвійні рунічні клинки (Blood + Moon)
                 Vector2 b1Hilt = { c.x + facingDir * 8.0f, c.y - 2.0f };
                 Vector2 b1Tip  = { c.x + facingDir * 44.0f, c.y - 18.0f };
-                DrawLineEx(b1Hilt, b1Tip, 5.5f, MAGENTA);
-                DrawLineEx(b1Hilt, b1Tip, 2.5f, WHITE);
+                DrawLineEx(b1Hilt, b1Tip, 5.5f, pal.bloodCloth[3]);
+                DrawLineEx(b1Hilt, b1Tip, 2.5f, pal.metal[4]);
 
                 Vector2 b2Hilt = { c.x - facingDir * 8.0f, c.y + 8.0f };
                 Vector2 b2Tip  = { c.x - facingDir * 38.0f, c.y + 22.0f };
-                DrawLineEx(b2Hilt, b2Tip, 5.5f, SKYBLUE);
-                DrawLineEx(b2Hilt, b2Tip, 2.5f, WHITE);
+                DrawLineEx(b2Hilt, b2Tip, 5.5f, pal.moonMagic[3]);
+                DrawLineEx(b2Hilt, b2Tip, 2.5f, pal.metal[4]);
             } else {
                 // Фаза 2: The Fountain — Проклятий Колос
-                DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y), 92.0f, Fade(GOLD, 0.35f), Fade(BLACK, 0.0f));
-                Color robe = flash ? RED : Color{ 82, 24, 108, 255 };
+                DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(c.y), 92.0f, Fade(pal.fireGold[3], 0.35f), Fade(pal.outline, 0.0f));
+                Color robe = flash ? pal.danger[2] : pal.dungeon.stoneTile[2];
 
                 DrawTriangle(
                     { GetRight() + 22.0f, GetBottom() },
@@ -894,17 +896,17 @@ void Boss::Draw() const {
                     { pos.x - 22.0f, GetBottom() },
                     robe
                 );
-                DrawRectangleRoundedLines(GetBounds(), 0.3f, 4, 3.5f, GOLD);
+                DrawRectangleRoundedLines(GetBounds(), 0.3f, 4, 3.5f, pal.fireGold[3]);
 
                 // Золота корона та очі божества
                 Vector2 headC = { c.x, pos.y + 26.0f };
-                DrawCircleV(headC, 24.0f, GOLD);
-                DrawCircleV(headC, 20.0f, Color{ 48, 20, 68, 255 });
+                DrawCircleV(headC, 24.0f, pal.fireGold[3]);
+                DrawCircleV(headC, 20.0f, pal.dungeon.stoneBg[1]);
                 // Сяючі небесні очі
-                DrawCircleV({ headC.x - 8.0f, headC.y - 2.0f }, 5.5f, SKYBLUE);
-                DrawCircleV({ headC.x + 8.0f, headC.y - 2.0f }, 5.5f, SKYBLUE);
-                DrawCircleV({ headC.x - 8.0f, headC.y - 2.0f }, 2.5f, WHITE);
-                DrawCircleV({ headC.x + 8.0f, headC.y - 2.0f }, 2.5f, WHITE);
+                DrawCircleV({ headC.x - 8.0f, headC.y - 2.0f }, 5.5f, pal.moonMagic[3]);
+                DrawCircleV({ headC.x + 8.0f, headC.y - 2.0f }, 5.5f, pal.moonMagic[3]);
+                DrawCircleV({ headC.x - 8.0f, headC.y - 2.0f }, 2.5f, pal.metal[4]);
+                DrawCircleV({ headC.x + 8.0f, headC.y - 2.0f }, 2.5f, pal.metal[4]);
             }
             break;
         }
@@ -924,16 +926,17 @@ void Boss::DrawHudHealthBar() const {
 
     std::string header = GetCurrentName() + "  -  " + GetCurrentTitle();
     int tw = Ui::Measure(header, 18);
-    Ui::Text(header, (Config::VIRTUAL_WIDTH - tw) / 2 + 1, barY - 24 + 1, 18, BLACK);
-    Ui::Text(header, (Config::VIRTUAL_WIDTH - tw) / 2, barY - 24, 18, GOLD);
+    const auto& pal = GetPalette();
+    Ui::Text(header, (Config::VIRTUAL_WIDTH - tw) / 2 + 1, barY - 24 + 1, 18, pal.outline);
+    Ui::Text(header, (Config::VIRTUAL_WIDTH - tw) / 2, barY - 24, 18, pal.fireGold[3]);
 
-    DrawRectangle(barX - 4, barY - 4, barW + 8, barH + 8, Color{ 20, 16, 28, 240 });
-    DrawRectangleLinesEx({ static_cast<float>(barX - 4), static_cast<float>(barY - 4), static_cast<float>(barW + 8), static_cast<float>(barH + 8) }, 2.5f, GOLD);
+    DrawRectangle(barX - 4, barY - 4, barW + 8, barH + 8, pal.outline);
+    DrawRectangleLinesEx({ static_cast<float>(barX - 4), static_cast<float>(barY - 4), static_cast<float>(barW + 8), static_cast<float>(barH + 8) }, 2.5f, pal.fireGold[3]);
 
     float ratio = std::clamp(static_cast<float>(hp) / static_cast<float>(std::max(1, maxHp)), 0.0f, 1.0f);
-    Color fillCol = (type == BossType::JohannesTraitor && phase == 2) ? PURPLE : Color{ 205, 32, 45, 255 };
+    Color fillCol = (type == BossType::JohannesTraitor && phase == 2) ? pal.moonMagic[1] : pal.bloodCloth[3];
     DrawRectangle(barX, barY, static_cast<int>(barW * ratio), barH, fillCol);
-    DrawRectangle(barX, barY, static_cast<int>(barW * ratio), barH / 3, Fade(WHITE, 0.25f));
+    DrawRectangle(barX, barY, static_cast<int>(barW * ratio), barH / 3, Fade(pal.bloodCloth[4], 0.35f));
 
     std::string hpText = std::to_string(hp) + " / " + std::to_string(maxHp);
     int htw = Ui::Measure(hpText, 14);

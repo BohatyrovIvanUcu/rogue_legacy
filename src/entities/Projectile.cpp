@@ -3,6 +3,7 @@
 #include "core/Config.hpp"
 #include "core/GameContext.hpp"
 #include "gfx/ParticleSystem.hpp"
+#include "gfx/Palette.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -114,7 +115,7 @@ void Projectile::Update(
             pos.x = playerCenter.x + std::cos(orbitAngle) * r;
             pos.y = playerCenter.y + std::sin(orbitAngle) * r;
             if (ctx.particles && (std::rand() % 3 == 0)) {
-                ctx.particles->SpawnSparks(pos, ORANGE, 1);
+                ctx.particles->SpawnSparks(pos, GetPalette().fireGold[3], 1);
             }
             break;
         }
@@ -130,7 +131,7 @@ void Projectile::Update(
                     vel.x = -vel.x;
                     nextX = pos.x + vel.x * dt;
                     if (--bouncesLeft < 0) active = false;
-                    if (ctx.particles) ctx.particles->SpawnSparks(pos, SKYBLUE, 4);
+                    if (ctx.particles) ctx.particles->SpawnSparks(pos, GetPalette().moonMagic[2], 4);
                 }
 
                 int colY = tileMap->WorldToCol(pos.x);
@@ -139,7 +140,7 @@ void Projectile::Update(
                     vel.y = -vel.y;
                     nextY = pos.y + vel.y * dt;
                     if (--bouncesLeft < 0) active = false;
-                    if (ctx.particles) ctx.particles->SpawnSparks(pos, SKYBLUE, 4);
+                    if (ctx.particles) ctx.particles->SpawnSparks(pos, GetPalette().moonMagic[2], 4);
                 }
             }
             pos.x = nextX;
@@ -202,59 +203,82 @@ void Projectile::Update(
 
 void Projectile::Draw() const {
     if (!active) return;
+    const auto& pal = GetPalette();
 
     float s = scale;
     switch (kind) {
         case ProjectileKind::PlayerDagger: {
             float dir = (vel.x >= 0.0f) ? 1.0f : -1.0f;
             DrawRectanglePro(
+                { pos.x, pos.y, 28.0f * s, 8.0f * s },
+                { 14.0f * s, 4.0f * s },
+                0.0f,
+                pal.outline
+            );
+            DrawRectanglePro(
                 { pos.x, pos.y, 26.0f * s, 6.0f * s },
                 { 13.0f * s, 3.0f * s },
                 0.0f,
-                Color{ 220, 230, 245, 255 }
+                pal.metal[3]
             );
             DrawTriangle(
                 { pos.x + dir * 13.0f * s, pos.y - 4.0f * s },
                 { pos.x + dir * 13.0f * s, pos.y + 4.0f * s },
                 { pos.x + dir * 21.0f * s, pos.y },
-                WHITE
+                pal.metal[4]
             );
             DrawRectanglePro(
                 { pos.x - dir * 10.0f * s, pos.y, 4.0f * s, 12.0f * s },
                 { 2.0f * s, 6.0f * s },
                 0.0f,
-                GOLD
+                pal.fireGold[3]
             );
             break;
         }
 
         case ProjectileKind::PlayerAxe: {
             DrawRectanglePro(
+                { pos.x, pos.y, 8.0f * s, 36.0f * s },
+                { 4.0f * s, 18.0f * s },
+                rotation,
+                pal.outline
+            );
+            DrawRectanglePro(
                 { pos.x, pos.y, 6.0f * s, 34.0f * s },
                 { 3.0f * s, 17.0f * s },
                 rotation,
-                Color{ 140, 90, 45, 255 }
+                pal.wood[2]
             );
-            DrawCircleSector(pos, 18.0f * s, rotation - 45.0f, rotation + 45.0f, 10, Color{ 210, 220, 235, 255 });
-            DrawCircleSector(pos, 18.0f * s, rotation + 135.0f, rotation + 225.0f, 10, Color{ 210, 220, 235, 255 });
+            DrawCircleSector(pos, 20.0f * s, rotation - 48.0f, rotation + 48.0f, 10, pal.outline);
+            DrawCircleSector(pos, 18.0f * s, rotation - 45.0f, rotation + 45.0f, 10, pal.metal[3]);
+            DrawCircleSector(pos, 20.0f * s, rotation + 132.0f, rotation + 228.0f, 10, pal.outline);
+            DrawCircleSector(pos, 18.0f * s, rotation + 135.0f, rotation + 225.0f, 10, pal.metal[3]);
             break;
         }
 
         case ProjectileKind::PlayerChakram: {
-            DrawRing(pos, 9.0f * s, 16.0f * s, 0.0f, 360.0f, 18, SKYBLUE);
-            DrawRing(pos, 12.0f * s, 17.5f * s, rotation, rotation + 90.0f, 8, WHITE);
-            DrawRing(pos, 12.0f * s, 17.5f * s, rotation + 180.0f, rotation + 270.0f, 8, WHITE);
+            DrawRing(pos, 8.0f * s, 17.0f * s, 0.0f, 360.0f, 18, pal.outline);
+            DrawRing(pos, 9.0f * s, 16.0f * s, 0.0f, 360.0f, 18, pal.moonMagic[2]);
+            DrawRing(pos, 12.0f * s, 17.5f * s, rotation, rotation + 90.0f, 8, pal.moonMagic[4]);
+            DrawRing(pos, 12.0f * s, 17.5f * s, rotation + 180.0f, rotation + 270.0f, 8, pal.moonMagic[4]);
             break;
         }
 
         case ProjectileKind::PlayerScythe: {
             DrawRectanglePro(
+                { pos.x, pos.y, 7.0f * s, 40.0f * s },
+                { 3.5f * s, 20.0f * s },
+                rotation,
+                pal.outline
+            );
+            DrawRectanglePro(
                 { pos.x, pos.y, 5.0f * s, 38.0f * s },
                 { 2.5f * s, 19.0f * s },
                 rotation,
-                Color{ 110, 75, 135, 255 }
+                pal.bloodCloth[1]
             );
-            DrawCircleSector(pos, 22.0f * s, rotation, rotation + 115.0f, 12, Color{ 225, 235, 255, 255 });
+            DrawCircleSector(pos, 24.0f * s, rotation, rotation + 115.0f, 12, pal.outline);
+            DrawCircleSector(pos, 22.0f * s, rotation, rotation + 115.0f, 12, pal.metal[4]);
             break;
         }
 
@@ -263,30 +287,32 @@ void Projectile::Draw() const {
         case ProjectileKind::BossFlameTrail: {
             float pulse = 1.0f + 0.15f * std::sin(life * 18.0f);
             float r = radius * s * pulse;
-            DrawCircleV(pos, r * 1.3f, Fade(RED, 0.38f));
-            DrawCircleV(pos, r, ORANGE);
-            DrawCircleV(pos, r * 0.55f, YELLOW);
+            DrawCircleV(pos, r * 1.35f, Fade(pal.fireGold[0], 0.40f));
+            DrawCircleV(pos, r, pal.fireGold[2]);
+            DrawCircleV(pos, r * 0.55f, pal.fireGold[4]);
             break;
         }
 
         case ProjectileKind::PlayerConflux: {
             float r = radius * s;
-            DrawCircleV(pos, r * 1.35f, Fade(SKYBLUE, 0.35f));
-            DrawCircleV(pos, r, Color{ 80, 190, 255, 255 });
-            DrawCircleV(pos, r * 0.5f, WHITE);
+            DrawCircleV(pos, r * 1.4f, pal.outline);
+            DrawCircleV(pos, r * 1.35f, Fade(pal.moonMagic[1], 0.35f));
+            DrawCircleV(pos, r, pal.moonMagic[2]);
+            DrawCircleV(pos, r * 0.5f, pal.moonMagic[4]);
             break;
         }
 
         case ProjectileKind::PlayerCrow: {
             float flap = std::sin(life * 26.0f) * 8.0f * s;
-            DrawCircleV(pos, 8.0f * s, Color{ 35, 25, 55, 255 });
+            DrawCircleV(pos, 9.0f * s, pal.outline);
+            DrawCircleV(pos, 8.0f * s, pal.stoneBg[1]);
             DrawTriangle(
                 pos,
                 { pos.x - 10.0f * s, pos.y - 12.0f * s + flap },
                 { pos.x - 4.0f * s,  pos.y + 4.0f * s },
-                Color{ 75, 45, 120, 255 }
+                pal.bloodCloth[0]
             );
-            DrawCircleV({ pos.x + 4.0f * s, pos.y - 2.0f * s }, 2.5f * s, MAGENTA);
+            DrawCircleV({ pos.x + 4.0f * s, pos.y - 2.0f * s }, 2.5f * s, pal.bloodCloth[4]);
             break;
         }
 
@@ -294,40 +320,50 @@ void Projectile::Draw() const {
         case ProjectileKind::BossSwordWave: {
             float w = 16.0f * s;
             float h = 58.0f * s;
+            DrawRectanglePro({ pos.x, pos.y, w + 4.0f * s, h + 4.0f * s }, { (w + 4.0f * s) * 0.5f, (h + 4.0f * s) * 0.5f }, 0.0f, pal.outline);
             DrawRectanglePro({ pos.x, pos.y, w, h }, { w * 0.5f, h * 0.5f }, 0.0f, primaryColor);
-            DrawRectanglePro({ pos.x, pos.y, w * 0.45f, h * 0.9f }, { w * 0.225f, h * 0.45f }, 0.0f, WHITE);
+            DrawRectanglePro({ pos.x, pos.y, w * 0.45f, h * 0.9f }, { w * 0.225f, h * 0.45f }, 0.0f, pal.moonMagic[4]);
             break;
         }
 
         case ProjectileKind::PlayerPaladinLightning: {
             for (int i = -1; i <= 1; ++i) {
                 float offX = i * 6.0f;
-                DrawLineEx({ pos.x + offX, 0.0f }, { pos.x - offX, pos.y + 20.0f }, 4.0f, SKYBLUE);
+                DrawLineEx({ pos.x + offX, 0.0f }, { pos.x - offX, pos.y + 20.0f }, 4.0f, pal.moonMagic[2]);
             }
-            DrawCircleV(pos, 26.0f, Fade(WHITE, 0.7f));
+            DrawCircleV(pos, 26.0f, Fade(pal.moonMagic[4], 0.7f));
             break;
         }
 
         case ProjectileKind::EnemyBone: {
             DrawRectanglePro(
+                { pos.x, pos.y, 26.0f * s, 8.0f * s },
+                { 13.0f * s, 4.0f * s },
+                rotation,
+                pal.outline
+            );
+            DrawRectanglePro(
                 { pos.x, pos.y, 24.0f * s, 6.0f * s },
                 { 12.0f * s, 3.0f * s },
                 rotation,
-                RAYWHITE
+                pal.bone[3]
             );
             float rad = rotation * (3.14159265f / 180.0f);
             Vector2 endA = { pos.x + std::cos(rad) * 11.0f * s, pos.y + std::sin(rad) * 11.0f * s };
             Vector2 endB = { pos.x - std::cos(rad) * 11.0f * s, pos.y - std::sin(rad) * 11.0f * s };
-            DrawCircleV(endA, 4.5f * s, RAYWHITE);
-            DrawCircleV(endB, 4.5f * s, RAYWHITE);
+            DrawCircleV(endA, 5.5f * s, pal.outline);
+            DrawCircleV(endB, 5.5f * s, pal.outline);
+            DrawCircleV(endA, 4.5f * s, pal.bone[4]);
+            DrawCircleV(endB, 4.5f * s, pal.bone[4]);
             break;
         }
 
         case ProjectileKind::EnemyEyeBolt: {
             float r = radius * s;
+            DrawCircleV(pos, r * 1.35f, pal.outline);
             DrawCircleV(pos, r * 1.3f, Fade(primaryColor, 0.35f));
             DrawCircleV(pos, r, primaryColor);
-            DrawCircleV(pos, r * 0.48f, WHITE);
+            DrawCircleV(pos, r * 0.48f, pal.danger[4]);
             break;
         }
 
@@ -341,93 +377,93 @@ void Projectile::Draw() const {
                 static_cast<int>(pos.x),
                 static_cast<int>(pos.y - flameH * 0.45f),
                 baseW * 1.5f,
-                Fade(Color{ 255, 80, 20, 255 }, 0.30f * ratio),
+                Fade(pal.fireGold[1], 0.30f * ratio),
                 BLANK
             );
 
             // 2. Киплячий розплавлений басейн на підлозі (Boiling magma pool)
-            DrawEllipse(static_cast<int>(pos.x), static_cast<int>(pos.y), baseW * 0.95f, 7.0f * s, Color{ 160, 22, 14, 230 });
-            DrawEllipse(static_cast<int>(pos.x), static_cast<int>(pos.y), baseW * 0.65f, 4.5f * s, ORANGE);
-            DrawEllipse(static_cast<int>(pos.x), static_cast<int>(pos.y), baseW * 0.35f, 2.5f * s, Color{ 255, 245, 170, 255 });
+            DrawEllipse(static_cast<int>(pos.x), static_cast<int>(pos.y), baseW * 0.95f, 7.0f * s, pal.fireGold[0]);
+            DrawEllipse(static_cast<int>(pos.x), static_cast<int>(pos.y), baseW * 0.65f, 4.5f * s, pal.fireGold[2]);
+            DrawEllipse(static_cast<int>(pos.x), static_cast<int>(pos.y), baseW * 0.35f, 2.5f * s, pal.fireGold[4]);
 
-            // 3. Багатошарові палаючі язики полум'я, що звиваються (Roaring undulating flame spires)
+            // 3. Багатошарові палаючі язики полум'я, що звиваються
             float wave1 = std::sin(life * 24.0f) * 7.0f * s;
             float wave2 = std::cos(life * 28.0f) * 6.0f * s;
             float wave3 = std::sin(life * 32.0f + 1.2f) * 5.0f * s;
 
-            // Зовнішній шар: темно-червоний та багряний вогонь
-            // Лівий язик
+            // Зовнішній шар
             DrawTriangle(
                 { pos.x - baseW * 0.5f, pos.y },
                 { pos.x - baseW * 0.15f + wave1, pos.y - flameH * 0.88f },
                 { pos.x + 2.0f, pos.y },
-                Color{ 210, 32, 24, 235 }
+                pal.fireGold[1]
             );
-            // Правий язик
             DrawTriangle(
                 { pos.x - 2.0f, pos.y },
                 { pos.x + baseW * 0.15f + wave2, pos.y - flameH * 0.85f },
                 { pos.x + baseW * 0.5f, pos.y },
-                Color{ 210, 32, 24, 235 }
+                pal.fireGold[1]
             );
-            // Центральний пік полум'я
             DrawTriangle(
                 { pos.x - baseW * 0.38f, pos.y },
                 { pos.x + wave3, pos.y - flameH },
                 { pos.x + baseW * 0.38f, pos.y },
-                Color{ 235, 65, 18, 245 }
+                pal.danger[2]
             );
 
-            // Середній шар: насичене помаранчево-золоте полум'я
+            // Середній шар
             DrawTriangle(
                 { pos.x - baseW * 0.32f, pos.y },
                 { pos.x + wave1 * 0.6f, pos.y - flameH * 0.80f },
                 { pos.x + baseW * 0.32f, pos.y },
-                ORANGE
+                pal.fireGold[2]
             );
             DrawTriangle(
                 { pos.x - baseW * 0.22f, pos.y },
                 { pos.x + wave2 * 0.5f, pos.y - flameH * 0.68f },
                 { pos.x + baseW * 0.22f, pos.y },
-                GOLD
+                pal.fireGold[3]
             );
 
-            // Внутрішнє надгаряче ядро: біло-жовта плазма
+            // Внутрішнє ядро
             DrawTriangle(
                 { pos.x - baseW * 0.14f, pos.y },
                 { pos.x + wave3 * 0.3f, pos.y - flameH * 0.48f },
                 { pos.x + baseW * 0.14f, pos.y },
-                YELLOW
+                pal.fireGold[4]
             );
             DrawTriangle(
                 { pos.x - baseW * 0.08f, pos.y },
                 { pos.x, pos.y - flameH * 0.30f },
                 { pos.x + baseW * 0.08f, pos.y },
-                WHITE
+                pal.fireGold[4]
             );
 
-            // 4. Палаючі іскри та вуглики, що злітають вгору (Rising fiery embers)
+            // 4. Ембери
             for (int k = 0; k < 6; ++k) {
                 float emberY = pos.y - std::fmod(life * (130.0f + k * 20.0f) + k * 18.0f, flameH + 28.0f);
                 float emberX = pos.x + std::sin(life * 14.0f + k * 1.5f) * (baseW * 0.55f);
                 float emberR = (1.5f + (k % 2) * 1.0f) * s;
-                Color emberCol = (k % 2 == 0) ? YELLOW : ORANGE;
+                Color emberCol = (k % 2 == 0) ? pal.fireGold[4] : pal.fireGold[3];
                 DrawCircle(static_cast<int>(emberX), static_cast<int>(emberY), emberR, emberCol);
-                DrawCircle(static_cast<int>(emberX), static_cast<int>(emberY), emberR * 0.5f, WHITE);
+                DrawCircle(static_cast<int>(emberX), static_cast<int>(emberY), emberR * 0.5f, pal.fireGold[4]);
             }
             break;
         }
 
         case ProjectileKind::EnemyArrow: {
             float dir = (vel.x >= 0.0f) ? 1.0f : -1.0f;
-            DrawLineEx({ pos.x - dir * 16.0f, pos.y }, { pos.x + dir * 16.0f, pos.y }, 4.0f, ORANGE);
-            DrawCircleV({ pos.x + dir * 14.0f, pos.y }, 5.0f, YELLOW);
+            DrawLineEx({ pos.x - dir * 16.0f, pos.y }, { pos.x + dir * 16.0f, pos.y }, 6.0f, pal.outline);
+            DrawLineEx({ pos.x - dir * 15.0f, pos.y }, { pos.x + dir * 15.0f, pos.y }, 4.0f, pal.wood[2]);
+            DrawCircleV({ pos.x + dir * 14.0f, pos.y }, 6.0f, pal.outline);
+            DrawCircleV({ pos.x + dir * 14.0f, pos.y }, 4.5f, pal.danger[2]);
             break;
         }
 
         case ProjectileKind::BossAcidDrop: {
-            DrawCircleV(pos, radius * s, LIME);
-            DrawCircleV({ pos.x - 2.0f, pos.y - 2.0f }, radius * s * 0.45f, GREEN);
+            DrawCircleV(pos, radius * s + 1.5f, pal.outline);
+            DrawCircleV(pos, radius * s, pal.poisonSlime[3]);
+            DrawCircleV({ pos.x - 2.0f, pos.y - 2.0f }, radius * s * 0.45f, pal.poisonSlime[4]);
             break;
         }
     }
@@ -615,7 +651,7 @@ Projectile Projectile::MakeAncestorBlade(float xPos, int damage) {
     p.maxLife = 1.4f;
     p.piercing = true;
     p.ignoreWalls = true;
-    p.primaryColor = SKYBLUE;
+    p.primaryColor = GetPalette().moonMagic[2];
     return p;
 }
 
@@ -737,6 +773,6 @@ Projectile Projectile::MakeBossSwordWave(Vector2 origin, Vector2 velocity, int d
     p.maxLife = 3.0f;
     p.piercing = true;
     p.ignoreWalls = true;
-    p.primaryColor = MAGENTA;
+    p.primaryColor = GetPalette().danger[2];
     return p;
 }
