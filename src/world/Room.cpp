@@ -812,7 +812,12 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
         ctx.renderer->DrawGoldenBossDoor(goldenDoorBottom, ctx.bossDefeated, trapTimer);
     }
 
-    // 3. Тайлова карта кімнати
+    // 3. Тайлова карта кімнати з процедурним автотайлінгом
+    auto IsSolidTile = [this](int col, int row) -> bool {
+        char ch = GetTileAt(col, row);
+        return (ch == '#' || ch == 'T' || ch == 'X' || ch == 'I');
+    };
+
     for (int r = 0; r < Config::ROOM_ROWS; ++r) {
         for (int c = 0; c < Config::ROOM_COLS; ++c) {
             char tc = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
@@ -826,7 +831,20 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
                         illusionAlpha = std::clamp((d - 36.0f) / 84.0f, 0.20f, 1.0f);
                     }
                 }
-                ctx.renderer->DrawTile(tc, c, r, biome, trapTimer, illusionAlpha);
+
+                uint8_t nMask = 0;
+                if (IsSolidTile(c, r - 1)) nMask |= 1; // North
+                if (IsSolidTile(c + 1, r)) nMask |= 2; // East
+                if (IsSolidTile(c, r + 1)) nMask |= 4; // South
+                if (IsSolidTile(c - 1, r)) nMask |= 8; // West
+
+                uint8_t dMask = 0;
+                if (IsSolidTile(c - 1, r - 1)) dMask |= 1; // NW
+                if (IsSolidTile(c + 1, r - 1)) dMask |= 2; // NE
+                if (IsSolidTile(c - 1, r + 1)) dMask |= 4; // SW
+                if (IsSolidTile(c + 1, r + 1)) dMask |= 8; // SE
+
+                ctx.renderer->DrawTile(tc, c, r, biome, trapTimer, illusionAlpha, nMask, dMask);
             }
         }
     }
