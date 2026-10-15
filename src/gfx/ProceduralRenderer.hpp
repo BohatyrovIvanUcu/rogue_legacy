@@ -1,4 +1,5 @@
 #pragma once
+#include "core/Config.hpp"
 #include "core/Types.hpp"
 #include <raylib.h>
 #include <array>
@@ -49,7 +50,7 @@ public:
         const GameContext& ctx,
         float animTime
     ) const;
-    void DrawBiomeBackground(BiomeType biome, int roomGx, int roomGy) const;
+    void DrawBiomeBackground(BiomeType biome, int roomGx, int roomGy, int pixelW = Config::VIRTUAL_WIDTH, int pixelH = Config::VIRTUAL_HEIGHT) const;
     void DrawTile(
         char tileCode,
         int col,

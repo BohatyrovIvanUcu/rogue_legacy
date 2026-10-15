@@ -104,27 +104,37 @@ bool SaveManager::SaveGame(const GameContext& ctx, const std::string& filePath) 
         }
         root["heirCandidates"] = candidatesArr;
 
-        json castleGrid = json::array();
-        for (int y = 0; y < Config::CASTLE_GRID_SIZE; ++y) {
-            json row = json::array();
-            for (int x = 0; x < Config::CASTLE_GRID_SIZE; ++x) {
-                const SavedRoomNode& node = ctx.savedCastle[static_cast<size_t>(y)][static_cast<size_t>(x)];
-                json rj;
-                rj["active"] = node.active;
-                rj["roomType"] = static_cast<int>(node.roomType);
-                rj["biome"] = static_cast<int>(node.biome);
-                rj["doorMask"] = node.doorMask;
-                rj["templateIdx"] = node.templateIdx;
-                rj["fairyCond"] = static_cast<int>(node.fairyCond);
-                rj["bossType"] = static_cast<int>(node.bossType);
-                rj["visited"] = node.visited;
-                rj["cleared"] = node.cleared;
-                rj["chestOpened"] = node.chestOpened;
-                row.push_back(rj);
+        json savedRoomsArr = json::array();
+        for (const SavedRoomNode& node : ctx.savedRooms) {
+            json rj;
+            rj["active"] = node.active;
+            rj["roomId"] = node.roomId;
+            rj["originGx"] = node.originGx;
+            rj["originGy"] = node.originGy;
+            rj["widthCells"] = node.widthCells;
+            rj["heightCells"] = node.heightCells;
+            rj["doorMask"] = node.doorMask;
+            json subDoors = json::array();
+            for (int sy = 0; sy < 2; ++sy) {
+                json subRow = json::array();
+                for (int sx = 0; sx < 2; ++sx) {
+                    subRow.push_back(node.subCellDoors[sy][sx]);
+                }
+                subDoors.push_back(subRow);
             }
-            castleGrid.push_back(row);
+            rj["subCellDoors"] = subDoors;
+            rj["roomType"] = static_cast<int>(node.roomType);
+            rj["biome"] = static_cast<int>(node.biome);
+            rj["templateIdx"] = node.templateIdx;
+            rj["isReversed"] = node.isReversed;
+            rj["fairyCond"] = static_cast<int>(node.fairyCond);
+            rj["bossType"] = static_cast<int>(node.bossType);
+            rj["visited"] = node.visited;
+            rj["cleared"] = node.cleared;
+            rj["chestOpened"] = node.chestOpened;
+            savedRoomsArr.push_back(rj);
         }
-        root["savedCastle"] = castleGrid;
+        root["savedRooms"] = savedRoomsArr;
 
         json historyArr = json::array();
         for (const SlainRecord& rec : ctx.lineageHistory) {
@@ -265,23 +275,35 @@ bool SaveManager::LoadGame(GameContext& ctx, const std::string& filePath) {
             }
         }
 
-        if (root.contains("savedCastle") && root["savedCastle"].is_array()) {
-            const auto& rows = root["savedCastle"];
-            for (size_t y = 0; y < std::min<size_t>(Config::CASTLE_GRID_SIZE, rows.size()); ++y) {
-                for (size_t x = 0; x < std::min<size_t>(Config::CASTLE_GRID_SIZE, rows[y].size()); ++x) {
-                    const auto& rj = rows[y][x];
-                    SavedRoomNode& node = ctx.savedCastle[y][x];
-                    node.active = rj.value("active", false);
-                    node.roomType = static_cast<RoomType>(rj.value("roomType", 1));
-                    node.biome = static_cast<BiomeType>(rj.value("biome", 0));
-                    node.doorMask = rj.value("doorMask", static_cast<uint8_t>(0));
-                    node.templateIdx = rj.value("templateIdx", 0);
-                    node.fairyCond = static_cast<FairyCondition>(rj.value("fairyCond", 0));
-                    node.bossType = static_cast<BossType>(rj.value("bossType", 0));
-                    node.visited = rj.value("visited", false);
-                    node.cleared = rj.value("cleared", false);
-                    node.chestOpened = rj.value("chestOpened", false);
+        ctx.savedRooms.clear();
+        if (root.contains("savedRooms") && root["savedRooms"].is_array()) {
+            for (const auto& rj : root["savedRooms"]) {
+                SavedRoomNode node;
+                node.active = rj.value("active", false);
+                node.roomId = rj.value("roomId", -1);
+                node.originGx = rj.value("originGx", 0);
+                node.originGy = rj.value("originGy", 0);
+                node.widthCells = rj.value("widthCells", 1);
+                node.heightCells = rj.value("heightCells", 1);
+                node.doorMask = rj.value("doorMask", static_cast<uint8_t>(0));
+                if (rj.contains("subCellDoors") && rj["subCellDoors"].is_array()) {
+                    const auto& subArr = rj["subCellDoors"];
+                    for (size_t sy = 0; sy < std::min<size_t>(2, subArr.size()); ++sy) {
+                        for (size_t sx = 0; sx < std::min<size_t>(2, subArr[sy].size()); ++sx) {
+                            node.subCellDoors[sy][sx] = subArr[sy][sx].get<uint8_t>();
+                        }
+                    }
                 }
+                node.roomType = static_cast<RoomType>(rj.value("roomType", 1));
+                node.biome = static_cast<BiomeType>(rj.value("biome", 0));
+                node.templateIdx = rj.value("templateIdx", 0);
+                node.isReversed = rj.value("isReversed", false);
+                node.fairyCond = static_cast<FairyCondition>(rj.value("fairyCond", 0));
+                node.bossType = static_cast<BossType>(rj.value("bossType", 0));
+                node.visited = rj.value("visited", false);
+                node.cleared = rj.value("cleared", false);
+                node.chestOpened = rj.value("chestOpened", false);
+                ctx.savedRooms.push_back(node);
             }
         }
 

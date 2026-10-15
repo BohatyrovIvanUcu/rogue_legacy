@@ -279,6 +279,12 @@ struct CalculatedStats {
 
 struct SavedRoomNode {
     bool active = false;
+    int roomId = -1;
+    int originGx = 0;
+    int originGy = 0;
+    int widthCells = 1;
+    int heightCells = 1;
+    uint8_t subCellDoors[2][2]{};
     RoomType roomType = RoomType::Combat;
     BiomeType biome = BiomeType::CastleHamson;
     uint8_t doorMask = 0;

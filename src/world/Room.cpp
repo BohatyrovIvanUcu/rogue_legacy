@@ -16,25 +16,39 @@
 #include <algorithm>
 
 char Room::GetTileAt(int col, int row) const {
-    // Якщо координати виходять за межі кімнати — перевіряємо, чи це відкритий дверний прохід
-    if (row >= Config::ROOM_ROWS) {
-        if ((doorMask & DoorMask::SOUTH) && col >= 10 && col <= 14) return '.';
+    if (row < 0) {
+        int rx = std::clamp(col / Config::CELL_COLS, 0, widthCells - 1);
+        int localCol = col % Config::CELL_COLS;
+        if (localCol < 0) localCol += Config::CELL_COLS;
+        if ((subCellDoors[0][rx] & DoorMask::NORTH) && localCol >= 10 && localCol <= 14) return '.';
         return '#';
     }
-    if (row < 0) {
-        if ((doorMask & DoorMask::NORTH) && col >= 10 && col <= 14) return '.';
+    if (row >= totalRows) {
+        int rx = std::clamp(col / Config::CELL_COLS, 0, widthCells - 1);
+        int localCol = col % Config::CELL_COLS;
+        if (localCol < 0) localCol += Config::CELL_COLS;
+        if ((subCellDoors[heightCells - 1][rx] & DoorMask::SOUTH) && localCol >= 10 && localCol <= 14) return '.';
         return '#';
     }
     if (col < 0) {
-        if ((doorMask & DoorMask::WEST) && row >= 5 && row <= 9) return '.';
+        int ry = std::clamp(row / Config::CELL_ROWS, 0, heightCells - 1);
+        int localRow = row % Config::CELL_ROWS;
+        if (localRow < 0) localRow += Config::CELL_ROWS;
+        if ((subCellDoors[ry][0] & DoorMask::WEST) && localRow >= 5 && localRow <= 9) return '.';
         return '#';
     }
-    if (col >= Config::ROOM_COLS) {
-        if ((doorMask & DoorMask::EAST) && row >= 5 && row <= 9) return '.';
+    if (col >= totalCols) {
+        int ry = std::clamp(row / Config::CELL_ROWS, 0, heightCells - 1);
+        int localRow = row % Config::CELL_ROWS;
+        if (localRow < 0) localRow += Config::CELL_ROWS;
+        if ((subCellDoors[ry][widthCells - 1] & DoorMask::EAST) && localRow >= 5 && localRow <= 9) return '.';
         return '#';
     }
 
-    return tiles[static_cast<size_t>(row)][static_cast<size_t>(col)];
+    if (static_cast<size_t>(row) < tiles.size() && static_cast<size_t>(col) < tiles[static_cast<size_t>(row)].size()) {
+        return tiles[static_cast<size_t>(row)][static_cast<size_t>(col)];
+    }
+    return '#';
 }
 
 void Room::BuildFromNode(
@@ -44,11 +58,14 @@ void Room::BuildFromNode(
     int calculatedRoomLevel,
     const GameContext& ctx
 ) {
-    gridX = gx;
-    gridY = gy;
+    roomId = node.roomId;
+    originGx = node.originGx != 0 ? node.originGx : gx;
+    originGy = node.originGy != 0 ? node.originGy : gy;
+    gridX = originGx;
+    gridY = originGy;
+
     roomType = node.roomType;
     biome = node.biome;
-    doorMask = node.doorMask;
     templateIdx = std::clamp(node.templateIdx, 0, static_cast<int>(RoomTemplates::TEMPLATES.size()) - 1);
     isReversed = node.isReversed;
     roomLevel = std::max(1, calculatedRoomLevel);
@@ -63,12 +80,31 @@ void Room::BuildFromNode(
     bossDefeatedInArena = false;
 
     const auto& tmpl = RoomTemplates::TEMPLATES[static_cast<size_t>(templateIdx)];
-    for (int r = 0; r < Config::ROOM_ROWS; ++r) {
-        std::string_view line = tmpl.rows[static_cast<size_t>(r)];
-        for (int c = 0; c < Config::ROOM_COLS; ++c) {
-            int srcCol = isReversed ? (Config::ROOM_COLS - 1 - c) : c;
-            tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] =
-                (srcCol >= 0 && srcCol < static_cast<int>(line.size())) ? line[static_cast<size_t>(srcCol)] : '.';
+    widthCells = tmpl.widthCells;
+    heightCells = tmpl.heightCells;
+    totalCols = widthCells * Config::CELL_COLS;
+    totalRows = heightCells * Config::CELL_ROWS;
+
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 2; ++x) {
+            subCellDoors[y][x] = node.subCellDoors[y][x];
+        }
+    }
+    doorMask = node.doorMask;
+    if (doorMask == 0) {
+        doorMask = subCellDoors[0][0];
+    }
+
+    tiles.resize(static_cast<size_t>(totalRows));
+    for (int r = 0; r < totalRows; ++r) {
+        tiles[static_cast<size_t>(r)].resize(static_cast<size_t>(totalCols), '.');
+        if (r < static_cast<int>(tmpl.rows.size())) {
+            std::string_view line = tmpl.rows[static_cast<size_t>(r)];
+            for (int c = 0; c < totalCols; ++c) {
+                int srcCol = isReversed ? (totalCols - 1 - c) : c;
+                tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] =
+                    (srcCol >= 0 && srcCol < static_cast<int>(line.size())) ? line[static_cast<size_t>(srcCol)] : '.';
+            }
         }
     }
 
@@ -79,39 +115,51 @@ void Room::BuildFromNode(
 void Room::ApplyDoorMasksToTiles() {
     if (isBossArenaActive) return;
 
-    // NORTH (рядок 0, стовпці 11..13)
-    for (int c = 11; c <= 13; ++c) {
-        tiles[0][static_cast<size_t>(c)] = (doorMask & DoorMask::NORTH) ? '.' : '#';
-    }
-    // Під північним проходом ставимо напівпрозору платформу '=', щоб гравець міг вистрибнути наверх
-    if (doorMask & DoorMask::NORTH) {
-        for (int c = 10; c <= 14; ++c) {
-            if (tiles[3][static_cast<size_t>(c)] == '.') {
-                tiles[3][static_cast<size_t>(c)] = '=';
+    for (int ry = 0; ry < heightCells; ++ry) {
+        for (int rx = 0; rx < widthCells; ++rx) {
+            uint8_t mask = subCellDoors[ry][rx];
+
+            // 1. NORTH (рядок 0, тільки для верхнього ярусу ry == 0)
+            if (ry == 0) {
+                for (int c = rx * Config::CELL_COLS + 11; c <= rx * Config::CELL_COLS + 13; ++c) {
+                    tiles[0][static_cast<size_t>(c)] = (mask & DoorMask::NORTH) ? '.' : '#';
+                }
+                if (mask & DoorMask::NORTH) {
+                    for (int c = rx * Config::CELL_COLS + 10; c <= rx * Config::CELL_COLS + 14; ++c) {
+                        if (tiles[3][static_cast<size_t>(c)] == '.') {
+                            tiles[3][static_cast<size_t>(c)] = '=';
+                        }
+                    }
+                }
+            }
+
+            // 2. SOUTH (рядок totalRows - 1, тільки для нижнього ярусу ry == heightCells - 1)
+            if (ry == heightCells - 1) {
+                for (int c = rx * Config::CELL_COLS + 11; c <= rx * Config::CELL_COLS + 13; ++c) {
+                    tiles[static_cast<size_t>(totalRows - 1)][static_cast<size_t>(c)] = (mask & DoorMask::SOUTH) ? '=' : '#';
+                    if (mask & DoorMask::SOUTH) {
+                        if (tiles[static_cast<size_t>(totalRows - 2)][static_cast<size_t>(c)] == '^' ||
+                            tiles[static_cast<size_t>(totalRows - 2)][static_cast<size_t>(c)] == '~') {
+                            tiles[static_cast<size_t>(totalRows - 2)][static_cast<size_t>(c)] = '.';
+                        }
+                    }
+                }
+            }
+
+            // 3. WEST (стовпець 0, тільки для лівого сектору rx == 0)
+            if (rx == 0) {
+                for (int r = ry * Config::CELL_ROWS + 6; r <= ry * Config::CELL_ROWS + 8; ++r) {
+                    tiles[static_cast<size_t>(r)][0] = (mask & DoorMask::WEST) ? '.' : '#';
+                }
+            }
+
+            // 4. EAST (стовпець totalCols - 1, тільки для правого сектору rx == widthCells - 1)
+            if (rx == widthCells - 1) {
+                for (int r = ry * Config::CELL_ROWS + 6; r <= ry * Config::CELL_ROWS + 8; ++r) {
+                    tiles[static_cast<size_t>(r)][static_cast<size_t>(totalCols - 1)] = (mask & DoorMask::EAST) ? '.' : '#';
+                }
             }
         }
-    }
-
-    // SOUTH (стовпці 11..13) — встановлюємо платформу '=', щоб гравець міг ходити по кімнаті,
-    // а спуск вниз робився навмисно комбінацією [S + Space] (або замуровуємо '#', якщо дверей немає)
-    for (int c = 11; c <= 13; ++c) {
-        tiles[Config::ROOM_ROWS - 1][static_cast<size_t>(c)] = (doorMask & DoorMask::SOUTH) ? '=' : '#';
-        if (doorMask & DoorMask::SOUTH) {
-            if (tiles[Config::ROOM_ROWS - 2][static_cast<size_t>(c)] == '^' ||
-                tiles[Config::ROOM_ROWS - 2][static_cast<size_t>(c)] == '~') {
-                tiles[Config::ROOM_ROWS - 2][static_cast<size_t>(c)] = '.';
-            }
-        }
-    }
-
-    // WEST (стовпець 0, рядки 6..8)
-    for (int r = 6; r <= 8; ++r) {
-        tiles[static_cast<size_t>(r)][0] = (doorMask & DoorMask::WEST) ? '.' : '#';
-    }
-
-    // EAST (стовпець 24, рядки 6..8)
-    for (int r = 6; r <= 8; ++r) {
-        tiles[static_cast<size_t>(r)][Config::ROOM_COLS - 1] = (doorMask & DoorMask::EAST) ? '.' : '#';
     }
 }
 
@@ -127,8 +175,8 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
     else if (biome == BiomeType::LandOfDarkness) enemyTier = 3;
     if (ctx.ngPlusLevel > 0) enemyTier = std::min(3, enemyTier + 1);
 
-    for (int r = 0; r < Config::ROOM_ROWS; ++r) {
-        for (int c = 0; c < Config::ROOM_COLS; ++c) {
+    for (int r = 0; r < totalRows; ++r) {
+        for (int c = 0; c < totalCols; ++c) {
             char ch = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
             Rectangle tRec = GetTileRect(c, r);
             Vector2 center = { tRec.x + tRec.width * 0.5f, tRec.y + tRec.height * 0.5f };
@@ -175,7 +223,7 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
                     if (!cleared) {
                         Enemy turret;
                         turret.Init(EnemyType::WallTurret, enemyTier, roomLevel, center, false);
-                        turret.facingDir = (c < Config::ROOM_COLS / 2) ? 1.0f : -1.0f;
+                        turret.facingDir = (c < totalCols / 2) ? 1.0f : -1.0f;
                         enemies.push_back(turret);
                     }
                     break;
@@ -184,7 +232,7 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
                     tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
                     if (!cleared) {
                         EnemyType eType = EnemyType::Skeleton;
-                        int roll = (c * 13 + r * 7 + gridX * 5 + gridY * 3) % 5;
+                        int roll = (c * 13 + r * 7 + originGx * 5 + originGy * 3) % 5;
                         if (roll == 0)      eType = EnemyType::Skeleton;
                         else if (roll == 1) eType = EnemyType::FloatingEye;
                         else if (roll == 2) eType = EnemyType::ShieldKnight;
@@ -211,10 +259,9 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
     // 2. Портал швидкого переміщення (Teleporter) ліворуч, щоб гравець міг телепортуватися сюди
     // 3. Вівтар Молитви / Скриньку пожертви (Shrine / Donation Box) праворуч
     if (roomType == RoomType::BossEntrance && !isBossArenaActive) {
-        Vector2 doorPos = {
-            static_cast<float>(Config::ROOM_OFFSET_X + 12 * Config::TILE_SIZE + Config::TILE_SIZE * 0.5f),
-            static_cast<float>(Config::ROOM_OFFSET_Y + 12 * Config::TILE_SIZE)
-        };
+        float centerX = static_cast<float>(Config::ROOM_OFFSET_X) + static_cast<float>(totalCols) * static_cast<float>(Config::TILE_SIZE) * 0.5f;
+        float bottomY = static_cast<float>(Config::ROOM_OFFSET_Y) + static_cast<float>(totalRows - 3) * static_cast<float>(Config::TILE_SIZE);
+        Vector2 doorPos = { centerX, bottomY };
         interactables.push_back(Interactable::MakeBossDoor(doorPos, bossType));
 
         bool hasTeleporter = false;
@@ -225,18 +272,12 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
         }
 
         if (!hasTeleporter) {
-            Vector2 telPos = {
-                static_cast<float>(Config::ROOM_OFFSET_X + 5 * Config::TILE_SIZE + Config::TILE_SIZE * 0.5f),
-                static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE)
-            };
+            Vector2 telPos = { centerX - 7.0f * Config::TILE_SIZE, bottomY + Config::TILE_SIZE };
             interactables.push_back(Interactable::MakeTeleporter(telPos));
         }
 
         if (!hasShrine) {
-            Vector2 shrinePos = {
-                static_cast<float>(Config::ROOM_OFFSET_X + 19 * Config::TILE_SIZE + Config::TILE_SIZE * 0.5f),
-                static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE)
-            };
+            Vector2 shrinePos = { centerX + 7.0f * Config::TILE_SIZE, bottomY + Config::TILE_SIZE };
             interactables.push_back(Interactable::MakeShrine(shrinePos));
         }
     }
@@ -295,11 +336,20 @@ void Room::EnterBossArena(BossType targetBoss, int bossLvl, GameContext& ctx, Pl
     bossDefeatedInArena = false;
     bossType = targetBoss;
 
-    int arenaTemplateIdx = 15 + std::clamp(static_cast<int>(targetBoss), 0, 4);
+    widthCells = 1;
+    heightCells = 1;
+    totalCols = Config::CELL_COLS;
+    totalRows = Config::CELL_ROWS;
+    subCellDoors[0][0] = 0; subCellDoors[0][1] = 0; subCellDoors[1][0] = 0; subCellDoors[1][1] = 0;
+    doorMask = 0;
+
+    int arenaTemplateIdx = 28 + std::clamp(static_cast<int>(targetBoss), 0, 4);
     const auto& tmpl = RoomTemplates::TEMPLATES[static_cast<size_t>(arenaTemplateIdx)];
-    for (int r = 0; r < Config::ROOM_ROWS; ++r) {
+    tiles.resize(static_cast<size_t>(Config::CELL_ROWS));
+    for (int r = 0; r < Config::CELL_ROWS; ++r) {
+        tiles[static_cast<size_t>(r)].resize(static_cast<size_t>(Config::CELL_COLS), '#');
         std::string_view line = tmpl.rows[static_cast<size_t>(r)];
-        for (int c = 0; c < Config::ROOM_COLS; ++c) {
+        for (int c = 0; c < Config::CELL_COLS; ++c) {
             tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] =
                 (c < static_cast<int>(line.size())) ? line[static_cast<size_t>(c)] : '#';
         }
@@ -310,8 +360,8 @@ void Room::EnterBossArena(BossType targetBoss, int bossLvl, GameContext& ctx, Pl
     projectiles.clear();
 
     // Розставляємо факели/бочки з шаблону арени
-    for (int r = 0; r < Config::ROOM_ROWS; ++r) {
-        for (int c = 0; c < Config::ROOM_COLS; ++c) {
+    for (int r = 0; r < Config::CELL_ROWS; ++r) {
+        for (int c = 0; c < Config::CELL_COLS; ++c) {
             char ch = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
             Rectangle tRec = GetTileRect(c, r);
             Vector2 center = { tRec.x + tRec.width * 0.5f, tRec.y + tRec.height * 0.5f };
@@ -925,14 +975,14 @@ void Room::Draw(const GameContext& ctx, const Player& player) const {
 void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) const {
     if (!ctx.renderer) return;
 
-    // 1. Фон біому
-    ctx.renderer->DrawBiomeBackground(biome, gridX, gridY);
+    // 1. Фон біому (з урахуванням розмірів багатоклітинних кімнат)
+    ctx.renderer->DrawBiomeBackground(biome, originGx, originGy, GetPixelWidth(), GetPixelHeight());
 
-    // 2. Золоті Двері Фінального Боса у кімнаті Entrance (4, 4)
+    // 2. Золоті Двері Фінального Боса у кімнаті Entrance
     if (roomType == RoomType::Entrance && !isBossArenaActive) {
         Vector2 goldenDoorBottom = {
-            Config::VIRTUAL_WIDTH * 0.5f,
-            static_cast<float>((Config::ROOM_ROWS - 1) * Config::TILE_SIZE)
+            GetPixelWidth() * 0.5f,
+            static_cast<float>((totalRows - 1) * Config::TILE_SIZE)
         };
         ctx.renderer->DrawGoldenBossDoor(goldenDoorBottom, ctx.bossDefeated, trapTimer);
     }
@@ -943,8 +993,8 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
         return (ch == '#' || ch == 'X' || ch == 'I');
     };
 
-    for (int r = 0; r < Config::ROOM_ROWS; ++r) {
-        for (int c = 0; c < Config::ROOM_COLS; ++c) {
+    for (int r = 0; r < totalRows; ++r) {
+        for (int c = 0; c < totalCols; ++c) {
             char tc = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
             if (tc != '.') {
                 float illusionAlpha = 1.0f;
@@ -975,20 +1025,25 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
         }
     }
 
-    // 4. Візуалізація відкритих дверей по краях кімнати
+    // 4. Візуалізація відкритих дверей по зовнішніх краях багатоклітинної кімнати
     if (!isBossArenaActive) {
         const auto& pal = GetPalette();
-        if (doorMask & DoorMask::WEST) {
-            DrawRectangle(Config::ROOM_OFFSET_X, 6 * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(pal.fireGold[3], 0.28f));
-        }
-        if (doorMask & DoorMask::EAST) {
-            DrawRectangle(Config::ROOM_OFFSET_X + Config::ROOM_PIXEL_WIDTH - 8, 6 * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(pal.fireGold[3], 0.28f));
-        }
-        if (doorMask & DoorMask::NORTH) {
-            DrawRectangle(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE, 0, 3 * Config::TILE_SIZE, 8, Fade(pal.fireGold[3], 0.28f));
-        }
-        if (doorMask & DoorMask::SOUTH) {
-            DrawRectangle(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE, Config::ROOM_PIXEL_HEIGHT - 8, 3 * Config::TILE_SIZE, 8, Fade(pal.fireGold[3], 0.28f));
+        for (int ry = 0; ry < heightCells; ++ry) {
+            for (int rx = 0; rx < widthCells; ++rx) {
+                uint8_t mask = subCellDoors[ry][rx];
+                if (rx == 0 && (mask & DoorMask::WEST)) {
+                    DrawRectangle(Config::ROOM_OFFSET_X, (ry * Config::CELL_ROWS + 6) * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(pal.fireGold[3], 0.28f));
+                }
+                if (rx == widthCells - 1 && (mask & DoorMask::EAST)) {
+                    DrawRectangle(Config::ROOM_OFFSET_X + totalCols * Config::TILE_SIZE - 8, (ry * Config::CELL_ROWS + 6) * Config::TILE_SIZE, 8, 3 * Config::TILE_SIZE, Fade(pal.fireGold[3], 0.28f));
+                }
+                if (ry == 0 && (mask & DoorMask::NORTH)) {
+                    DrawRectangle(Config::ROOM_OFFSET_X + (rx * Config::CELL_COLS + 11) * Config::TILE_SIZE, 0, 3 * Config::TILE_SIZE, 8, Fade(pal.fireGold[3], 0.28f));
+                }
+                if (ry == heightCells - 1 && (mask & DoorMask::SOUTH)) {
+                    DrawRectangle(Config::ROOM_OFFSET_X + (rx * Config::CELL_COLS + 11) * Config::TILE_SIZE, totalRows * Config::TILE_SIZE - 8, 3 * Config::TILE_SIZE, 8, Fade(pal.fireGold[3], 0.28f));
+                }
+            }
         }
     }
 }

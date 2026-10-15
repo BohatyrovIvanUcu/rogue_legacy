@@ -13,16 +13,25 @@ namespace Config {
     inline constexpr int TARGET_FPS = 60;
 
     inline constexpr int TILE_SIZE = 48;
-    inline constexpr int ROOM_COLS = 25;
-    inline constexpr int ROOM_ROWS = 15;
-    inline constexpr int ROOM_PIXEL_WIDTH = ROOM_COLS * TILE_SIZE;
-    inline constexpr int ROOM_PIXEL_HEIGHT = ROOM_ROWS * TILE_SIZE;
+    inline constexpr int CELL_COLS = 25;
+    inline constexpr int CELL_ROWS = 15;
+    inline constexpr int CELL_PIXEL_WIDTH = CELL_COLS * TILE_SIZE; // 1200 px
+    inline constexpr int CELL_PIXEL_HEIGHT = CELL_ROWS * TILE_SIZE; // 720 px
+
+    inline constexpr int ROOM_COLS = CELL_COLS;
+    inline constexpr int ROOM_ROWS = CELL_ROWS;
+    inline constexpr int ROOM_PIXEL_WIDTH = CELL_PIXEL_WIDTH;
+    inline constexpr int ROOM_PIXEL_HEIGHT = CELL_PIXEL_HEIGHT;
     inline constexpr int ROOM_OFFSET_X = 0;
     inline constexpr int ROOM_OFFSET_Y = 0;
 
-    inline constexpr int CASTLE_GRID_SIZE = 9;
-    inline constexpr int ENTRANCE_GRID_X = 4;
-    inline constexpr int ENTRANCE_GRID_Y = 4;
+    inline constexpr int CASTLE_GRID_W = 64;
+    inline constexpr int CASTLE_GRID_H = 64;
+    inline constexpr int CASTLE_GRID_SIZE = 64;
+    inline constexpr int ENTRANCE_GX = 24;
+    inline constexpr int ENTRANCE_GY = 32;
+    inline constexpr int ENTRANCE_GRID_X = ENTRANCE_GX;
+    inline constexpr int ENTRANCE_GRID_Y = ENTRANCE_GY;
 
     inline constexpr float GRAVITY = 1750.0f;
     inline constexpr float MAX_FALL_SPEED = 950.0f;

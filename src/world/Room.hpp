@@ -15,8 +15,18 @@ class Player;
 
 class Room : public ITileMap {
 public:
-    int gridX = 4;
-    int gridY = 4;
+    int roomId = -1;
+    int originGx = Config::ENTRANCE_GX;
+    int originGy = Config::ENTRANCE_GY;
+    int gridX = Config::ENTRANCE_GX;
+    int gridY = Config::ENTRANCE_GY;
+
+    int widthCells = 1;
+    int heightCells = 1;
+    int totalCols = Config::CELL_COLS;
+    int totalRows = Config::CELL_ROWS;
+    uint8_t subCellDoors[2][2]{};
+
     RoomType roomType = RoomType::Entrance;
     BiomeType biome = BiomeType::CastleHamson;
     uint8_t doorMask = 0;
@@ -38,7 +48,7 @@ public:
     bool cleared = false;
     bool chestOpened = false;
 
-    std::array<std::array<char, Config::ROOM_COLS>, Config::ROOM_ROWS> tiles{};
+    std::vector<std::string> tiles{};
     float trapTimer = 0.0f;
 
     std::vector<Enemy> enemies{};
@@ -60,6 +70,13 @@ public:
     // Реалізація інтерфейсу ITileMap
     char GetTileAt(int col, int row) const override;
     float GetTrapTimer() const override { return trapTimer; }
+
+    int GetWidthCells() const override { return widthCells; }
+    int GetHeightCells() const override { return heightCells; }
+    int GetTotalCols() const override { return totalCols; }
+    int GetTotalRows() const override { return totalRows; }
+    int GetPixelWidth() const override { return totalCols * Config::TILE_SIZE; }
+    int GetPixelHeight() const override { return totalRows * Config::TILE_SIZE; }
 
     void BuildFromNode(
         int gx,

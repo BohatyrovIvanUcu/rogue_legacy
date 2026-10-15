@@ -16,6 +16,13 @@ public:
     virtual char GetTileAt(int col, int row) const = 0;
     virtual float GetTrapTimer() const { return 0.0f; }
 
+    virtual int GetWidthCells() const { return 1; }
+    virtual int GetHeightCells() const { return 1; }
+    virtual int GetTotalCols() const { return GetWidthCells() * Config::CELL_COLS; }
+    virtual int GetTotalRows() const { return GetHeightCells() * Config::CELL_ROWS; }
+    virtual int GetPixelWidth() const { return GetTotalCols() * Config::TILE_SIZE; }
+    virtual int GetPixelHeight() const { return GetTotalRows() * Config::TILE_SIZE; }
+
     int WorldToCol(float worldX) const {
         return static_cast<int>(std::floor((worldX - static_cast<float>(Config::ROOM_OFFSET_X)) / static_cast<float>(Config::TILE_SIZE)));
     }

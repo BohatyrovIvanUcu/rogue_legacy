@@ -194,9 +194,11 @@ void Projectile::Update(
         }
     }
 
-    // Вихід за межі віртуального екрана
-    if (pos.x < -120.0f || pos.x > Config::VIRTUAL_WIDTH + 120.0f ||
-        pos.y < -180.0f || pos.y > Config::VIRTUAL_HEIGHT + 120.0f) {
+    // Вихід за межі кімнати (з урахуванням розмірів багатоклітинних кімнат 1x1, 2x1, 1x2, 2x2)
+    float maxBoundW = tileMap ? static_cast<float>(tileMap->GetPixelWidth()) : static_cast<float>(Config::VIRTUAL_WIDTH);
+    float maxBoundH = tileMap ? static_cast<float>(tileMap->GetPixelHeight()) : static_cast<float>(Config::VIRTUAL_HEIGHT);
+    if (pos.x < -120.0f || pos.x > maxBoundW + 120.0f ||
+        pos.y < -180.0f || pos.y > maxBoundH + 120.0f) {
         active = false;
     }
 }

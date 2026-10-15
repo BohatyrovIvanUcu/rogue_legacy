@@ -27,12 +27,14 @@ private:
 private:
     CastleGenerator castle_{};
     Player player_{};
-    int curGx_ = Config::ENTRANCE_GRID_X;
-    int curGy_ = Config::ENTRANCE_GRID_Y;
+    int curRoomId_ = 0;
+    int curGx_ = Config::ENTRANCE_GX;
+    int curGy_ = Config::ENTRANCE_GY;
 
     bool teleporterMapOpen_ = false;
-    int tpCursorGx_ = Config::ENTRANCE_GRID_X;
-    int tpCursorGy_ = Config::ENTRANCE_GRID_Y;
+    int tpIndex_ = 0;
+    int tpCursorGx_ = Config::ENTRANCE_GX;
+    int tpCursorGy_ = Config::ENTRANCE_GY;
 
     Camera2D worldCam_{};
     Vector2 camTarget_{ 600.0f, 360.0f };

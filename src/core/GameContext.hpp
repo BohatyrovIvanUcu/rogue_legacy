@@ -48,7 +48,7 @@ public:
 
     bool isCastleLocked = false;
     bool hasSavedCastle = false;
-    std::array<std::array<SavedRoomNode, Config::CASTLE_GRID_SIZE>, Config::CASTLE_GRID_SIZE> savedCastle{};
+    std::vector<SavedRoomNode> savedRooms{};
 
     HeirCandidate activeHeir{};
     std::array<HeirCandidate, 3> heirCandidates{};
@@ -112,11 +112,7 @@ public:
         isCastleLocked = false;
         hasSavedCastle = false;
 
-        for (int y = 0; y < Config::CASTLE_GRID_SIZE; ++y) {
-            for (int x = 0; x < Config::CASTLE_GRID_SIZE; ++x) {
-                savedCastle[static_cast<size_t>(y)][static_cast<size_t>(x)] = SavedRoomNode{};
-            }
-        }
+        savedRooms.clear();
 
         runKills = 0;
         runGoldCollected = 0;

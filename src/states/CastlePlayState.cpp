@@ -19,23 +19,25 @@ void CastlePlayState::OnEnter(GameContext& ctx) {
     if (ctx.audio)     ctx.audio->SetBossMusic(false);
 
     castle_.GenerateOrRestoreCastle(ctx);
-    curGx_ = Config::ENTRANCE_GRID_X;
-    curGy_ = Config::ENTRANCE_GRID_Y;
+    curGx_ = Config::ENTRANCE_GX;
+    curGy_ = Config::ENTRANCE_GY;
     teleporterMapOpen_ = false;
 
+    Room& startRoom = castle_.GetRoom(curGx_, curGy_);
+    curRoomId_ = startRoom.roomId;
+
     Vector2 startPos = {
-        static_cast<float>(Config::ROOM_OFFSET_X + 6 * Config::TILE_SIZE),
-        static_cast<float>(Config::ROOM_OFFSET_Y + 12 * Config::TILE_SIZE)
+        static_cast<float>(6 * Config::TILE_SIZE),
+        static_cast<float>(12 * Config::TILE_SIZE)
     };
     player_.InitFromContext(ctx, startPos);
 
     // Ініціалізація 2D-камери світу (1:1 масштаб без зазорів, 1920x1080)
     worldCam_.offset = { Config::RENDER_WIDTH * 0.5f, Config::RENDER_HEIGHT * 0.5f };
-    worldCam_.zoom = static_cast<float>(Config::RENDER_WIDTH) / static_cast<float>(Config::ROOM_PIXEL_WIDTH);
-    camTarget_ = { Config::ROOM_PIXEL_WIDTH * 0.5f, Config::ROOM_PIXEL_HEIGHT * 0.5f };
+    worldCam_.zoom = static_cast<float>(Config::RENDER_WIDTH) / static_cast<float>(Config::CELL_PIXEL_WIDTH);
+    camTarget_ = { startRoom.GetPixelWidth() * 0.5f, startRoom.GetPixelHeight() * 0.5f };
     worldCam_.target = camTarget_;
 
-    Room& startRoom = castle_.GetRoom(curGx_, curGy_);
     startRoom.OnPlayerEnterRoom(ctx, player_);
     castle_.SyncRoomStateToContext(startRoom, ctx);
 
@@ -102,23 +104,24 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
     castle_.SyncRoomStateToContext(curRoom, ctx);
 
     // Плавне стеження 2D-камери за гравцем (Smooth Lerp Camera)
+    float halfViewW = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
+    float halfViewH = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
+    float roomPxW = static_cast<float>(curRoom.GetPixelWidth());
+    float roomPxH = static_cast<float>(curRoom.GetPixelHeight());
+
     float targetX = player_.GetCenter().x;
     float targetY = player_.GetCenter().y;
 
-    float minX = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
-    float maxX = static_cast<float>(Config::ROOM_PIXEL_WIDTH) - minX;
-    if (minX >= maxX) {
-        targetX = Config::ROOM_PIXEL_WIDTH * 0.5f;
+    if (roomPxW <= halfViewW * 2.0f) {
+        targetX = roomPxW * 0.5f;
     } else {
-        targetX = std::clamp(targetX, minX, maxX);
+        targetX = std::clamp(targetX, halfViewW, roomPxW - halfViewW);
     }
 
-    float minY = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
-    float maxY = static_cast<float>(Config::ROOM_PIXEL_HEIGHT) - minY;
-    if (minY >= maxY) {
-        targetY = Config::ROOM_PIXEL_HEIGHT * 0.5f;
+    if (roomPxH <= halfViewH * 2.0f) {
+        targetY = roomPxH * 0.5f;
     } else {
-        targetY = std::clamp(targetY, minY, maxY);
+        targetY = std::clamp(targetY, halfViewH, roomPxH - halfViewH);
     }
 
     camTarget_.x += (targetX - camTarget_.x) * std::min(1.0f, 10.0f * dt);
@@ -139,6 +142,7 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
             teleporterMapOpen_ = true;
             tpCursorGx_ = curGx_;
             tpCursorGy_ = curGy_;
+            tpIndex_ = 0;
             return;
         }
     }
@@ -153,9 +157,11 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
     // 3. Перевірка виходу з Арени Боса після перемоги
     if (curRoom.requestExitBossArena) {
         curRoom.requestExitBossArena = false;
-        const SavedRoomNode& saved = ctx.savedCastle[static_cast<size_t>(curGy_)][static_cast<size_t>(curGx_)];
-        curRoom.BuildFromNode(curGx_, curGy_, saved, curRoom.roomLevel, ctx);
-        player_.SetCenter({ Config::ROOM_PIXEL_WIDTH * 0.5f, 12.0f * Config::TILE_SIZE });
+        if (curRoom.roomId >= 0 && curRoom.roomId < static_cast<int>(ctx.savedRooms.size())) {
+            const SavedRoomNode& saved = ctx.savedRooms[static_cast<size_t>(curRoom.roomId)];
+            curRoom.BuildFromNode(curRoom.originGx, curRoom.originGy, saved, curRoom.roomLevel, ctx);
+        }
+        player_.SetCenter({ curRoom.GetPixelWidth() * 0.5f, curRoom.GetPixelHeight() - 3.0f * Config::TILE_SIZE });
         camTarget_ = player_.GetCenter();
         worldCam_.target = camTarget_;
         return;
@@ -219,40 +225,87 @@ void CastlePlayState::CheckRoomDoorTransitions(GameContext& ctx) {
 
     int nextGx = curGx_;
     int nextGy = curGy_;
+    int nextRoomId = curRoom.roomId;
     Vector2 newPlayerCenter = player_.GetCenter();
     bool transitioned = false;
 
-    const float roomLeft   = static_cast<float>(Config::ROOM_OFFSET_X);
-    const float roomRight  = static_cast<float>(Config::ROOM_OFFSET_X + Config::ROOM_PIXEL_WIDTH);
-    const float roomBottom = static_cast<float>(Config::ROOM_PIXEL_HEIGHT);
+    float roomPxW = static_cast<float>(curRoom.GetPixelWidth());
+    float roomPxH = static_cast<float>(curRoom.GetPixelHeight());
+
+    int relX = std::clamp(static_cast<int>(player_.GetCenter().x / Config::CELL_PIXEL_WIDTH), 0, curRoom.widthCells - 1);
+    int relY = std::clamp(static_cast<int>(player_.GetCenter().y / Config::CELL_PIXEL_HEIGHT), 0, curRoom.heightCells - 1);
 
     // Вихід на Захід (WEST)
-    if (pBounds.x < roomLeft && (curRoom.doorMask & DoorMask::WEST) && curGx_ > 0) {
-        nextGx = curGx_ - 1;
-        newPlayerCenter = { roomRight - 36.0f, 7.5f * Config::TILE_SIZE };
-        transitioned = true;
+    if (pBounds.x < 0.0f && (curRoom.subCellDoors[relY][0] & DoorMask::WEST)) {
+        int destGx = curRoom.originGx - 1;
+        int destGy = curRoom.originGy + relY;
+        const GridCell& cell = castle_.GetGridCell(destGx, destGy);
+        if (cell.state == CellState::Filled && cell.roomId >= 0) {
+            nextRoomId = cell.roomId;
+            Room* destRoom = castle_.GetRoomById(nextRoomId);
+            if (destRoom) {
+                nextGx = destRoom->originGx;
+                nextGy = destRoom->originGy;
+                newPlayerCenter.x = (cell.relX + 1) * Config::CELL_PIXEL_WIDTH - 36.0f;
+                newPlayerCenter.y = cell.relY * Config::CELL_PIXEL_HEIGHT + 7.5f * Config::TILE_SIZE;
+                transitioned = true;
+            }
+        }
     }
     // Вихід на Схід (EAST)
-    else if (player_.GetRight() > roomRight && (curRoom.doorMask & DoorMask::EAST) && curGx_ < Config::CASTLE_GRID_SIZE - 1) {
-        nextGx = curGx_ + 1;
-        newPlayerCenter = { roomLeft + 36.0f, 7.5f * Config::TILE_SIZE };
-        transitioned = true;
+    else if (player_.GetRight() > roomPxW && (curRoom.subCellDoors[relY][curRoom.widthCells - 1] & DoorMask::EAST)) {
+        int destGx = curRoom.originGx + curRoom.widthCells;
+        int destGy = curRoom.originGy + relY;
+        const GridCell& cell = castle_.GetGridCell(destGx, destGy);
+        if (cell.state == CellState::Filled && cell.roomId >= 0) {
+            nextRoomId = cell.roomId;
+            Room* destRoom = castle_.GetRoomById(nextRoomId);
+            if (destRoom) {
+                nextGx = destRoom->originGx;
+                nextGy = destRoom->originGy;
+                newPlayerCenter.x = cell.relX * Config::CELL_PIXEL_WIDTH + 36.0f;
+                newPlayerCenter.y = cell.relY * Config::CELL_PIXEL_HEIGHT + 7.5f * Config::TILE_SIZE;
+                transitioned = true;
+            }
+        }
     }
     // Вихід на Північ (NORTH)
-    else if (pBounds.y < 0.0f && (curRoom.doorMask & DoorMask::NORTH) && curGy_ > 0) {
-        nextGy = curGy_ - 1;
-        newPlayerCenter = { Config::ROOM_PIXEL_WIDTH * 0.5f, roomBottom - 54.0f };
-        player_.vel.y = -340.0f;
-        transitioned = true;
+    else if (pBounds.y < 0.0f && (curRoom.subCellDoors[0][relX] & DoorMask::NORTH)) {
+        int destGx = curRoom.originGx + relX;
+        int destGy = curRoom.originGy - 1;
+        const GridCell& cell = castle_.GetGridCell(destGx, destGy);
+        if (cell.state == CellState::Filled && cell.roomId >= 0) {
+            nextRoomId = cell.roomId;
+            Room* destRoom = castle_.GetRoomById(nextRoomId);
+            if (destRoom) {
+                nextGx = destRoom->originGx;
+                nextGy = destRoom->originGy;
+                newPlayerCenter.x = cell.relX * Config::CELL_PIXEL_WIDTH + Config::CELL_PIXEL_WIDTH * 0.5f;
+                newPlayerCenter.y = (cell.relY + 1) * Config::CELL_PIXEL_HEIGHT - 54.0f;
+                player_.vel.y = -340.0f;
+                transitioned = true;
+            }
+        }
     }
     // Вихід на Південь (SOUTH)
-    else if (player_.GetBottom() > roomBottom - 8.0f && (curRoom.doorMask & DoorMask::SOUTH) && curGy_ < Config::CASTLE_GRID_SIZE - 1) {
-        nextGy = curGy_ + 1;
-        newPlayerCenter = { Config::ROOM_PIXEL_WIDTH * 0.5f, 42.0f };
-        transitioned = true;
+    else if (player_.GetBottom() > roomPxH - 8.0f && (curRoom.subCellDoors[curRoom.heightCells - 1][relX] & DoorMask::SOUTH)) {
+        int destGx = curRoom.originGx + relX;
+        int destGy = curRoom.originGy + curRoom.heightCells;
+        const GridCell& cell = castle_.GetGridCell(destGx, destGy);
+        if (cell.state == CellState::Filled && cell.roomId >= 0) {
+            nextRoomId = cell.roomId;
+            Room* destRoom = castle_.GetRoomById(nextRoomId);
+            if (destRoom) {
+                nextGx = destRoom->originGx;
+                nextGy = destRoom->originGy;
+                newPlayerCenter.x = cell.relX * Config::CELL_PIXEL_WIDTH + Config::CELL_PIXEL_WIDTH * 0.5f;
+                newPlayerCenter.y = cell.relY * Config::CELL_PIXEL_HEIGHT + 42.0f;
+                transitioned = true;
+            }
+        }
     }
 
-    if (transitioned && castle_.IsRoomActive(nextGx, nextGy)) {
+    if (transitioned) {
         // Видаляємо всі неподібрані монети, мішечки та зілля з кімнати при переході в іншу кімнату
         curRoom.interactables.erase(
             std::remove_if(curRoom.interactables.begin(), curRoom.interactables.end(),
@@ -273,6 +326,7 @@ void CastlePlayState::CheckRoomDoorTransitions(GameContext& ctx) {
         castle_.SyncRoomStateToContext(curRoom, ctx);
         curGx_ = nextGx;
         curGy_ = nextGy;
+        curRoomId_ = nextRoomId;
         player_.SetCenter(newPlayerCenter);
 
         Room& nextRoom = castle_.GetRoom(curGx_, curGy_);
@@ -291,51 +345,66 @@ void CastlePlayState::UpdateTeleporterOverlay(GameContext& ctx) {
         return;
     }
 
-    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT))  tpCursorGx_ = std::max(0, tpCursorGx_ - 1);
-    if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) tpCursorGx_ = std::min(Config::CASTLE_GRID_SIZE - 1, tpCursorGx_ + 1);
-    if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP))    tpCursorGy_ = std::max(0, tpCursorGy_ - 1);
-    if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN))  tpCursorGy_ = std::min(Config::CASTLE_GRID_SIZE - 1, tpCursorGy_ + 1);
+    // Збираємо всі відвідані телепортери, входи та двері босів
+    std::vector<const Room*> tpRooms;
+    for (const auto& r : castle_.GetAllRooms()) {
+        if (r.visited && (r.roomType == RoomType::Entrance ||
+                          r.roomType == RoomType::Teleporter ||
+                          r.roomType == RoomType::BossEntrance)) {
+            tpRooms.push_back(&r);
+        }
+    }
+
+    if (tpRooms.empty()) {
+        teleporterMapOpen_ = false;
+        return;
+    }
+
+    if (tpIndex_ < 0 || tpIndex_ >= static_cast<int>(tpRooms.size())) {
+        tpIndex_ = 0;
+    }
+
+    if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) {
+        tpIndex_ = (tpIndex_ - 1 + static_cast<int>(tpRooms.size())) % static_cast<int>(tpRooms.size());
+        if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 1.5f, 0.4f);
+    }
+    if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) {
+        tpIndex_ = (tpIndex_ + 1) % static_cast<int>(tpRooms.size());
+        if (ctx.audio) ctx.audio->PlaySfx(SfxId::CoinPickup, 1.5f, 0.4f);
+    }
 
     if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER)) {
-        const Room& target = castle_.GetRoom(tpCursorGx_, tpCursorGy_);
-        bool canTeleport = target.visited &&
-            (target.roomType == RoomType::Entrance ||
-             target.roomType == RoomType::Teleporter ||
-             target.roomType == RoomType::BossEntrance);
-
-        if (canTeleport) {
-            Room& leavingRoom = castle_.GetRoom(curGx_, curGy_);
-            leavingRoom.interactables.erase(
-                std::remove_if(leavingRoom.interactables.begin(), leavingRoom.interactables.end(),
-                    [](const Interactable& it) {
-                        return it.kind == InteractableKind::DroppedCoin ||
-                               it.kind == InteractableKind::MeatDrop ||
-                               it.kind == InteractableKind::ManaDrop;
-                    }),
-                leavingRoom.interactables.end()
-            );
-            leavingRoom.projectiles.clear();
-            for (auto& en : leavingRoom.enemies) {
-                if (en.active) {
-                    en.ResetToSpawn();
-                }
+        const Room* target = tpRooms[static_cast<size_t>(tpIndex_)];
+        Room& leavingRoom = castle_.GetRoom(curGx_, curGy_);
+        leavingRoom.interactables.erase(
+            std::remove_if(leavingRoom.interactables.begin(), leavingRoom.interactables.end(),
+                [](const Interactable& it) {
+                    return it.kind == InteractableKind::DroppedCoin ||
+                           it.kind == InteractableKind::MeatDrop ||
+                           it.kind == InteractableKind::ManaDrop;
+                }),
+            leavingRoom.interactables.end()
+        );
+        leavingRoom.projectiles.clear();
+        for (auto& en : leavingRoom.enemies) {
+            if (en.active) {
+                en.ResetToSpawn();
             }
-            castle_.SyncRoomStateToContext(leavingRoom, ctx);
-
-            curGx_ = tpCursorGx_;
-            curGy_ = tpCursorGy_;
-            Room& destRoom = castle_.GetRoom(curGx_, curGy_);
-            player_.SetCenter({ Config::ROOM_PIXEL_WIDTH * 0.5f, 12.0f * Config::TILE_SIZE });
-            destRoom.OnPlayerEnterRoom(ctx, player_);
-            teleporterMapOpen_ = false;
-
-            camTarget_ = player_.GetCenter();
-            worldCam_.target = camTarget_;
-
-            if (ctx.audio) ctx.audio->PlaySfx(SfxId::SpellCast, 1.25f);
-        } else {
-            if (ctx.audio) ctx.audio->PlaySfx(SfxId::FairyFail);
         }
+        castle_.SyncRoomStateToContext(leavingRoom, ctx);
+
+        curGx_ = target->originGx;
+        curGy_ = target->originGy;
+        curRoomId_ = target->roomId;
+        Room& destRoom = castle_.GetRoom(curGx_, curGy_);
+        player_.SetCenter({ destRoom.GetPixelWidth() * 0.5f, destRoom.GetPixelHeight() - 3.0f * Config::TILE_SIZE });
+        destRoom.OnPlayerEnterRoom(ctx, player_);
+        teleporterMapOpen_ = false;
+
+        camTarget_ = player_.GetCenter();
+        worldCam_.target = camTarget_;
+
+        if (ctx.audio) ctx.audio->PlaySfx(SfxId::SpellCast, 1.25f);
     }
 }
 
@@ -486,7 +555,7 @@ void CastlePlayState::Draw(GameContext& ctx) {
             ctx.particles->Draw();
         }
         if (player_.hurtFlashTimer > 0.0f && !ctx.CurrentHeirHasTrait(TraitType::CIP)) {
-            DrawRectangle(0, 0, Config::ROOM_PIXEL_WIDTH, Config::ROOM_PIXEL_HEIGHT, Fade(RED, 0.28f));
+            DrawRectangle(0, 0, curRoom.GetPixelWidth(), curRoom.GetPixelHeight(), Fade(RED, 0.28f));
         }
         ctx.shaders->EndEmissivePass();
 
@@ -705,153 +774,207 @@ void CastlePlayState::DrawHud(const GameContext& ctx, const Room& curRoom) const
 }
 
 void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) const {
-    int cell = 13;
-    int mapSize = Config::CASTLE_GRID_SIZE * cell;
-    int mapX = Config::VIRTUAL_WIDTH - mapSize - 20;
-    int mapY = 14;
+    const int cell = 12; // 12 px per subcell
+    const int vpCells = 15; // 15x15 cell viewport centered on player
+    const int mapPxSize = vpCells * cell; // 180 px
+    const int mapX = Config::VIRTUAL_WIDTH - mapPxSize - 20;
+    const int mapY = 14;
 
-    DrawRectangle(mapX - 6, mapY - 6, mapSize + 12, mapSize + 32, Color{ 10, 12, 22, 220 });
-    DrawRectangleLines(mapX - 6, mapY - 6, mapSize + 12, mapSize + 32, GOLD);
+    DrawRectangle(mapX - 6, mapY - 6, mapPxSize + 12, mapPxSize + 32, Color{ 10, 12, 22, 220 });
+    DrawRectangleLines(mapX - 6, mapY - 6, mapPxSize + 12, mapPxSize + 32, GOLD);
 
     bool hasAlzheimers = ctx.CurrentHeirHasTrait(TraitType::Alzheimers);
     bool hasEidetic = ctx.CurrentHeirHasTrait(TraitType::EideticMemory);
     bool isSpelunker = (ctx.activeHeir.classType == ClassType::Spelunker_Upgraded) ||
                        (ctx.activeHeir.classType == ClassType::Miner_Base && player_.headlampOn);
 
-    for (int y = 0; y < Config::CASTLE_GRID_SIZE; ++y) {
-        for (int x = 0; x < Config::CASTLE_GRID_SIZE; ++x) {
-            const Room& r = castle_.GetRoom(x, y);
-            if (r.doorMask == 0) continue;
+    // Player's current global cell coordinates
+    int pRelX = std::clamp(static_cast<int>(player_.GetCenter().x / Config::CELL_PIXEL_WIDTH), 0, curRoom.widthCells - 1);
+    int pRelY = std::clamp(static_cast<int>(player_.GetCenter().y / Config::CELL_PIXEL_HEIGHT), 0, curRoom.heightCells - 1);
+    int playerGx = curRoom.originGx + pRelX;
+    int playerGy = curRoom.originGy + pRelY;
 
-            // Хвороба Альцгеймера: показуємо тільки поточну кімнату гравця
-            if (hasAlzheimers && (x != curGx_ || y != curGy_)) {
-                continue;
+    int viewMinGx = playerGx - vpCells / 2;
+    int viewMinGy = playerGy - vpCells / 2;
+
+    int scX = static_cast<int>(mapX * Config::SCALE_FACTOR);
+    int scY = static_cast<int>(mapY * Config::SCALE_FACTOR);
+    int scW = static_cast<int>(mapPxSize * Config::SCALE_FACTOR);
+    int scH = static_cast<int>(mapPxSize * Config::SCALE_FACTOR);
+
+    BeginScissorMode(scX, scY, scW, scH);
+
+    for (const auto& r : castle_.GetAllRooms()) {
+        if (r.doorMask == 0) continue;
+
+        // Хвороба Альцгеймера: показуємо тільки поточну кімнату гравця
+        if (hasAlzheimers && r.roomId != curRoom.roomId) {
+            continue;
+        }
+
+        // На карті видно ВИКЛЮЧНО ті кімнати, в яких гравець реально побував
+        if (!r.visited) {
+            // Якщо активовано ліхтар Spelunker, показуємо лише мітки скринь
+            if (isSpelunker && (r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened) {
+                int rx = mapX + (r.originGx - viewMinGx) * cell;
+                int ry = mapY + (r.originGy - viewMinGy) * cell;
+                DrawCircle(rx + cell / 2, ry + cell / 2, 2.5f, GOLD);
             }
+            continue;
+        }
 
-            int rx = mapX + x * cell;
-            int ry = mapY + y * cell;
+        int rx = mapX + (r.originGx - viewMinGx) * cell;
+        int ry = mapY + (r.originGy - viewMinGy) * cell;
+        int rw = r.widthCells * cell;
+        int rh = r.heightCells * cell;
 
-            // На карті видно ВИКЛЮЧНО ті кімнати, в яких гравець реально побував
-            if (!r.visited) {
-                // Якщо активовано ліхтар Spelunker, показуємо лише мітки скринь
-                if (isSpelunker && (r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened) {
-                    DrawCircle(rx + cell / 2, ry + cell / 2, 2.5f, GOLD);
+        Color c = Color{ 75, 110, 165, 255 };
+        switch (r.biome) {
+            case BiomeType::CastleHamson:   c = Color{ 75, 110, 165, 255 }; break;
+            case BiomeType::ForestAbkhazia: c = Color{ 55, 145, 78, 255 };  break;
+            case BiomeType::TheMaya:        c = Color{ 185, 145, 65, 255 }; break;
+            case BiomeType::LandOfDarkness: c = Color{ 125, 60, 165, 255 }; break;
+            default: break;
+        }
+
+        // Кімната малюється єдиним прямокутником БЕЗ внутрішніх роздільних ліній
+        DrawRectangle(rx + 1, ry + 1, rw - 2, rh - 2, c);
+        DrawRectangleLines(rx, ry, rw, rh, Color{ 35, 45, 65, 255 });
+
+        // Іконки спеціальних кімнат по центру всієї кімнати
+        int icx = rx + rw / 2;
+        int icy = ry + rh / 2;
+        if (r.roomType == RoomType::BossEntrance) {
+            DrawCircle(icx, icy, 3.5f, RED);
+        } else if (r.roomType == RoomType::Teleporter || r.roomType == RoomType::Entrance) {
+            DrawCircle(icx, icy, 3.0f, SKYBLUE);
+        } else if ((r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened) {
+            DrawCircle(icx, icy, 3.0f, GOLD);
+        } else if (r.roomType == RoomType::Secret && !r.chestOpened) {
+            DrawCircle(icx, icy, 3.0f, MAGENTA);
+        }
+
+        // Eidetic Memory: точкові позиції активних ворогів
+        if (hasEidetic) {
+            for (const auto& en : r.enemies) {
+                if (en.active) {
+                    float relXFrac = en.pos.x / static_cast<float>(r.GetPixelWidth());
+                    float relYFrac = en.pos.y / static_cast<float>(r.GetPixelHeight());
+                    int ex = rx + 1 + static_cast<int>(std::clamp(relXFrac, 0.05f, 0.95f) * (rw - 2));
+                    int ey = ry + 1 + static_cast<int>(std::clamp(relYFrac, 0.05f, 0.95f) * (rh - 2));
+                    DrawPixel(ex, ey, RED);
                 }
-                continue;
-            }
-
-            Color c = Color{ 60, 68, 88, 255 };
-            switch (r.biome) {
-                case BiomeType::CastleHamson:   c = Color{ 75, 110, 165, 255 }; break;
-                case BiomeType::ForestAbkhazia: c = Color{ 55, 145, 78, 255 };  break;
-                case BiomeType::TheMaya:        c = Color{ 185, 145, 65, 255 }; break;
-                case BiomeType::LandOfDarkness: c = Color{ 125, 60, 165, 255 }; break;
-                default: break;
-            }
-
-            DrawRectangle(rx + 1, ry + 1, cell - 2, cell - 2, c);
-
-            // Іконки спеціальних кімнат (лише для відвіданих кімнат)
-            if (r.roomType == RoomType::BossEntrance) {
-                DrawCircle(rx + cell / 2, ry + cell / 2, 3.5f, RED);
-            } else if (r.roomType == RoomType::Teleporter || r.roomType == RoomType::Entrance) {
-                DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, SKYBLUE);
-            } else if ((r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened) {
-                DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, GOLD);
-            } else if (r.roomType == RoomType::Secret && !r.chestOpened) {
-                DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, MAGENTA);
-            }
-
-            // Eidetic Memory: точкові позиції активних ворогів у відвіданих кімнатах
-            if (hasEidetic) {
-                for (const auto& en : r.enemies) {
-                    if (en.active) {
-                        float relX = (en.pos.x - Config::ROOM_OFFSET_X) / static_cast<float>(Config::ROOM_COLS * Config::TILE_SIZE);
-                        float relY = (en.pos.y - Config::ROOM_OFFSET_Y) / static_cast<float>(Config::ROOM_ROWS * Config::TILE_SIZE);
-                        int ex = rx + 1 + static_cast<int>(std::clamp(relX, 0.1f, 0.9f) * (cell - 3));
-                        int ey = ry + 1 + static_cast<int>(std::clamp(relY, 0.1f, 0.9f) * (cell - 3));
-                        DrawPixel(ex, ey, RED);
-                    }
-                }
-            }
-
-            if (x == curGx_ && y == curGy_) {
-                DrawRectangleLines(rx, ry, cell, cell, WHITE);
             }
         }
     }
+
+    // Підсвітка поточної під-клітинки гравця
+    int px = mapX + (playerGx - viewMinGx) * cell;
+    int py = mapY + (playerGy - viewMinGy) * cell;
+    DrawRectangleLines(px, py, cell, cell, WHITE);
+    DrawCircle(px + cell / 2, py + cell / 2, 2.0f, YELLOW);
+
+    EndScissorMode();
 
     std::string bName = Registry::GetBiomeName(curRoom.biome);
     if (ctx.CurrentHeirHasTrait(TraitType::Dyslexia)) {
         bName = Ui::ScrambleDyslexia(bName);
     }
     int bw = Ui::Measure(bName, 13);
-    int bx = mapX + (mapSize - bw) / 2;
-    Ui::Text(bName, bx, mapY + mapSize + 8, 13, GOLD);
+    int bx = mapX + (mapPxSize - bw) / 2;
+    Ui::Text(bName, bx, mapY + mapPxSize + 8, 13, GOLD);
 }
 
 void CastlePlayState::DrawTeleporterOverlay(const GameContext& ctx) const {
-    DrawRectangle(0, 0, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT, Fade(BLACK, 0.82f));
+    DrawRectangle(0, 0, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT, Fade(BLACK, 0.85f));
 
-    int cell = 44;
-    int mapSize = Config::CASTLE_GRID_SIZE * cell;
-    int mx = (Config::VIRTUAL_WIDTH - mapSize) / 2;
-    int my = (Config::VIRTUAL_HEIGHT - mapSize) / 2 + 10;
+    std::vector<const Room*> tpRooms;
+    for (const auto& r : castle_.GetAllRooms()) {
+        if (r.visited && (r.roomType == RoomType::Entrance ||
+                          r.roomType == RoomType::Teleporter ||
+                          r.roomType == RoomType::BossEntrance)) {
+            tpRooms.push_back(&r);
+        }
+    }
 
     bool hasDyslexia = ctx.CurrentHeirHasTrait(TraitType::Dyslexia);
-    bool hasAlzheimers = ctx.CurrentHeirHasTrait(TraitType::Alzheimers);
-    bool hasEidetic = ctx.CurrentHeirHasTrait(TraitType::EideticMemory);
 
     std::string title = hasDyslexia ? Ui::ScrambleDyslexia("CASTLE TELEPORTER NETWORK") : "CASTLE TELEPORTER NETWORK";
     int tw = Ui::Measure(title.c_str(), 26);
-    Ui::Text(title.c_str(), (Config::VIRTUAL_WIDTH - tw) / 2, my - 68, 26, SKYBLUE);
+    Ui::Text(title.c_str(), (Config::VIRTUAL_WIDTH - tw) / 2, 70, 26, SKYBLUE);
 
-    std::string sub = hasDyslexia ? Ui::ScrambleDyslexia("Select a visited Teleporter (Cyan) or Boss Entrance (Red) with [WASD] and press [SPACE / ENTER] to Warp.")
-                                  : "Select a visited Teleporter (Cyan) or Boss Entrance (Red) with [WASD] and press [SPACE / ENTER] to Warp.";
+    std::string sub = hasDyslexia ? Ui::ScrambleDyslexia("Choose a destination with [WASD / ARROWS] and press [SPACE / ENTER] to Warp. [ESC] to Exit.")
+                                  : "Choose a destination with [WASD / ARROWS] and press [SPACE / ENTER] to Warp. [ESC] to Exit.";
     int sw = Ui::Measure(sub.c_str(), 15);
-    Ui::Text(sub.c_str(), (Config::VIRTUAL_WIDTH - sw) / 2, my - 32, 15, Color{ 220, 225, 235, 255 });
+    Ui::Text(sub.c_str(), (Config::VIRTUAL_WIDTH - sw) / 2, 106, 15, Color{ 220, 225, 235, 255 });
 
-    DrawRectangle(mx - 10, my - 10, mapSize + 20, mapSize + 20, Color{ 16, 18, 30, 255 });
-    DrawRectangleLines(mx - 10, my - 10, mapSize + 20, mapSize + 20, SKYBLUE);
+    int panelW = 680;
+    int panelH = 480;
+    int panelX = (Config::VIRTUAL_WIDTH - panelW) / 2;
+    int panelY = 140;
 
-    for (int y = 0; y < Config::CASTLE_GRID_SIZE; ++y) {
-        for (int x = 0; x < Config::CASTLE_GRID_SIZE; ++x) {
-            const Room& r = castle_.GetRoom(x, y);
-            int rx = mx + x * cell;
-            int ry = my + y * cell;
+    DrawRectangle(panelX, panelY, panelW, panelH, Color{ 16, 18, 30, 245 });
+    DrawRectangleLines(panelX, panelY, panelW, panelH, SKYBLUE);
 
-            if (hasAlzheimers && (x != curGx_ || y != curGy_)) {
-                if (r.doorMask != 0) {
-                    DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, Color{ 28, 22, 40, 255 });
-                    Ui::Text("?", rx + 16, ry + 12, 18, Color{ 165, 150, 195, 255 });
-                } else {
-                    DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, Color{ 16, 18, 26, 255 });
-                }
-            } else if (r.doorMask != 0 && r.visited) {
-                Color col = Color{ 55, 65, 92, 255 };
-                if (r.roomType == RoomType::Entrance || r.roomType == RoomType::Teleporter) {
-                    col = Color{ 35, 135, 195, 255 };
-                } else if (r.roomType == RoomType::BossEntrance) {
-                    col = Color{ 175, 42, 55, 255 };
-                }
-                DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, col);
+    if (tpRooms.empty()) {
+        std::string emptyMsg = "No teleporters discovered yet!";
+        int ew = Ui::Measure(emptyMsg.c_str(), 18);
+        Ui::Text(emptyMsg.c_str(), panelX + (panelW - ew) / 2, panelY + panelH / 2 - 10, 18, GRAY);
+        return;
+    }
 
-                if (hasEidetic) {
-                    int enCount = 0;
-                    for (const auto& en : r.enemies) {
-                        if (en.active) enCount++;
-                    }
-                    if (enCount > 0) {
-                        DrawCircle(rx + cell - 8, ry + 8, 3.5f, RED);
-                    }
-                }
-            } else {
-                DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, Color{ 24, 26, 38, 255 });
+    int itemH = 46;
+    int startY = panelY + 16;
+
+    for (size_t i = 0; i < tpRooms.size(); ++i) {
+        const Room* r = tpRooms[i];
+        int itemY = startY + static_cast<int>(i) * (itemH + 8);
+        if (itemY + itemH > panelY + panelH - 10) break;
+
+        bool isSelected = (static_cast<int>(i) == tpIndex_);
+        bool isCurrent = (r->originGx == curGx_ && r->originGy == curGy_);
+
+        Color bgCol = isSelected ? Color{ 40, 55, 90, 255 } : Color{ 22, 26, 42, 255 };
+        DrawRectangle(panelX + 16, itemY, panelW - 32, itemH, bgCol);
+        if (isSelected) {
+            DrawRectangleLinesEx({ static_cast<float>(panelX + 16), static_cast<float>(itemY), static_cast<float>(panelW - 32), static_cast<float>(itemH) }, 2.0f, GOLD);
+        } else {
+            DrawRectangleLines(panelX + 16, itemY, panelW - 32, itemH, Color{ 45, 55, 75, 255 });
+        }
+
+        // Icon
+        Color iconCol = (r->roomType == RoomType::BossEntrance) ? RED : SKYBLUE;
+        DrawCircle(panelX + 38, itemY + itemH / 2, 7.0f, iconCol);
+        DrawCircleLines(panelX + 38, itemY + itemH / 2, 7.0f, WHITE);
+
+        // Name
+        std::string name;
+        if (r->roomType == RoomType::Entrance) {
+            name = "Castle Entrance (Gate of Johannes)";
+        } else if (r->roomType == RoomType::BossEntrance) {
+            switch (r->bossType) {
+                case BossType::Khidr:           name = "Boss Lair: Khidr"; break;
+                case BossType::Alexander:       name = "Boss Lair: Alexander"; break;
+                case BossType::PonceDeLeon:     name = "Boss Lair: Ponce de Leon"; break;
+                case BossType::Herodotus:       name = "Boss Lair: Herodotus"; break;
+                case BossType::JohannesTraitor: name = "Boss Lair: Johannes the Traitor"; break;
+                default:                        name = "Boss Lair"; break;
             }
+        } else {
+            name = Registry::GetBiomeName(r->biome) + " Teleporter";
+        }
 
-            if (x == tpCursorGx_ && y == tpCursorGy_) {
-                DrawRectangleLinesEx({ static_cast<float>(rx), static_cast<float>(ry), static_cast<float>(cell), static_cast<float>(cell) }, 3.0f, GOLD);
-            }
+        if (hasDyslexia) {
+            name = Ui::ScrambleDyslexia(name);
+        }
+
+        Color textCol = isSelected ? GOLD : WHITE;
+        Ui::Text(name.c_str(), panelX + 56, itemY + 14, 16, textCol);
+
+        if (isCurrent) {
+            std::string curText = "[CURRENT]";
+            int ctw = Ui::Measure(curText.c_str(), 13);
+            Ui::Text(curText.c_str(), panelX + panelW - 32 - ctw - 12, itemY + 16, 13, GREEN);
         }
     }
 }

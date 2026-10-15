@@ -716,7 +716,7 @@ void ProceduralRenderer::DrawHeroPreview(
     DrawHero(hp);
 }
 
-void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int roomGy) const {
+void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int roomGy, int pixelW, int pixelH) const {
     const auto& pal = GetPalette();
     const auto& bp = pal.GetBiome(biome);
 
@@ -724,19 +724,21 @@ void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int ro
     Color bgBottom = bp.stoneBg[0]; // Luminance ~5%
     Color brickLine = bp.stoneBg[2]; // Luminance ~12%
 
-    DrawRectangleGradientV(0, 0, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT, bgTop, bgBottom);
+    DrawRectangleGradientV(0, 0, pixelW, pixelH, bgTop, bgBottom);
 
-    for (int y = 0; y < Config::VIRTUAL_HEIGHT; y += 48) {
-        DrawLine(0, y, Config::VIRTUAL_WIDTH, y, brickLine);
+    for (int y = 0; y < pixelH; y += 48) {
+        DrawLine(0, y, pixelW, y, brickLine);
         int offset = ((y / 48) % 2) * 48;
-        for (int x = offset; x < Config::VIRTUAL_WIDTH; x += 96) {
+        for (int x = offset; x < pixelW; x += 96) {
             DrawLine(x, y, x, y + 48, brickLine);
         }
     }
 
     int seed = (roomGx * 31 + roomGy * 17);
-    for (int i = 0; i < 3; ++i) {
+    int windowCount = std::max(3, pixelW / 380);
+    for (int i = 0; i < windowCount; ++i) {
         int wx = 260 + i * 380;
+        if (wx > pixelW - 80) break;
         int wy = 210 + ((seed + i) % 2) * 60;
         DrawRectangle(wx - 36, wy, 72, 140, Fade(pal.outline, 0.45f));
         DrawCircle(wx, wy, 36.0f, Fade(pal.outline, 0.45f));
@@ -752,8 +754,10 @@ void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int ro
 
     // Готичні геральдичні гобелени / штандарти з ніжним колиханням (Tapestry sway)
     float timeSec = static_cast<float>(GetTime());
-    for (int i = 0; i < 2; ++i) {
+    int tapestryCount = std::max(2, pixelW / 450);
+    for (int i = 0; i < tapestryCount; ++i) {
         int tx = 450 + i * 380;
+        if (tx > pixelW - 80) break;
         int ty = 230 + ((seed + i * 3) % 2) * 50;
         float sway = std::sin(timeSec * 2.2f + i * 1.57f) * 2.5f;
 
