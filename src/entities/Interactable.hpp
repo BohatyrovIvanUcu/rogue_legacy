@@ -16,7 +16,8 @@ enum class InteractableKind : int {
     BossDoor = 5,      // Двері до арени боса біому або Фінального Боса
     DroppedCoin = 6,   // Монетка (10g) або мішечок золота (50g) з фізикою відскоку
     MeatDrop = 7,      // Смажена курка (+20% MaxHP * PotionEfficacy)
-    ManaDrop = 8       // Синій флакон мани (+30% MaxMP * PotionEfficacy)
+    ManaDrop = 8,      // Синій флакон мани (+30% MaxMP * PotionEfficacy)
+    Shrine = 9         // 'H' — Вівтар молитви / Скринька пожертви (Statue / Shrine / Donation box)
 };
 
 class Interactable : public Entity {
@@ -62,6 +63,7 @@ public:
     static Interactable MakeFairyChest(Vector2 bottomCenter, FairyCondition cond, bool alreadyOpened = false);
     static Interactable MakeTeleporter(Vector2 bottomCenter);
     static Interactable MakeBossDoor(Vector2 bottomCenter, BossType targetBoss);
+    static Interactable MakeShrine(Vector2 bottomCenter);
 
     static void SpawnLootBurst(
         std::vector<Interactable>& outDrops,

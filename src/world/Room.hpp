@@ -21,6 +21,7 @@ public:
     BiomeType biome = BiomeType::CastleHamson;
     uint8_t doorMask = 0;
     int templateIdx = 0;
+    bool isReversed = false;
     int roomLevel = 1;
 
     FairyCondition fairyCond = FairyCondition::NoDamage;

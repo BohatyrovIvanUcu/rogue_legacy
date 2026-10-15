@@ -5,11 +5,20 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable CMP0091 for MSVC runtime library selection (/MT)
+if(POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif()
+
+# Use static C/C++ runtime (/MT) on Windows/MSVC so the binary is 100% self-contained
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+
 include(FetchContent)
 
 # 1. Fetch Raylib 5.0
 set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -64,6 +73,8 @@ target_link_libraries(rogue_legacy_cpp PRIVATE
 )
 
 if(MSVC)
+    set_property(TARGET rogue_legacy_cpp PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    target_link_libraries(rogue_legacy_cpp PRIVATE winmm gdi32 user32 shell32 opengl32)
     target_compile_options(rogue_legacy_cpp PRIVATE /W3 /permissive-)
 else()
     target_compile_options(rogue_legacy_cpp PRIVATE -Wall -Wextra -Wpedantic -Wno-missing-field-initializers)

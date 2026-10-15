@@ -765,6 +765,8 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
                 DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, SKYBLUE);
             } else if ((r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened && isSpelunker) {
                 DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, GOLD);
+            } else if (r.roomType == RoomType::Secret && !r.chestOpened && isSpelunker) {
+                DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, MAGENTA);
             }
 
             // Eidetic Memory: точкові позиції активних ворогів

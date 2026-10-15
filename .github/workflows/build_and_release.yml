@@ -22,7 +22,7 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -A x64 -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded$<$<CONFIG:Debug>:Debug>"
 
       - name: Build executable
         run: cmake --build build --config Release -j
@@ -35,6 +35,19 @@ jobs:
           if (-not $exe) { throw "rogue_legacy_cpp.exe not found in build directory!" }
           Copy-Item $exe.FullName dist/rogue_legacy_windows/rogue_legacy.exe
           Copy-Item README.md dist/rogue_legacy_windows/
+          @'
+@echo off
+cd /d "%~dp0"
+echo ========================================================
+echo Starting Rogue Legacy C++ (x64 Windows Standalone)...
+echo ========================================================
+rogue_legacy.exe %*
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERROR] Game closed unexpectedly with exit code %ERRORLEVEL%.
+    pause
+)
+'@ | Set-Content -Path dist/rogue_legacy_windows/start_game.bat -Encoding ASCII
           Compress-Archive -Path dist/rogue_legacy_windows/* -DestinationPath rogue_legacy_windows_x64.zip
 
       - name: Upload Windows Artifact
@@ -122,8 +135,8 @@ jobs:
 
             #### 🪟 Для Windows:
             1. Завантажте `rogue_legacy_windows_x64.zip`.
-            2. Розархівуйте архів у зручну теку.
-            3. Запустіть `rogue_legacy.exe`!
+            2. **Повністю видобудьте (розархівуйте) архів** у зручну теку (наприклад, на Робочий стіл або в окрему папку). Не запускайте гру напряму зсередини нерозпакованого zip!
+            3. Запустіть `start_game.bat` або `rogue_legacy.exe`!
 
             ---
 

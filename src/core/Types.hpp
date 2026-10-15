@@ -131,7 +131,8 @@ enum class RoomType : int {
     Treasure = 3,
     Teleporter = 4,
     BossEntrance = 5,
-    FinalBossRoom = 6
+    FinalBossRoom = 6,
+    Secret = 7
 };
 
 enum class FairyCondition : int {
@@ -282,6 +283,7 @@ struct SavedRoomNode {
     BiomeType biome = BiomeType::CastleHamson;
     uint8_t doorMask = 0;
     int templateIdx = 0;
+    bool isReversed = false;
     FairyCondition fairyCond = FairyCondition::NoDamage;
     BossType bossType = BossType::Khidr;
     bool visited = false;

@@ -50,6 +50,7 @@ void Room::BuildFromNode(
     biome = node.biome;
     doorMask = node.doorMask;
     templateIdx = std::clamp(node.templateIdx, 0, static_cast<int>(RoomTemplates::TEMPLATES.size()) - 1);
+    isReversed = node.isReversed;
     roomLevel = std::max(1, calculatedRoomLevel);
     fairyCond = node.fairyCond;
     bossType = node.bossType;
@@ -65,8 +66,9 @@ void Room::BuildFromNode(
     for (int r = 0; r < Config::ROOM_ROWS; ++r) {
         std::string_view line = tmpl.rows[static_cast<size_t>(r)];
         for (int c = 0; c < Config::ROOM_COLS; ++c) {
+            int srcCol = isReversed ? (Config::ROOM_COLS - 1 - c) : c;
             tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] =
-                (c < static_cast<int>(line.size())) ? line[static_cast<size_t>(c)] : '.';
+                (srcCol >= 0 && srcCol < static_cast<int>(line.size())) ? line[static_cast<size_t>(srcCol)] : '.';
         }
     }
 
@@ -163,6 +165,11 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
                     tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
                     break;
                 }
+                case 'H': {
+                    interactables.push_back(Interactable::MakeShrine(bottomCenter));
+                    tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
+                    break;
+                }
                 case 'T': {
                     tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
                     if (!cleared) {
@@ -186,6 +193,9 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
 
                         Enemy en;
                         en.Init(eType, enemyTier, roomLevel, { center.x, bottomCenter.y - 24.0f }, false);
+                        if (isReversed) {
+                            en.facingDir = -1.0f;
+                        }
                         enemies.push_back(en);
                     }
                     break;
@@ -196,13 +206,39 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
         }
     }
 
-    // У кімнаті BossEntrance спавнимо двері до Боса відповідного біому
+    // У кімнаті BossEntrance гарантовано спавнимо:
+    // 1. Двері до Боса біому (по центру)
+    // 2. Портал швидкого переміщення (Teleporter) ліворуч, щоб гравець міг телепортуватися сюди
+    // 3. Вівтар Молитви / Скриньку пожертви (Shrine / Donation Box) праворуч
     if (roomType == RoomType::BossEntrance && !isBossArenaActive) {
         Vector2 doorPos = {
             static_cast<float>(Config::ROOM_OFFSET_X + 12 * Config::TILE_SIZE + Config::TILE_SIZE * 0.5f),
             static_cast<float>(Config::ROOM_OFFSET_Y + 12 * Config::TILE_SIZE)
         };
         interactables.push_back(Interactable::MakeBossDoor(doorPos, bossType));
+
+        bool hasTeleporter = false;
+        bool hasShrine = false;
+        for (const auto& it : interactables) {
+            if (it.kind == InteractableKind::Teleporter) hasTeleporter = true;
+            if (it.kind == InteractableKind::Shrine)     hasShrine = true;
+        }
+
+        if (!hasTeleporter) {
+            Vector2 telPos = {
+                static_cast<float>(Config::ROOM_OFFSET_X + 5 * Config::TILE_SIZE + Config::TILE_SIZE * 0.5f),
+                static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE)
+            };
+            interactables.push_back(Interactable::MakeTeleporter(telPos));
+        }
+
+        if (!hasShrine) {
+            Vector2 shrinePos = {
+                static_cast<float>(Config::ROOM_OFFSET_X + 19 * Config::TILE_SIZE + Config::TILE_SIZE * 0.5f),
+                static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE)
+            };
+            interactables.push_back(Interactable::MakeShrine(shrinePos));
+        }
     }
 }
 

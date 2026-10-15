@@ -83,6 +83,16 @@ Interactable Interactable::MakeBossDoor(Vector2 bottomCenter, BossType targetBos
     return it;
 }
 
+Interactable Interactable::MakeShrine(Vector2 bottomCenter) {
+    Interactable it;
+    it.kind = InteractableKind::Shrine;
+    it.width = 48.0f;
+    it.height = 42.0f;
+    it.pos = { bottomCenter.x - it.width * 0.5f, bottomCenter.y - it.height };
+    it.isOpened = false;
+    return it;
+}
+
 void Interactable::SpawnLootBurst(
     std::vector<Interactable>& outDrops,
     Vector2 origin,
@@ -254,6 +264,26 @@ void Interactable::Update(
                     GrantBlueprintOrGold(ctx, BiomeType::CastleHamson);
                 } else {
                     SpawnLootBurst(spawnedDrops, GetCenter(), 50 + (std::rand() % 4) * 10, false);
+                }
+            }
+        }
+    }
+
+    // 3. Взаємодія з Вівтарем Молитви 'H' (Shrine / Donation Box)
+    if (kind == InteractableKind::Shrine && !isOpened) {
+        if (CheckCollisionRecs(GetBounds(), player.GetBounds())) {
+            bool interactPressed = IsKeyPressed(KEY_W) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_UP);
+            if (interactPressed) {
+                isOpened = true;
+                int hpGain = std::max(15, static_cast<int>(player.maxHp * 0.40f));
+                int mpGain = std::max(10, static_cast<int>(player.stats.maxMp * 0.40f));
+                player.HealHp(hpGain, ctx);
+                player.RestoreMp(mpGain, ctx);
+                SpawnLootBurst(spawnedDrops, GetCenter(), 45, false);
+                if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChestOpen);
+                if (ctx.particles) {
+                    ctx.particles->SpawnSparks(GetCenter(), GOLD, 28);
+                    ctx.particles->SpawnFloatingText(GetCenter(), "DIVINE BLESSING!", GOLD, 18, true);
                 }
             }
         }
@@ -598,6 +628,42 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
             // Горлечко з корком
             DrawRectangle(static_cast<int>(c.x - 3.5f), static_cast<int>(c.y - 8.5f), 7, 5, pal.metal[3]);
             DrawRectangle(static_cast<int>(c.x - 2.5f), static_cast<int>(c.y - 12.0f), 5, 4, pal.wood[2]);
+            break;
+        }
+
+        case InteractableKind::Shrine: {
+            // Величний готичний вівтар молитви / скринька пожертви
+            Rectangle b = GetBounds();
+            Color stoneDark = pal.dungeon.stoneTile[1];
+            Color stoneMid  = pal.dungeon.stoneTile[2];
+            Color goldTrim  = pal.fireGold[3];
+
+            // Масивна кам'яна основа-постамент
+            DrawRectangleRounded({ b.x, b.y + 14.0f, b.width, b.height - 14.0f }, 0.2f, 4, stoneDark);
+            DrawRectangleRoundedLines({ b.x, b.y + 14.0f, b.width, b.height - 14.0f }, 0.2f, 4, 1.5f, stoneMid);
+
+            // Рельєфні золоті колони постаменту
+            DrawRectangle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 18.0f), goldTrim);
+            DrawRectangle(static_cast<int>(b.x + b.width - 9.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 18.0f), goldTrim);
+
+            // Священна чаша / статуетка ангела з крилами на вівтарі
+            DrawTriangle({ c.x - 14.0f, b.y + 8.0f }, { c.x + 14.0f, b.y + 8.0f }, { c.x, b.y + 18.0f }, goldTrim);
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y + 7.0f), 7.0f, goldTrim);
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y + 7.0f), 4.5f, pal.fireGold[4]);
+
+            // Свічки обабіч
+            DrawRectangle(static_cast<int>(b.x + 8.0f), static_cast<int>(b.y + 8.0f), 4, 8, pal.bone[4]);
+            DrawRectangle(static_cast<int>(b.x + b.width - 12.0f), static_cast<int>(b.y + 8.0f), 4, 8, pal.bone[4]);
+            DrawCircle(static_cast<int>(b.x + 10.0f), static_cast<int>(b.y + 6.0f), 2.0f, pal.fireGold[3]);
+            DrawCircle(static_cast<int>(b.x + b.width - 10.0f), static_cast<int>(b.y + 6.0f), 2.0f, pal.fireGold[3]);
+
+            if (!isOpened) {
+                // Пульсуюче божественне сяйво
+                float pulse = 0.35f + 0.15f * std::sin(animTimer * 4.0f);
+                DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(b.y + 6.0f), 24.0f, Fade(pal.fireGold[3], pulse), Fade(pal.outline, 0.0f));
+            } else {
+                DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(b.y + 6.0f), 12.0f, Fade(pal.moonMagic[3], 0.25f), Fade(pal.outline, 0.0f));
+            }
             break;
         }
     }

@@ -122,7 +122,7 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
     const int dx[4] = { 0, 1, 0, -1 };
     const int dy[4] = { -1, 0, 1, 0 };
 
-    // 2. ПРОЦЕДУРНЕ ВИРОЩУВАННЯ ЗАМКУ (гарантована зв'язність, унікальна топологія кожен забіг)
+    // 2. ПРОЦЕДУРНЕ ВИРОЩУВАННЯ ЗАМКУ (RL1 LevelBuilder2 Pipeline)
     ActivateRoom(Config::ENTRANCE_GRID_X, Config::ENTRANCE_GRID_Y);
 
     // --- БІОМ 1: CastleHamson (Центральний хаб 3x3: x in [3..5], y in [3..5]) ---
@@ -153,7 +153,7 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         }
     }
 
-    // Гарантуємо проходи з Hamson до сусідніх біомів:
+    // Гарантуємо виходи з Hamson до сусідніх біомів:
     // Східний вихід до ForestAbkhazia (x=5)
     bool hasEastExit = IsActive(5, 3) || IsActive(5, 4) || IsActive(5, 5);
     if (!hasEastExit) {
@@ -170,8 +170,8 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         ActivateRoom(4, 5);
     }
 
-    // Допоміжна функція для органічного росту біому методом випадкового фронтиру
-    auto GrowBiomeWing = [&](BiomeType bType, const std::vector<std::pair<int, int>>& seedPoints, int targetTotal) {
+    // Допоміжна функція для росту крила з наданням ваги напрямку біому (RL1 door priorities)
+    auto GrowBiomeWing = [&](BiomeType bType, const std::vector<std::pair<int, int>>& seedPoints, int targetTotal, int preferredDir) {
         std::vector<std::pair<int, int>> frontier = seedPoints;
         for (const auto& pt : seedPoints) {
             ActivateRoom(pt.first, pt.second);
@@ -189,6 +189,10 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
                 if (nx >= 0 && nx < Config::CASTLE_GRID_SIZE && ny >= 0 && ny < Config::CASTLE_GRID_SIZE) {
                     if (!IsActive(nx, ny) && DetermineBiomeAt(nx, ny) == bType) {
                         candidates.push_back({ nx, ny });
+                        if (d == preferredDir) {
+                            candidates.push_back({ nx, ny });
+                            candidates.push_back({ nx, ny });
+                        }
                     }
                 }
             }
@@ -204,29 +208,33 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         }
     };
 
-    // --- БІОМ 2: ForestAbkhazia (Східне крило) ---
+    // --- БІОМ 2: ForestAbkhazia (Східне крило: RL1 LEVEL_GARDEN_RIGHTDOOR = 100) ---
     std::vector<std::pair<int, int>> eastBridges;
     for (int y = 3; y <= 5; ++y) {
         if (IsActive(5, y)) eastBridges.push_back({ 6, y });
     }
     if (eastBridges.empty()) eastBridges.push_back({ 6, 4 });
     std::shuffle(eastBridges.begin(), eastBridges.end(), rng);
-    std::vector<std::pair<int, int>> forestSeeds = { eastBridges.front() };
+    std::pair<int, int> forestLinkerPos = eastBridges.front();
+    ActivateRoom(forestLinkerPos.first, forestLinkerPos.second);
+    std::vector<std::pair<int, int>> forestSeeds = { forestLinkerPos };
     int targetForest = 6 + static_cast<int>(rng() % 2); // 6..7 кімнат
-    GrowBiomeWing(BiomeType::ForestAbkhazia, forestSeeds, targetForest);
+    GrowBiomeWing(BiomeType::ForestAbkhazia, forestSeeds, targetForest, 1 /* EAST */);
 
-    // --- БІОМ 3: TheMaya (Північна вежа) ---
+    // --- БІОМ 3: TheMaya (Північна вежа: RL1 LEVEL_TOWER_TOPDOOR = 100) ---
     std::vector<std::pair<int, int>> northBridges;
     for (int x = 3; x <= 5; ++x) {
         if (IsActive(x, 3)) northBridges.push_back({ x, 2 });
     }
     if (northBridges.empty()) northBridges.push_back({ 4, 2 });
     std::shuffle(northBridges.begin(), northBridges.end(), rng);
-    std::vector<std::pair<int, int>> mayaSeeds = { northBridges.front() };
+    std::pair<int, int> mayaLinkerPos = northBridges.front();
+    ActivateRoom(mayaLinkerPos.first, mayaLinkerPos.second);
+    std::vector<std::pair<int, int>> mayaSeeds = { mayaLinkerPos };
     int targetMaya = 6 + static_cast<int>(rng() % 2); // 6..7 кімнат
-    GrowBiomeWing(BiomeType::TheMaya, mayaSeeds, targetMaya);
+    GrowBiomeWing(BiomeType::TheMaya, mayaSeeds, targetMaya, 0 /* NORTH */);
 
-    // --- БІОМ 4: LandOfDarkness (Підземелля: Південь / Захід) ---
+    // --- БІОМ 4: LandOfDarkness (Підземелля: RL1 LEVEL_DUNGEON_BOTTOMDOOR = 100) ---
     std::vector<std::pair<int, int>> darkBridges;
     for (int x = 3; x <= 5; ++x) {
         if (IsActive(x, 5)) darkBridges.push_back({ x, 6 });
@@ -236,12 +244,14 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
     }
     if (darkBridges.empty()) darkBridges.push_back({ 4, 6 });
     std::shuffle(darkBridges.begin(), darkBridges.end(), rng);
-    std::vector<std::pair<int, int>> darkSeeds = { darkBridges.front() };
+    std::pair<int, int> darkLinkerPos = darkBridges.front();
+    ActivateRoom(darkLinkerPos.first, darkLinkerPos.second);
+    std::vector<std::pair<int, int>> darkSeeds = { darkLinkerPos };
     if (darkBridges.size() > 1 && (rng() % 2 == 0)) {
         darkSeeds.push_back(darkBridges[1]);
     }
     int targetDarkness = 7 + static_cast<int>(rng() % 2); // 7..8 кімнат
-    GrowBiomeWing(BiomeType::LandOfDarkness, darkSeeds, targetDarkness);
+    GrowBiomeWing(BiomeType::LandOfDarkness, darkSeeds, targetDarkness, 2 /* SOUTH */);
 
     // 3. ПЕРЕВІРКА ТА ГАРАНТІЯ ЗВ'ЯЗНОСТІ ЧЕРЕЗ BFS (від входу 4, 4)
     std::vector<std::vector<bool>> reachable(Config::CASTLE_GRID_SIZE, std::vector<bool>(Config::CASTLE_GRID_SIZE, false));
@@ -294,7 +304,24 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         }
     }
 
-    // 5. ПРОЦЕДУРНИЙ РОЗПОДІЛ ТИПІВ КІМНАТ ТА ШАБЛОНІВ У КОЖНОМУ З 4 БІОМІВ
+    // 5. ВСТАНОВЛЕННЯ ГАРАНТОВАНИХ ПЕРЕХІДНИХ КІМНАТ-ЛІНКЕРІВ (LINKER ROOMS ІЗ ТЕЛЕПОРТЕРАМИ, RL1 LevelBuilder2)
+    auto SetupLinker = [&](int lx, int ly, BiomeType bType) {
+        SavedRoomNode& lnk = ctx.savedCastle[static_cast<size_t>(ly)][static_cast<size_t>(lx)];
+        lnk.roomType = RoomType::Teleporter;
+        lnk.biome = bType;
+        lnk.templateIdx = 13;
+        lnk.isReversed = false;
+        lnk.bossType = GetBiomeBoss(bType);
+    };
+    SetupLinker(forestLinkerPos.first, forestLinkerPos.second, BiomeType::ForestAbkhazia);
+    SetupLinker(mayaLinkerPos.first, mayaLinkerPos.second, BiomeType::TheMaya);
+    SetupLinker(darkLinkerPos.first, darkLinkerPos.second, BiomeType::LandOfDarkness);
+
+    // 6. ПРОЦЕДУРНИЙ РОЗПОДІЛ АРХЕТИПІВ КІМНАТ ТА ДЗЕРКАЛЬНИХ ВАРІАНТІВ (Reverse())
+    std::vector<int> combatPool = { 1, 2, 3, 4, 5, 6, 7, 8, 22, 23, 24 };
+    std::shuffle(combatPool.begin(), combatPool.end(), rng);
+    size_t poolIdx = 0;
+
     for (int b = 0; b < static_cast<int>(BiomeType::COUNT); ++b) {
         BiomeType curBiome = static_cast<BiomeType>(b);
         std::vector<std::pair<int, int>> candidates;
@@ -302,6 +329,11 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         for (int y = 0; y < Config::CASTLE_GRID_SIZE; ++y) {
             for (int x = 0; x < Config::CASTLE_GRID_SIZE; ++x) {
                 if (x == Config::ENTRANCE_GRID_X && y == Config::ENTRANCE_GRID_Y) continue;
+                // Не перезаписуємо встановлені кімнати-лінкери
+                if (x == forestLinkerPos.first && y == forestLinkerPos.second) continue;
+                if (x == mayaLinkerPos.first && y == mayaLinkerPos.second) continue;
+                if (x == darkLinkerPos.first && y == darkLinkerPos.second) continue;
+
                 const auto& n = ctx.savedCastle[static_cast<size_t>(y)][static_cast<size_t>(x)];
                 if (n.active && n.biome == curBiome) {
                     candidates.push_back({ x, y });
@@ -311,7 +343,7 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
 
         if (candidates.empty()) continue;
 
-        // а) Кімната боса (BossEntrance): обираємо випадково серед найбільш віддалених кімнат біому (тупиків)
+        // а) Кімната Боса (BossEntrance): обираємо найбільш віддалений тупик крила
         int maxDist = 0;
         for (const auto& [cx, cy] : candidates) {
             int d = std::abs(cx - Config::ENTRANCE_GRID_X) + std::abs(cy - Config::ENTRANCE_GRID_Y);
@@ -329,13 +361,14 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         SavedRoomNode& bossNode = ctx.savedCastle[static_cast<size_t>(bossY)][static_cast<size_t>(bossX)];
         bossNode.roomType = RoomType::BossEntrance;
         bossNode.templateIdx = 14;
+        bossNode.isReversed = false;
         bossNode.bossType = GetBiomeBoss(curBiome);
         candidates.erase(candidates.begin() + static_cast<ptrdiff_t>(chosenBossIdx));
 
-        // Перемішуємо решту кандидатів, щоб Скарбниця, Телепортер, Скриня Феї та Бойові кімнати не сиділи в однакових координатах!
+        // Перемішуємо решту кандидатів для природного розташування скарбниць, фей та секретів
         std::shuffle(candidates.begin(), candidates.end(), rng);
 
-        // б) Скриня Феї (FairyChest) з випадковою умовою випробування
+        // б) Скриня Феї (FairyChest / RL1 PickChest bonus room)
         if (!candidates.empty()) {
             auto [fx, fy] = candidates.back();
             candidates.pop_back();
@@ -343,46 +376,45 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
             fairyNode.roomType = RoomType::FairyChest;
             fairyNode.fairyCond = static_cast<FairyCondition>(rng() % 4);
             fairyNode.bossType = GetBiomeBoss(curBiome);
+            fairyNode.isReversed = (rng() % 2 == 1);
             if (fairyNode.fairyCond == FairyCondition::NoJumping) {
                 fairyNode.templateIdx = 11;
             } else if (fairyNode.fairyCond == FairyCondition::KillAll) {
                 fairyNode.templateIdx = 10;
             } else {
-                fairyNode.templateIdx = 9 + static_cast<int>(rng() % 2);
+                fairyNode.templateIdx = 9;
             }
         }
 
-        // в) Телепортер (Teleporter) біому
+        // в) Секретна кімната (Secret Room з норами карлика 'D' та стінами 'X')
         if (!candidates.empty()) {
-            auto [tx, ty] = candidates.back();
+            auto [sx, sy] = candidates.back();
             candidates.pop_back();
-            SavedRoomNode& telNode = ctx.savedCastle[static_cast<size_t>(ty)][static_cast<size_t>(tx)];
-            telNode.roomType = RoomType::Teleporter;
-            telNode.templateIdx = 13;
-            telNode.bossType = GetBiomeBoss(curBiome);
+            SavedRoomNode& secNode = ctx.savedCastle[static_cast<size_t>(sy)][static_cast<size_t>(sx)];
+            secNode.roomType = RoomType::Secret;
+            secNode.templateIdx = 20;
+            secNode.isReversed = (rng() % 2 == 1);
+            secNode.bossType = GetBiomeBoss(curBiome);
         }
 
-        // г) Королівська скарбниця зі скринею (Treasure)
+        // г) Королівська скарбниця або Вівтар Благословення (Treasure / Spiritual Shrine)
         if (!candidates.empty()) {
             auto [rx, ry] = candidates.back();
             candidates.pop_back();
             SavedRoomNode& trNode = ctx.savedCastle[static_cast<size_t>(ry)][static_cast<size_t>(rx)];
             trNode.roomType = RoomType::Treasure;
-            trNode.templateIdx = 12;
+            trNode.templateIdx = (rng() % 2 == 0) ? 12 : 21;
+            trNode.isReversed = (rng() % 2 == 1);
             trNode.bossType = GetBiomeBoss(curBiome);
         }
 
-        // ґ) Усі інші кімнати — різноманітні бойові випробування (Combat)
-        // Використовуємо перемішаний пул шаблонів 1..8, щоб сусідні кімнати не повторювали одну й ту ж саму геометрію
-        std::vector<int> combatPool = { 1, 2, 3, 4, 5, 6, 7, 8 };
-        std::shuffle(combatPool.begin(), combatPool.end(), rng);
-        size_t poolIdx = 0;
-
+        // ґ) Усі інші кімнати — різноманітні бойові зали (Combat) із випадковим Reverse() віддзеркаленням!
         for (const auto& [cx, cy] : candidates) {
             SavedRoomNode& cNode = ctx.savedCastle[static_cast<size_t>(cy)][static_cast<size_t>(cx)];
             cNode.roomType = RoomType::Combat;
             cNode.bossType = GetBiomeBoss(curBiome);
             cNode.templateIdx = combatPool[poolIdx % combatPool.size()];
+            cNode.isReversed = (rng() % 2 == 1); // RL1 roomClone.Reverse() 50% шанс дзеркальності!
             poolIdx++;
             if (poolIdx % combatPool.size() == 0) {
                 std::shuffle(combatPool.begin(), combatPool.end(), rng);
@@ -390,12 +422,13 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         }
     }
 
-    // 6. НАЛАШТУВАННЯ КІМНАТИ ВХОДУ (4, 4)
+    // 7. НАЛАШТУВАННЯ КІМНАТИ ВХОДУ (4, 4)
     SavedRoomNode& entrance = ctx.savedCastle[Config::ENTRANCE_GRID_Y][Config::ENTRANCE_GRID_X];
     entrance.active = true;
     entrance.roomType = RoomType::Entrance;
     entrance.biome = BiomeType::CastleHamson;
     entrance.templateIdx = 0;
+    entrance.isReversed = false;
     entrance.visited = true;
     entrance.cleared = true;
 }
