@@ -995,47 +995,65 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
         };
         ctx.renderer->DrawGoldenBossDoor(goldenDoorBottom, ctx.bossDefeated, trapTimer);
 
-        // 2.5. Закрита зовнішня брама на лівому виступі (звідки герой прийшов у замок)
+        // 2.5. Головна вхідна залізна брама / ґрати (Portcullis Gate), через яку герой зайшов у замок
         float gateX = static_cast<float>(Config::ROOM_OFFSET_X);
-        float gateY = static_cast<float>(Config::ROOM_OFFSET_Y + 9 * Config::TILE_SIZE);
-        DrawRectangle(static_cast<int>(gateX), static_cast<int>(gateY - 180.0f), 24, 180, Color{ 20, 24, 30, 255 });
-        for (int barX = static_cast<int>(gateX) + 4; barX < static_cast<int>(gateX) + 24; barX += 5) {
-            DrawRectangle(barX, static_cast<int>(gateY - 176.0f), 3, 176, Color{ 90, 96, 110, 255 });
-            DrawRectangle(barX + 1, static_cast<int>(gateY - 176.0f), 1, 176, Color{ 140, 148, 165, 255 });
-        }
-        for (float hy = gateY - 160.0f; hy < gateY; hy += 40.0f) {
-            DrawRectangle(static_cast<int>(gateX), static_cast<int>(hy), 24, 6, Color{ 60, 65, 75, 255 });
-            DrawRectangle(static_cast<int>(gateX + 2), static_cast<int>(hy + 1), 20, 2, Color{ 110, 118, 132, 255 });
-            DrawCircle(static_cast<int>(gateX + 6), static_cast<int>(hy + 3), 2.0f, Color{ 180, 190, 205, 255 });
-            DrawCircle(static_cast<int>(gateX + 18), static_cast<int>(hy + 3), 2.0f, Color{ 180, 190, 205, 255 });
-        }
-        // Замок, що блокує вихід назад
-        DrawRectangle(static_cast<int>(gateX + 5), static_cast<int>(gateY - 95.0f), 14, 18, Color{ 185, 150, 45, 255 });
-        DrawRectangleLines(static_cast<int>(gateX + 5), static_cast<int>(gateY - 95.0f), 14, 18, Color{ 95, 70, 20, 255 });
-        DrawCircle(static_cast<int>(gateX + 12), static_cast<int>(gateY - 86.0f), 2.0f, Color{ 50, 35, 10, 255 });
+        float gateFloorY = static_cast<float>(Config::ROOM_OFFSET_Y + 9 * Config::TILE_SIZE);
+        float gateTopY = static_cast<float>(Config::ROOM_OFFSET_Y + 2 * Config::TILE_SIZE);
+        float gateW = 108.0f;
+        float gateH = gateFloorY - gateTopY;
 
-        // 2.6. Басейн із водою у лівій ямі вхідної кімнати (колонки 10..15, рядок 13)
-        float poolX = static_cast<float>(Config::ROOM_OFFSET_X + 10 * Config::TILE_SIZE);
-        float poolY = static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE + 18);
-        float poolW = 5.0f * Config::TILE_SIZE;
-        float poolH = 30.0f;
-        DrawRectangle(static_cast<int>(poolX - 4.0f), static_cast<int>(poolY - 4.0f), static_cast<int>(poolW + 8.0f), static_cast<int>(poolH + 4.0f), Color{ 58, 62, 70, 255 });
-        DrawRectangleLines(static_cast<int>(poolX - 4.0f), static_cast<int>(poolY - 4.0f), static_cast<int>(poolW + 8.0f), static_cast<int>(poolH + 4.0f), Color{ 110, 115, 128, 255 });
-        DrawRectangle(static_cast<int>(poolX), static_cast<int>(poolY), static_cast<int>(poolW), static_cast<int>(poolH), Color{ 24, 115, 150, 180 });
-        DrawRectangle(static_cast<int>(poolX), static_cast<int>(poolY + 12.0f), static_cast<int>(poolW), static_cast<int>(poolH - 12.0f), Color{ 14, 75, 110, 210 });
-        for (float wx = poolX; wx < poolX + poolW - 8.0f; wx += 14.0f) {
-            float waveY = poolY + 1.0f + std::sin(trapTimer * 4.0f + wx * 0.12f) * 2.2f;
-            DrawLineEx({ wx, waveY }, { wx + 10.0f, waveY }, 1.5f, Color{ 160, 230, 255, 190 });
-        }
+        // Кам'яне склепіння вхідного порталу
+        DrawRectangle(static_cast<int>(gateX), static_cast<int>(gateTopY), static_cast<int>(gateW), static_cast<int>(gateH), Color{ 15, 18, 25, 255 });
+        DrawRectangleLinesEx({ gateX, gateTopY, gateW, gateH }, 6.0f, Color{ 74, 72, 66, 255 });
 
-        // Настінний геральдичний банер "CASTLE HAMSON" на задній стіні над басейном
-        float banX = poolX + poolW * 0.5f;
-        float banY = static_cast<float>(Config::ROOM_OFFSET_Y + 11 * Config::TILE_SIZE - 10.0f);
-        DrawRectangle(static_cast<int>(banX - 95.0f), static_cast<int>(banY), 190, 26, Color{ 22, 28, 38, 230 });
-        DrawRectangleLinesEx({ banX - 95.0f, banY, 190.0f, 26.0f }, 2.0f, Color{ 210, 175, 55, 255 });
-        DrawCircle(static_cast<int>(banX - 93.0f), static_cast<int>(banY + 2.0f), 3.0f, Color{ 240, 205, 75, 255 });
-        DrawCircle(static_cast<int>(banX + 93.0f), static_cast<int>(banY + 2.0f), 3.0f, Color{ 240, 205, 75, 255 });
-        Ui::Text("CASTLE HAMSON", static_cast<int>(banX - 68.0f), static_cast<int>(banY + 6.0f), 14, Color{ 240, 215, 120, 255 });
+        // Масивні ковані вертикальні залізні ґрати (Portcullis Iron Bars)
+        for (float bx = gateX + 14.0f; bx < gateX + gateW - 10.0f; bx += 14.0f) {
+            DrawRectangle(static_cast<int>(bx), static_cast<int>(gateTopY + 6.0f), 4, static_cast<int>(gateH - 12.0f), Color{ 68, 72, 82, 255 });
+            DrawLine(static_cast<int>(bx + 1.0f), static_cast<int>(gateTopY + 6.0f), static_cast<int>(bx + 1.0f), static_cast<int>(gateFloorY - 6.0f), Color{ 125, 132, 148, 255 });
+            // Загострені зубці ґрат унизу, що впираються в кам'яну підлогу
+            DrawTriangle({ bx - 1.0f, gateFloorY - 6.0f }, { bx + 5.0f, gateFloorY - 6.0f }, { bx + 2.0f, gateFloorY }, Color{ 50, 54, 62, 255 });
+        }
+        // Горизонтальні сталеві балки з заклепками
+        for (float hy = gateTopY + 36.0f; hy < gateFloorY - 20.0f; hy += 48.0f) {
+            DrawRectangle(static_cast<int>(gateX + 6.0f), static_cast<int>(hy), static_cast<int>(gateW - 12.0f), 8, Color{ 52, 56, 65, 255 });
+            DrawRectangleLines(static_cast<int>(gateX + 6.0f), static_cast<int>(hy), static_cast<int>(gateW - 12.0f), 8, Color{ 85, 92, 105, 255 });
+            for (float rx = gateX + 16.0f; rx < gateX + gateW - 16.0f; rx += 28.0f) {
+                DrawCircle(static_cast<int>(rx), static_cast<int>(hy + 4.0f), 2.0f, Color{ 150, 158, 175, 255 });
+            }
+        }
+        // Масивний висячий замок та ланцюг
+        DrawRectangle(static_cast<int>(gateX + 46.0f), static_cast<int>(gateFloorY - 85.0f), 18, 22, Color{ 185, 150, 45, 255 });
+        DrawRectangleLines(static_cast<int>(gateX + 46.0f), static_cast<int>(gateFloorY - 85.0f), 18, 22, Color{ 105, 78, 22, 255 });
+        DrawCircle(static_cast<int>(gateX + 55.0f), static_cast<int>(gateFloorY - 74.0f), 3.0f, Color{ 45, 32, 10, 255 });
+
+        // 2.6. Старовинний кам'яний саркофаг / вівтар на дні ями (колонки 11..15, рядок 13)
+        float sarcX = static_cast<float>(Config::ROOM_OFFSET_X + 11 * Config::TILE_SIZE);
+        float sarcFloorY = static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE);
+        float sarcW = 160.0f;
+        float sarcH = 34.0f;
+        float sarcTopY = sarcFloorY - sarcH;
+
+        // Постамент і кам'яний корпус саркофага
+        DrawRectangle(static_cast<int>(sarcX), static_cast<int>(sarcTopY), static_cast<int>(sarcW), static_cast<int>(sarcH), Color{ 88, 86, 82, 255 });
+        DrawRectangleLinesEx({ sarcX, sarcTopY, sarcW, sarcH }, 2.0f, Color{ 58, 56, 52, 255 });
+        // Масивна різьблена кришка саркофага
+        DrawRectangle(static_cast<int>(sarcX - 6.0f), static_cast<int>(sarcTopY - 8.0f), static_cast<int>(sarcW + 12.0f), 10, Color{ 128, 126, 120, 255 });
+        DrawRectangleLinesEx({ sarcX - 6.0f, sarcTopY - 8.0f, sarcW + 12.0f, 10.0f }, 2.0f, Color{ 68, 66, 62, 255 });
+        // Геральдичний кам'яний барельєф-хрест на кришці
+        DrawLineEx({ sarcX + 24.0f, sarcTopY + 17.0f }, { sarcX + sarcW - 24.0f, sarcTopY + 17.0f }, 2.5f, Color{ 52, 50, 48, 255 });
+        DrawLineEx({ sarcX + sarcW * 0.5f, sarcTopY + 6.0f }, { sarcX + sarcW * 0.5f, sarcTopY + sarcH - 6.0f }, 2.5f, Color{ 52, 50, 48, 255 });
+
+        // Підлоговий кований канделябр зі свічками біля саркофага
+        float canX = sarcX + sarcW + 16.0f;
+        DrawLineEx({ canX, sarcFloorY }, { canX, sarcFloorY - 46.0f }, 3.0f, Color{ 64, 60, 56, 255 });
+        DrawLineEx({ canX - 10.0f, sarcFloorY - 46.0f }, { canX + 10.0f, sarcFloorY - 46.0f }, 2.5f, Color{ 64, 60, 56, 255 });
+        for (int ci = -1; ci <= 1; ++ci) {
+            float cx = canX + ci * 8.0f;
+            DrawRectangle(static_cast<int>(cx - 1.5f), static_cast<int>(sarcFloorY - 54.0f), 3, 8, Color{ 230, 225, 205, 255 });
+            float flk = std::sin(trapTimer * 7.0f + cx * 2.0f) * 1.2f;
+            DrawCircle(static_cast<int>(cx), static_cast<int>(sarcFloorY - 56.0f), 2.5f + flk * 0.3f, Color{ 255, 185, 45, 255 });
+            DrawCircle(static_cast<int>(cx), static_cast<int>(sarcFloorY - 56.0f), 1.2f, WHITE);
+        }
 
         // 2.7. Кабінет картографа/дослідника у правому крилі стартової кімнати (колонки 33..41, рядок 12..13)
         float studyX = static_cast<float>(Config::ROOM_OFFSET_X + 33 * Config::TILE_SIZE);

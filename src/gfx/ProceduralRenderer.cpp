@@ -737,6 +737,11 @@ void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int ro
         }
     }
 
+    // У кімнаті Entrance фон залишається чистим (тут розташовані унікальні Золоті Двері, вхідні ґрати та кабінет)
+    if (roomGx == Config::ENTRANCE_GX && roomGy == Config::ENTRANCE_GY) {
+        return;
+    }
+
     int seed = (roomGx * 31 + roomGy * 17);
     int windowCount = std::max(3, pixelW / 380);
     for (int i = 0; i < windowCount; ++i) {
@@ -799,7 +804,7 @@ void ProceduralRenderer::DrawTile(
     float illusionAlpha,
     uint8_t neighborMask,
     uint8_t diagMask,
-    bool ehsActive
+    [[maybe_unused]] bool ehsActive
 ) const {
     const auto& pal = GetPalette();
     const auto& bp = pal.GetBiome(biome);
@@ -996,9 +1001,10 @@ void ProceduralRenderer::DrawTile(
 
         Color ironCol   = pal.metal[2];
         Color ironHi    = pal.metal[4];
+        Color shadowCol = Color{ static_cast<unsigned char>(platDark.r / 2), static_cast<unsigned char>(platDark.g / 2), static_cast<unsigned char>(platDark.b / 2), 255 };
 
-        // М'яка тінь під плитою
-        DrawRectangle(x, y + platH, s, 4, Fade(pal.outline, 0.35f));
+        // Тіньова грань під плитою (суцільний тон без альфа-блимання)
+        DrawRectangle(x, y + platH, s, 3, shadowCol);
 
         // Основна горизонтальна плита
         DrawRectangle(x, y, s, 3, platTop);
@@ -1006,29 +1012,19 @@ void ProceduralRenderer::DrawTile(
         DrawRectangle(x, y + 10, s, 4, platDark);
         DrawLine(x, y + platH, x + s, y + platH, pal.outline);
 
-        // Ковані залізні накладки з заклепками по краях
-        bool leftEnd = !w || (col % 4 == 0);
-        bool rightEnd = !e || ((col + 1) % 4 == 0);
+        // Ковані залізні накладки з заклепками ЛИШЕ на відкритих краях платформи
+        bool leftEnd = !w;
+        bool rightEnd = !e;
 
         if (leftEnd) {
-            DrawRectangle(x + 1, y - 1, 6, platH + 2, ironCol);
-            DrawLine(x + 1, y - 1, x + 1, y + platH, ironHi);
-            DrawCircle(x + 4, y + 6, 1.5f, ironHi);
+            DrawRectangle(x, y - 1, 6, platH + 2, ironCol);
+            DrawLine(x, y - 1, x, y + platH, ironHi);
+            DrawCircle(x + 3, y + 6, 1.5f, ironHi);
         }
         if (rightEnd) {
-            DrawRectangle(x + s - 7, y - 1, 6, platH + 2, ironCol);
-            DrawLine(x + s - 7, y - 1, x + s - 7, y + platH, ironHi);
-            DrawCircle(x + s - 4, y + 6, 1.5f, ironHi);
-        }
-
-        if (ehsActive) {
-            // Електрична іскра над платформою (без порушення форми платформи)
-            float sparkPhase = std::fmod(trapTimer * 8.0f + static_cast<float>(col) * 0.4f, 1.0f);
-            if (sparkPhase < 0.38f) {
-                int sparkX = x + 10 + (static_cast<int>(sparkPhase * 60.0f) % 28);
-                DrawCircle(sparkX, y - 2, 2.0f, pal.moonMagic[3]);
-                DrawCircle(sparkX, y - 2, 1.0f, pal.metal[4]);
-            }
+            DrawRectangle(x + s - 6, y - 1, 6, platH + 2, ironCol);
+            DrawLine(x + s - 6, y - 1, x + s - 6, y + platH, ironHi);
+            DrawCircle(x + s - 3, y + 6, 1.5f, ironHi);
         }
     } else if (tileCode == '^') {
         // 5. Шипи ('^'): нерівні зазубрені залізні піки різної висоти з краплями застиглої крові
@@ -1183,103 +1179,147 @@ void ProceduralRenderer::DrawTile(
 
 void ProceduralRenderer::DrawGoldenBossDoor(Vector2 bottomCenter, const std::array<bool, 5>& bossDefeated, float time) const {
     const auto& pal = GetPalette();
-    float doorW = 124.0f;
-    float doorH = 176.0f;
+    float doorW = 136.0f;
+    float doorH = 184.0f;
     float left = bottomCenter.x - doorW * 0.5f;
     float top  = bottomCenter.y - doorH;
 
     bool allFourSlain = bossDefeated[0] && bossDefeated[1] && bossDefeated[2] && bossDefeated[3];
 
-    // Heavy gothic stone archway surround
-    DrawRectangleRec({ left - 14.0f, top - 18.0f, doorW + 28.0f, doorH + 18.0f }, pal.dungeon.stoneTile[1]);
-    DrawRectangleLinesEx({ left - 14.0f, top - 18.0f, doorW + 28.0f, doorH + 18.0f }, 3.0f, pal.dungeon.stoneTile[3]);
+    // 1. Масивна кам'яна напівкругла арка (Gothic granite arch surround)
+    float archR = (doorW + 36.0f) * 0.5f;
+    Vector2 archCenter = { bottomCenter.x, top + 24.0f };
+    Color archStone = Color{ 142, 140, 134, 255 };
+    Color archBorder = Color{ 74, 72, 66, 255 };
+    Color archHi = Color{ 175, 172, 165, 255 };
 
-    // Keystone arch peak
-    DrawTriangle(
-        { bottomCenter.x - 22.0f, top - 18.0f },
-        { bottomCenter.x, top - 32.0f },
-        { bottomCenter.x + 22.0f, top - 18.0f },
-        pal.dungeon.stoneTile[2]
-    );
-    DrawTriangleLines(
-        { bottomCenter.x - 22.0f, top - 18.0f },
-        { bottomCenter.x, top - 32.0f },
-        { bottomCenter.x + 22.0f, top - 18.0f },
-        pal.fireGold[3]
-    );
+    DrawCircleSector(archCenter, archR, 180.0f, 360.0f, 24, archStone);
+    DrawRectangle(static_cast<int>(left - 18.0f), static_cast<int>(top + 24.0f), static_cast<int>(doorW + 36.0f), static_cast<int>(doorH - 24.0f), archStone);
+    DrawRectangleLinesEx({ left - 18.0f, top + 24.0f, doorW + 36.0f, doorH - 24.0f }, 3.5f, archBorder);
+    DrawCircleSectorLines(archCenter, archR, 180.0f, 360.0f, 24, archBorder);
 
-    // Inner door frame
-    Color doorFill = allFourSlain ? pal.outline : pal.fireGold[1];
-    DrawRectangleRec({ left, top, doorW, doorH }, doorFill);
-    DrawRectangleLinesEx({ left, top, doorW, doorH }, 6.0f, pal.fireGold[3]);
+    // Різьблені клиноподібні камені (voussoirs) вздовж арки
+    for (int a = 0; a <= 8; ++a) {
+        float rad = (180.0f + a * 22.5f) * (3.14159f / 180.0f);
+        Vector2 pIn = { archCenter.x + std::cos(rad) * (archR - 18.0f), archCenter.y + std::sin(rad) * (archR - 18.0f) };
+        Vector2 pOut = { archCenter.x + std::cos(rad) * archR, archCenter.y + std::sin(rad) * archR };
+        DrawLineEx(pIn, pOut, 2.5f, archBorder);
+    }
+    // Замковий камінь (Keystone) на вершині арки
+    DrawRectangle(static_cast<int>(bottomCenter.x - 12.0f), static_cast<int>(top - 18.0f), 24, 22, archHi);
+    DrawRectangleLines(static_cast<int>(bottomCenter.x - 12.0f), static_cast<int>(top - 18.0f), 24, 22, archBorder);
 
-    // Ornate dual door panels
-    float halfW = doorW * 0.5f;
-    DrawRectangleRec({ left + 6.0f, top + 6.0f, halfW - 8.0f, doorH - 12.0f }, pal.fireGold[0]);
-    DrawRectangleRec({ left + halfW + 2.0f, top + 6.0f, halfW - 8.0f, doorH - 12.0f }, pal.fireGold[0]);
+    // 2. Золоті полотна дверей (Rich Golden double doors with arched top)
+    Color goldBase = Color{ 232, 192, 64, 255 };
+    Color goldDark = Color{ 178, 138, 38, 255 };
+    Color goldHi   = Color{ 255, 225, 105, 255 };
+    Color goldTrim = Color{ 110, 80, 20, 255 };
+
+    float doorR = (doorW - 8.0f) * 0.5f;
+    Vector2 doorArchC = { bottomCenter.x, top + 24.0f };
 
     if (!allFourSlain) {
-        // Massive central gold seam & heavy iron sealing bar
-        DrawLineEx({ bottomCenter.x, top }, { bottomCenter.x, bottomCenter.y }, 4.0f, pal.fireGold[0]);
-        // Heavy locking crossbars
-        DrawRectangleRec({ left + 16.0f, bottomCenter.y - 100.0f, doorW - 32.0f, 16.0f }, pal.wood[1]);
-        DrawRectangleLinesEx({ left + 16.0f, bottomCenter.y - 100.0f, doorW - 32.0f, 16.0f }, 2.0f, pal.fireGold[3]);
+        DrawCircleSector(doorArchC, doorR, 180.0f, 360.0f, 20, goldBase);
+        DrawRectangle(static_cast<int>(left + 4.0f), static_cast<int>(top + 24.0f), static_cast<int>(doorW - 8.0f), static_cast<int>(doorH - 24.0f), goldBase);
+        DrawRectangleLinesEx({ left + 4.0f, top + 24.0f, doorW - 8.0f, doorH - 24.0f }, 3.5f, goldTrim);
+        DrawCircleSectorLines(doorArchC, doorR, 180.0f, 360.0f, 20, goldTrim);
 
-        // Lion-head knocker / handle rings
-        DrawCircle(static_cast<int>(bottomCenter.x - 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 7.0f, pal.fireGold[3]);
-        DrawCircle(static_cast<int>(bottomCenter.x - 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 4.0f, pal.wood[1]);
-        DrawCircle(static_cast<int>(bottomCenter.x + 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 7.0f, pal.fireGold[3]);
-        DrawCircle(static_cast<int>(bottomCenter.x + 18.0f), static_cast<int>(bottomCenter.y - 92.0f), 4.0f, pal.wood[1]);
+        // Внутрішні фільонки лівої та правої половинок дверей
+        float halfW = (doorW - 8.0f) * 0.5f;
+        DrawRectangle(static_cast<int>(left + 8.0f), static_cast<int>(top + 30.0f), static_cast<int>(halfW - 6.0f), static_cast<int>(doorH - 36.0f), goldDark);
+        DrawRectangle(static_cast<int>(bottomCenter.x + 2.0f), static_cast<int>(top + 30.0f), static_cast<int>(halfW - 6.0f), static_cast<int>(doorH - 36.0f), goldDark);
+
+        DrawRectangle(static_cast<int>(left + 11.0f), static_cast<int>(top + 33.0f), static_cast<int>(halfW - 12.0f), static_cast<int>(doorH - 42.0f), goldBase);
+        DrawRectangle(static_cast<int>(bottomCenter.x + 5.0f), static_cast<int>(top + 33.0f), static_cast<int>(halfW - 12.0f), static_cast<int>(doorH - 42.0f), goldBase);
+
+        // Вертикальний центральний шов
+        DrawLineEx({ bottomCenter.x, top - doorR + 24.0f }, { bottomCenter.x, bottomCenter.y }, 3.0f, goldTrim);
+
+        // Центральний різьблений золотий барельєф — голова барана з крученими рогами (Ram Head Crest)
+        Vector2 ramC = { bottomCenter.x, bottomCenter.y - 88.0f };
+        DrawCircleV(ramC, 22.0f, goldDark);
+        DrawCircleLines(static_cast<int>(ramC.x), static_cast<int>(ramC.y), 22.0f, goldTrim);
+        DrawCircleV(ramC, 18.0f, goldBase);
+        DrawCircleLines(static_cast<int>(ramC.x), static_cast<int>(ramC.y), 18.0f, goldHi);
+
+        // Роги барана
+        DrawCircleLines(static_cast<int>(ramC.x - 9.0f), static_cast<int>(ramC.y - 4.0f), 8.0f, goldTrim);
+        DrawCircleLines(static_cast<int>(ramC.x + 9.0f), static_cast<int>(ramC.y - 4.0f), 8.0f, goldTrim);
+        DrawCircleLines(static_cast<int>(ramC.x - 9.0f), static_cast<int>(ramC.y - 4.0f), 6.0f, goldDark);
+        DrawCircleLines(static_cast<int>(ramC.x + 9.0f), static_cast<int>(ramC.y - 4.0f), 6.0f, goldDark);
+        // Морда барана
+        DrawTriangle({ ramC.x - 5.0f, ramC.y - 5.0f }, { ramC.x + 5.0f, ramC.y - 5.0f }, { ramC.x, ramC.y + 7.0f }, goldTrim);
+        DrawCircle(static_cast<int>(ramC.x - 3.0f), static_cast<int>(ramC.y - 4.0f), 1.5f, BLACK);
+        DrawCircle(static_cast<int>(ramC.x + 3.0f), static_cast<int>(ramC.y - 4.0f), 1.5f, BLACK);
     } else {
-        // Void portal energy vortex swirling when unlocked
-        float pulse = 0.8f + 0.2f * std::sin(time * 5.0f);
-        DrawCircleGradient(
-            static_cast<int>(bottomCenter.x),
-            static_cast<int>(bottomCenter.y - doorH * 0.5f),
-            56.0f * pulse,
-            pal.moonMagic[3],
-            pal.outline
-        );
-        // Golden celestial rays leaking from portal
+        // Розблокований портал у вимір Йоганна
+        DrawCircleSector(doorArchC, doorR, 180.0f, 360.0f, 20, Color{ 14, 16, 25, 255 });
+        DrawRectangle(static_cast<int>(left + 4.0f), static_cast<int>(top + 24.0f), static_cast<int>(doorW - 8.0f), static_cast<int>(doorH - 24.0f), Color{ 14, 16, 25, 255 });
+
+        float pulse = 0.85f + 0.15f * std::sin(time * 5.0f);
+        DrawCircleGradient(static_cast<int>(bottomCenter.x), static_cast<int>(bottomCenter.y - doorH * 0.5f), 55.0f * pulse, pal.moonMagic[3], pal.outline);
         for (int r = 0; r < 8; ++r) {
-            float ang = time * 2.0f + r * (2.0f * 3.14159f / 8.0f);
+            float ang = time * 2.5f + r * (2.0f * 3.14159f / 8.0f);
             Vector2 rayEnd = {
-                bottomCenter.x + std::cos(ang) * 52.0f,
-                (bottomCenter.y - doorH * 0.5f) + std::sin(ang) * 52.0f
+                bottomCenter.x + std::cos(ang) * 50.0f,
+                (bottomCenter.y - doorH * 0.5f) + std::sin(ang) * 50.0f
             };
-            DrawLineEx({ bottomCenter.x, bottomCenter.y - doorH * 0.5f }, rayEnd, 2.0f, Fade(pal.fireGold[3], 0.45f));
+            DrawLineEx({ bottomCenter.x, bottomCenter.y - doorH * 0.5f }, rayEnd, 2.0f, Fade(goldHi, 0.5f));
         }
     }
 
-    // 4 Boss Seal Gem Medallions:
-    // 0: Khidr (SkyBlue Eye), 1: Alexander (Red Skull), 2: Ponce (Orange Fire), 3: Herodotus (Lime Slime)
+    // 3. Чотири круглі медальйони печаток босів (Boss Seal Medallions)
+    // 0: Khidr (Око), 1: Alexander (Череп), 2: Ponce (Вогонь), 3: Herodotus (Слиз)
     const std::array<Vector2, 4> sealOffsets = {{
-        { -30.0f, -126.0f },
-        {  30.0f, -126.0f },
-        { -30.0f,  -58.0f },
-        {  30.0f,  -58.0f }
+        { -32.0f, -135.0f },
+        {  32.0f, -135.0f },
+        { -32.0f,  -42.0f },
+        {  32.0f,  -42.0f }
     }};
     const std::array<Color, 4> sealColors = {{
-        pal.moonMagic[3], pal.bloodCloth[3], pal.fireGold[3], pal.poisonSlime[3]
+        Color{ 0, 215, 255, 255 },  // Khidr (Cyan)
+        Color{ 235, 45, 45, 255 },   // Alexander (Red)
+        Color{ 255, 140, 30, 255 },  // Ponce (Orange)
+        Color{ 60, 220, 60, 255 }    // Herodotus (Green)
     }};
 
     for (size_t i = 0; i < 4; ++i) {
         Vector2 sp = { bottomCenter.x + sealOffsets[i].x, bottomCenter.y + sealOffsets[i].y };
-        // Outer filigree medallion ring
-        DrawCircleV(sp, 18.0f, pal.dungeon.stoneBg[1]);
-        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 18.0f, pal.fireGold[3]);
-        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 15.0f, pal.fireGold[1]);
+        // Золота оправа слота
+        DrawCircleV(sp, 17.0f, goldDark);
+        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 17.0f, goldTrim);
+        DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 14.5f, goldHi);
 
         if (bossDefeated[i]) {
-            // Radiant boss soul gem
-            float gemPulse = 1.0f + 0.15f * std::sin(time * 4.0f + i * 1.57f);
-            DrawCircleGradient(static_cast<int>(sp.x), static_cast<int>(sp.y), 13.0f * gemPulse, sealColors[i], Fade(sealColors[i], 0.2f));
-            DrawCircleV(sp, 9.0f, sealColors[i]);
-            DrawCircleV(sp, 4.0f, pal.metal[4]); // Gem facet glint
+            // Розблоковано: палаючий коштовний камінь боса
+            float gemPulse = 1.0f + 0.12f * std::sin(time * 4.0f + i * 1.57f);
+            DrawCircleGradient(static_cast<int>(sp.x), static_cast<int>(sp.y), 13.0f * gemPulse, sealColors[i], Fade(sealColors[i], 0.25f));
+            DrawCircleV(sp, 9.5f, sealColors[i]);
+            DrawCircleV(sp, 4.0f, WHITE);
         } else {
-            // Dormant empty socket with dark runic core
-            DrawCircleV(sp, 10.0f, pal.outline);
-            DrawCircleV(sp, 5.0f, pal.dungeon.stoneTile[1]);
+            // Заблоковано: металевий слот із чітким вигравіруваним символом боса
+            DrawCircleV(sp, 12.0f, Color{ 36, 32, 28, 255 });
+            DrawCircleLines(static_cast<int>(sp.x), static_cast<int>(sp.y), 12.0f, goldTrim);
+
+            if (i == 0) {
+                // Khidr: Око
+                DrawCircle(static_cast<int>(sp.x), static_cast<int>(sp.y), 4.5f, goldDark);
+                DrawCircle(static_cast<int>(sp.x), static_cast<int>(sp.y), 2.0f, BLACK);
+            } else if (i == 1) {
+                // Alexander: Череп
+                DrawCircle(static_cast<int>(sp.x), static_cast<int>(sp.y - 1.0f), 4.0f, goldDark);
+                DrawRectangle(static_cast<int>(sp.x - 2.0f), static_cast<int>(sp.y + 1.0f), 4, 3, goldDark);
+                DrawPixel(static_cast<int>(sp.x - 1.5f), static_cast<int>(sp.y - 1.0f), BLACK);
+                DrawPixel(static_cast<int>(sp.x + 1.5f), static_cast<int>(sp.y - 1.0f), BLACK);
+            } else if (i == 2) {
+                // Ponce: Вогонь
+                DrawTriangle({ sp.x, sp.y - 5.0f }, { sp.x - 3.5f, sp.y + 4.0f }, { sp.x + 3.5f, sp.y + 4.0f }, goldDark);
+                DrawCircle(static_cast<int>(sp.x), static_cast<int>(sp.y + 1.0f), 2.0f, Color{ 220, 100, 30, 255 });
+            } else {
+                // Herodotus: Слиз
+                DrawCircle(static_cast<int>(sp.x), static_cast<int>(sp.y + 1.0f), 4.0f, goldDark);
+                DrawCircle(static_cast<int>(sp.x), static_cast<int>(sp.y - 2.0f), 2.0f, goldDark);
+            }
         }
     }
 }

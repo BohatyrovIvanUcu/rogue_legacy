@@ -479,6 +479,15 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
         int cRight = tileMap->WorldToCol(b.x + b.width);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cRight, r, false)) {
+                if (r == rMax) {
+                    if (tileMap->IsSlopeAt(cRight, r - 1) || tileMap->IsSlopeAt(cRight, r)) {
+                        continue;
+                    }
+                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
+                        continue;
+                    }
+                }
                 pos.x = tileMap->GetTileRect(cRight, r).x - width - 0.01f;
                 facingDir = -1.0f;
                 vel.x = -vel.x;
@@ -489,6 +498,15 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
         int cLeft = tileMap->WorldToCol(b.x);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cLeft, r, false)) {
+                if (r == rMax) {
+                    if (tileMap->IsSlopeAt(cLeft, r - 1) || tileMap->IsSlopeAt(cLeft, r)) {
+                        continue;
+                    }
+                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
+                        continue;
+                    }
+                }
                 Rectangle tRec = tileMap->GetTileRect(cLeft, r);
                 pos.x = tRec.x + tRec.width + 0.01f;
                 facingDir = 1.0f;

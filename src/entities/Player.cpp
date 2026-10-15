@@ -764,6 +764,15 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
         int cRight = tileMap->WorldToCol(b.x + b.width);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cRight, r, isDwarf)) {
+                if (r == rMax) {
+                    if (tileMap->IsSlopeAt(cRight, r - 1) || tileMap->IsSlopeAt(cRight, r)) {
+                        continue;
+                    }
+                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
+                        continue;
+                    }
+                }
                 Rectangle tRec = tileMap->GetTileRect(cRight, r);
                 pos.x = tRec.x - width - 0.01f;
                 vel.x = 0.0f;
@@ -774,6 +783,15 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
         int cLeft = tileMap->WorldToCol(b.x);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cLeft, r, isDwarf)) {
+                if (r == rMax) {
+                    if (tileMap->IsSlopeAt(cLeft, r - 1) || tileMap->IsSlopeAt(cLeft, r)) {
+                        continue;
+                    }
+                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
+                        continue;
+                    }
+                }
                 Rectangle tRec = tileMap->GetTileRect(cLeft, r);
                 pos.x = tRec.x + tRec.width + 0.01f;
                 vel.x = 0.0f;
