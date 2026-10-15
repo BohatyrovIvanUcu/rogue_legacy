@@ -27,15 +27,17 @@ void CastlePlayState::OnEnter(GameContext& ctx) {
     curRoomId_ = startRoom.roomId;
 
     Vector2 startPos = {
-        static_cast<float>(6 * Config::TILE_SIZE),
-        static_cast<float>(12 * Config::TILE_SIZE)
+        static_cast<float>(Config::ROOM_OFFSET_X + 3.5f * Config::TILE_SIZE),
+        static_cast<float>(Config::ROOM_OFFSET_Y + 8.0f * Config::TILE_SIZE - 40.0f)
     };
     player_.InitFromContext(ctx, startPos);
 
     // Ініціалізація 2D-камери світу (1:1 масштаб без зазорів, 1920x1080)
     worldCam_.offset = { Config::RENDER_WIDTH * 0.5f, Config::RENDER_HEIGHT * 0.5f };
     worldCam_.zoom = static_cast<float>(Config::RENDER_WIDTH) / static_cast<float>(Config::CELL_PIXEL_WIDTH);
-    camTarget_ = { startRoom.GetPixelWidth() * 0.5f, startRoom.GetPixelHeight() * 0.5f };
+    float halfViewW = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
+    float halfViewH = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
+    camTarget_ = { halfViewW, halfViewH };
     worldCam_.target = camTarget_;
 
     startRoom.OnPlayerEnterRoom(ctx, player_);
@@ -103,29 +105,40 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
     curRoom.Update(dt, ctx, player_);
     castle_.SyncRoomStateToContext(curRoom, ctx);
 
-    // Плавне стеження 2D-камери за гравцем (Smooth Lerp Camera)
+    // Стеження 2D-камери з мертвою зоною (Camera Deadzone Box)
+    const float deadzoneW = 90.0f;
+    const float deadzoneH = 65.0f;
+    Vector2 pCenter = player_.GetCenter();
+
+    if (pCenter.x > camTarget_.x + deadzoneW) {
+        camTarget_.x += (pCenter.x - (camTarget_.x + deadzoneW)) * std::min(1.0f, 9.0f * dt);
+    } else if (pCenter.x < camTarget_.x - deadzoneW) {
+        camTarget_.x += (pCenter.x - (camTarget_.x - deadzoneW)) * std::min(1.0f, 9.0f * dt);
+    }
+
+    if (pCenter.y > camTarget_.y + deadzoneH) {
+        camTarget_.y += (pCenter.y - (camTarget_.y + deadzoneH)) * std::min(1.0f, 9.0f * dt);
+    } else if (pCenter.y < camTarget_.y - deadzoneH) {
+        camTarget_.y += (pCenter.y - (camTarget_.y - deadzoneH)) * std::min(1.0f, 9.0f * dt);
+    }
+
+    // Затискання в межах поточної кімнати (з урахуванням multi-cell 1x1, 2x1, 1x2, 2x2)
     float halfViewW = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
     float halfViewH = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
     float roomPxW = static_cast<float>(curRoom.GetPixelWidth());
     float roomPxH = static_cast<float>(curRoom.GetPixelHeight());
 
-    float targetX = player_.GetCenter().x;
-    float targetY = player_.GetCenter().y;
-
     if (roomPxW <= halfViewW * 2.0f) {
-        targetX = roomPxW * 0.5f;
+        camTarget_.x = roomPxW * 0.5f;
     } else {
-        targetX = std::clamp(targetX, halfViewW, roomPxW - halfViewW);
+        camTarget_.x = std::clamp(camTarget_.x, halfViewW, roomPxW - halfViewW);
     }
 
     if (roomPxH <= halfViewH * 2.0f) {
-        targetY = roomPxH * 0.5f;
+        camTarget_.y = roomPxH * 0.5f;
     } else {
-        targetY = std::clamp(targetY, halfViewH, roomPxH - halfViewH);
+        camTarget_.y = std::clamp(camTarget_.y, halfViewH, roomPxH - halfViewH);
     }
-
-    camTarget_.x += (targetX - camTarget_.x) * std::min(1.0f, 10.0f * dt);
-    camTarget_.y += (targetY - camTarget_.y) * std::min(1.0f, 10.0f * dt);
 
     // Screen shake за моделлю trauma: offset = maxShake * trauma², спадає лінійно
     ctx.screenTrauma = std::max(0.0f, ctx.screenTrauma - 1.25f * dt);
@@ -163,6 +176,14 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
         }
         player_.SetCenter({ curRoom.GetPixelWidth() * 0.5f, curRoom.GetPixelHeight() - 3.0f * Config::TILE_SIZE });
         camTarget_ = player_.GetCenter();
+        float halfViewW = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
+        float halfViewH = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
+        float rW = static_cast<float>(curRoom.GetPixelWidth());
+        float rH = static_cast<float>(curRoom.GetPixelHeight());
+        if (rW <= halfViewW * 2.0f) camTarget_.x = rW * 0.5f;
+        else camTarget_.x = std::clamp(camTarget_.x, halfViewW, rW - halfViewW);
+        if (rH <= halfViewH * 2.0f) camTarget_.y = rH * 0.5f;
+        else camTarget_.y = std::clamp(camTarget_.y, halfViewH, rH - halfViewH);
         worldCam_.target = camTarget_;
         return;
     }
@@ -335,6 +356,14 @@ void CastlePlayState::CheckRoomDoorTransitions(GameContext& ctx) {
 
         // Миттєве фокусування 2D-камери
         camTarget_ = player_.GetCenter();
+        float halfViewW = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
+        float halfViewH = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
+        float rW = static_cast<float>(nextRoom.GetPixelWidth());
+        float rH = static_cast<float>(nextRoom.GetPixelHeight());
+        if (rW <= halfViewW * 2.0f) camTarget_.x = rW * 0.5f;
+        else camTarget_.x = std::clamp(camTarget_.x, halfViewW, rW - halfViewW);
+        if (rH <= halfViewH * 2.0f) camTarget_.y = rH * 0.5f;
+        else camTarget_.y = std::clamp(camTarget_.y, halfViewH, rH - halfViewH);
         worldCam_.target = camTarget_;
     }
 }
@@ -402,6 +431,14 @@ void CastlePlayState::UpdateTeleporterOverlay(GameContext& ctx) {
         teleporterMapOpen_ = false;
 
         camTarget_ = player_.GetCenter();
+        float halfViewW = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
+        float halfViewH = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
+        float rW = static_cast<float>(destRoom.GetPixelWidth());
+        float rH = static_cast<float>(destRoom.GetPixelHeight());
+        if (rW <= halfViewW * 2.0f) camTarget_.x = rW * 0.5f;
+        else camTarget_.x = std::clamp(camTarget_.x, halfViewW, rW - halfViewW);
+        if (rH <= halfViewH * 2.0f) camTarget_.y = rH * 0.5f;
+        else camTarget_.y = std::clamp(camTarget_.y, halfViewH, rH - halfViewH);
         worldCam_.target = camTarget_;
 
         if (ctx.audio) ctx.audio->PlaySfx(SfxId::SpellCast, 1.25f);
@@ -828,30 +865,66 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
         int rw = r.widthCells * cell;
         int rh = r.heightCells * cell;
 
-        Color c = Color{ 75, 110, 165, 255 };
-        switch (r.biome) {
-            case BiomeType::CastleHamson:   c = Color{ 75, 110, 165, 255 }; break;
-            case BiomeType::ForestAbkhazia: c = Color{ 55, 145, 78, 255 };  break;
-            case BiomeType::TheMaya:        c = Color{ 185, 145, 65, 255 }; break;
-            case BiomeType::LandOfDarkness: c = Color{ 125, 60, 165, 255 }; break;
-            default: break;
-        }
+        // Автентичний темно-синій напівпрозорий прямокутник відвіданої кімнати
+        Color fillCol = Color{ 18, 42, 88, 210 };
+        Color frameCol = Color{ 140, 200, 255, 255 };
 
-        // Кімната малюється єдиним прямокутником БЕЗ внутрішніх роздільних ліній
-        DrawRectangle(rx + 1, ry + 1, rw - 2, rh - 2, c);
-        DrawRectangleLines(rx, ry, rw, rh, Color{ 35, 45, 65, 255 });
+        // Кімната малюється єдиним контуром БЕЗ внутрішніх роздільних ліній
+        DrawRectangle(rx + 1, ry + 1, rw - 2, rh - 2, fillCol);
+        DrawRectangleLinesEx({ static_cast<float>(rx), static_cast<float>(ry), static_cast<float>(rw), static_cast<float>(rh) }, 1.5f, frameCol);
+
+        // Білі засічки дверей (door notches) на зовнішніх стінах кімнати
+        for (int sy = 0; sy < r.heightCells; ++sy) {
+            for (int sx = 0; sx < r.widthCells; ++sx) {
+                uint8_t dMask = r.subCellDoors[sy][sx];
+                if (sy == 0 && (dMask & DoorMask::NORTH)) {
+                    int dX = rx + sx * cell + cell / 2;
+                    DrawRectangle(dX - 2, ry - 1, 4, 3, WHITE);
+                }
+                if (sy == r.heightCells - 1 && (dMask & DoorMask::SOUTH)) {
+                    int dX = rx + sx * cell + cell / 2;
+                    DrawRectangle(dX - 2, ry + rh - 2, 4, 3, WHITE);
+                }
+                if (sx == 0 && (dMask & DoorMask::WEST)) {
+                    int dY = ry + sy * cell + cell / 2;
+                    DrawRectangle(rx - 1, dY - 2, 3, 4, WHITE);
+                }
+                if (sx == r.widthCells - 1 && (dMask & DoorMask::EAST)) {
+                    int dY = ry + sy * cell + cell / 2;
+                    DrawRectangle(rx + rw - 2, dY - 2, 3, 4, WHITE);
+                }
+            }
+        }
 
         // Іконки спеціальних кімнат по центру всієї кімнати
         int icx = rx + rw / 2;
         int icy = ry + rh / 2;
         if (r.roomType == RoomType::BossEntrance) {
-            DrawCircle(icx, icy, 3.5f, RED);
+            // Червоний маркер-череп боса
+            DrawCircle(icx, icy - 1, 4.0f, Color{ 220, 38, 38, 255 });
+            DrawRectangle(icx - 2, icy + 1, 4, 2, Color{ 180, 25, 25, 255 });
+            DrawPixel(icx - 1, icy - 1, Color{ 30, 0, 0, 255 });
+            DrawPixel(icx + 1, icy - 1, Color{ 30, 0, 0, 255 });
+            DrawPixel(icx - 1, icy + 2, Color{ 30, 0, 0, 255 });
+            DrawPixel(icx + 1, icy + 2, Color{ 30, 0, 0, 255 });
         } else if (r.roomType == RoomType::Teleporter || r.roomType == RoomType::Entrance) {
-            DrawCircle(icx, icy, 3.0f, SKYBLUE);
+            // Блакитно-біле сяюче кільце порталу
+            DrawCircle(icx, icy, 3.8f, Color{ 0, 215, 255, 255 });
+            DrawCircle(icx, icy, 2.2f, Color{ 12, 45, 80, 255 });
+            DrawCircle(icx, icy, 1.0f, WHITE);
         } else if ((r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened) {
-            DrawCircle(icx, icy, 3.0f, GOLD);
+            // Фіолетове коло з чітким білим знаком '?'
+            DrawCircle(icx, icy, 4.2f, Color{ 145, 55, 200, 255 });
+            DrawCircleLines(icx, icy, 4.2f, Color{ 195, 105, 245, 255 });
+            DrawPixel(icx - 1, icy - 2, WHITE);
+            DrawPixel(icx,     icy - 2, WHITE);
+            DrawPixel(icx + 1, icy - 1, WHITE);
+            DrawPixel(icx,     icy,     WHITE);
+            DrawPixel(icx,     icy + 2, WHITE);
         } else if (r.roomType == RoomType::Secret && !r.chestOpened) {
-            DrawCircle(icx, icy, 3.0f, MAGENTA);
+            // Маджентовий діамант
+            DrawPoly({ static_cast<float>(icx), static_cast<float>(icy) }, 4, 3.5f, 45.0f, Color{ 230, 60, 180, 255 });
+            DrawPixel(icx, icy, WHITE);
         }
 
         // Eidetic Memory: точкові позиції активних ворогів
@@ -868,11 +941,16 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
         }
     }
 
-    // Підсвітка поточної під-клітинки гравця
-    int px = mapX + (playerGx - viewMinGx) * cell;
-    int py = mapY + (playerGy - viewMinGy) * cell;
-    DrawRectangleLines(px, py, cell, cell, WHITE);
-    DrawCircle(px + cell / 2, py + cell / 2, 2.0f, YELLOW);
+    // Точна позиція гравця (player dot) за дробовими координатами всередині поточної кімнати
+    int curRoomMinimapX = mapX + (curRoom.originGx - viewMinGx) * cell;
+    int curRoomMinimapY = mapY + (curRoom.originGy - viewMinGy) * cell;
+    float fracX = (player_.GetCenter().x - static_cast<float>(Config::ROOM_OFFSET_X)) / static_cast<float>(curRoom.GetPixelWidth());
+    float fracY = (player_.GetCenter().y - static_cast<float>(Config::ROOM_OFFSET_Y)) / static_cast<float>(curRoom.GetPixelHeight());
+    float pDotX = curRoomMinimapX + std::clamp(fracX, 0.05f, 0.95f) * (curRoom.widthCells * cell);
+    float pDotY = curRoomMinimapY + std::clamp(fracY, 0.05f, 0.95f) * (curRoom.heightCells * cell);
+
+    DrawCircle(static_cast<int>(pDotX), static_cast<int>(pDotY), 3.2f, WHITE);
+    DrawCircle(static_cast<int>(pDotX), static_cast<int>(pDotY), 2.0f, Color{ 255, 230, 80, 255 });
 
     EndScissorMode();
 
@@ -943,9 +1021,25 @@ void CastlePlayState::DrawTeleporterOverlay(const GameContext& ctx) const {
         }
 
         // Icon
-        Color iconCol = (r->roomType == RoomType::BossEntrance) ? RED : SKYBLUE;
-        DrawCircle(panelX + 38, itemY + itemH / 2, 7.0f, iconCol);
-        DrawCircleLines(panelX + 38, itemY + itemH / 2, 7.0f, WHITE);
+        int tpx = panelX + 38;
+        int tpy = itemY + itemH / 2;
+        if (r->roomType == RoomType::BossEntrance) {
+            DrawCircle(tpx, tpy - 2, 8.5f, Color{ 220, 38, 38, 255 });
+            DrawCircleLines(tpx, tpy - 2, 8.5f, Color{ 255, 120, 120, 255 });
+            DrawRectangle(tpx - 4, tpy + 2, 9, 6, Color{ 180, 25, 25, 255 });
+            DrawRectangleLines(tpx - 4, tpy + 2, 9, 6, Color{ 255, 120, 120, 255 });
+            DrawCircle(tpx - 3, tpy - 3, 2.0f, Color{ 25, 0, 0, 255 });
+            DrawCircle(tpx + 3, tpy - 3, 2.0f, Color{ 25, 0, 0, 255 });
+            DrawPixel(tpx - 2, tpy + 5, BLACK);
+            DrawPixel(tpx,     tpy + 5, BLACK);
+            DrawPixel(tpx + 2, tpy + 5, BLACK);
+        } else {
+            // Cyan-white portal ring
+            DrawCircle(tpx, tpy, 9.0f, Color{ 0, 215, 255, 255 });
+            DrawCircleLines(tpx, tpy, 9.0f, Color{ 180, 245, 255, 255 });
+            DrawCircle(tpx, tpy, 5.0f, Color{ 12, 45, 80, 255 });
+            DrawCircle(tpx, tpy, 2.5f, WHITE);
+        }
 
         // Name
         std::string name;

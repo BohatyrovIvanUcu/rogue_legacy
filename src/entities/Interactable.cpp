@@ -93,6 +93,17 @@ Interactable Interactable::MakeShrine(Vector2 bottomCenter) {
     return it;
 }
 
+Interactable Interactable::MakeStatue(Vector2 bottomCenter) {
+    Interactable it;
+    it.kind = InteractableKind::Statue;
+    it.width = 32.0f;
+    it.height = 46.0f;
+    it.pos = { bottomCenter.x - it.width * 0.5f, bottomCenter.y - it.height };
+    it.hp = 1;
+    it.maxHp = 1;
+    return it;
+}
+
 void Interactable::SpawnLootBurst(
     std::vector<Interactable>& outDrops,
     Vector2 origin,
@@ -198,10 +209,35 @@ void Interactable::Update(
         float prevBottom = GetBottom();
         pos.y += vel.y * dt;
         if (tileMap && vel.y >= 0.0f) {
-            int cMid = tileMap->WorldToCol(GetCenter().x);
+            float footX = GetCenter().x;
+            int cMid = tileMap->WorldToCol(footX);
             int rBot = tileMap->WorldToRow(GetBottom());
-            if (tileMap->IsSolidAt(cMid, rBot, false) ||
-                (tileMap->IsOneWayAt(cMid, rBot) && prevBottom <= tileMap->GetTileRect(cMid, rBot).y + 10.0f)) {
+
+            bool onSlope = false;
+            for (int rTry : { rBot, rBot + 1, rBot - 1 }) {
+                if (tileMap->IsSlopeAt(cMid, rTry)) {
+                    float surfaceY = 0.0f;
+                    if (tileMap->GetSlopeSurfaceY(footX, cMid, rTry, surfaceY)) {
+                        if (GetBottom() >= surfaceY - 10.0f && GetBottom() <= surfaceY + 18.0f) {
+                            pos.y = surfaceY - height;
+                            char slp = tileMap->GetTileAt(cMid, rTry);
+                            if (std::abs(vel.y) > 100.0f) {
+                                vel.y = -vel.y * 0.38f;
+                                vel.x += (slp == '/' ? -85.0f : 85.0f);
+                            } else {
+                                vel.y = 0.0f;
+                                vel.x += (slp == '/' ? -35.0f : 35.0f) * dt;
+                                vel.x *= 0.85f;
+                            }
+                            onSlope = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!onSlope && (tileMap->IsSolidAt(cMid, rBot, false) ||
+                (tileMap->IsOneWayAt(cMid, rBot) && prevBottom <= tileMap->GetTileRect(cMid, rBot).y + 10.0f))) {
                 Rectangle tRec = tileMap->GetTileRect(cMid, rBot);
                 pos.y = tRec.y - height;
                 if (std::abs(vel.y) > 140.0f) {
@@ -297,18 +333,22 @@ bool Interactable::OnHitByPlayer(
 ) {
     if (!active) return false;
 
-    if (kind == InteractableKind::Torch || kind == InteractableKind::BreakableProp) {
+    if (kind == InteractableKind::Torch || kind == InteractableKind::BreakableProp || kind == InteractableKind::Statue) {
         active = false;
-        if (ctx.audio) ctx.audio->PlaySfx(SfxId::HitEnemy, 1.3f, 0.7f);
+        if (ctx.audio) ctx.audio->PlaySfx(kind == InteractableKind::Statue ? SfxId::HeavyThud : SfxId::HitEnemy, 1.25f, 0.8f);
         if (ctx.particles) {
             const auto& pal = GetPalette();
-            Color debrisCol = (kind == InteractableKind::Torch)
-                              ? pal.fireGold[3]
-                              : ((subVariant == 1) ? pal.metal[3] : pal.wood[2]);
-            ctx.particles->SpawnDebris(GetCenter(), debrisCol, 12);
+            Color debrisCol = (kind == InteractableKind::Statue)
+                              ? pal.castle.stoneTile[2]
+                              : ((kind == InteractableKind::Torch)
+                                 ? pal.fireGold[3]
+                                 : ((subVariant == 1) ? pal.metal[3] : pal.wood[2]));
+            ctx.particles->SpawnDebris(GetCenter(), debrisCol, kind == InteractableKind::Statue ? 18 : 12);
         }
 
-        int goldRoll = (std::rand() % 100 < 65) ? ((1 + std::rand() % 2) * 10) : 0;
+        int goldRoll = (kind == InteractableKind::Statue)
+                       ? (20 + (std::rand() % 3) * 10)
+                       : ((std::rand() % 100 < 65) ? ((1 + std::rand() % 2) * 10) : 0);
         SpawnLootBurst(outDrops, GetCenter(), goldRoll, true);
 
         // Риса O.C.D.: ламання меблів та факелів відновлює 1 MP
@@ -474,15 +514,37 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
                 DrawCircle(static_cast<int>(c.x), static_cast<int>(pos.y + 8.0f), 8.5f, pal.metal[3]);
                 DrawRectangle(static_cast<int>(c.x - 5.0f), static_cast<int>(pos.y + 8.0f), 10, 2, pal.outline);
             } else {
-                // Готичний столик із золотим кубком
+                // Біла порцелянова ваза з кобальтовим візерунком на різьбленому столику (Rogue Legacy 1)
                 Rectangle b = GetBounds();
-                DrawRectangle(static_cast<int>(b.x), static_cast<int>(b.y + 8.0f), static_cast<int>(b.width), 8, pal.wood[2]);
-                DrawRectangle(static_cast<int>(b.x + 4.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 16.0f), pal.wood[1]);
-                DrawRectangle(static_cast<int>(b.x + b.width - 9.0f), static_cast<int>(b.y + 16.0f), 5, static_cast<int>(b.height - 16.0f), pal.wood[1]);
-                // Золотий кубок
-                DrawTriangle({ c.x + 6.0f, b.y + 7.0f }, { c.x, b.y - 5.0f }, { c.x - 6.0f, b.y + 7.0f }, pal.fireGold[3]);
-                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y - 5.0f), 4.5f, pal.fireGold[3]);
-                DrawCircle(static_cast<int>(c.x), static_cast<int>(b.y - 6.0f), 3.0f, pal.bloodCloth[1]); // вино всередині
+                float tableY = b.y + b.height * 0.55f;
+                DrawRectangle(static_cast<int>(b.x + 2.0f), static_cast<int>(tableY), static_cast<int>(b.width - 4.0f), 5, pal.wood[2]);
+                DrawRectangle(static_cast<int>(b.x + 4.0f), static_cast<int>(tableY + 5.0f), 4, static_cast<int>(b.height - (tableY - b.y + 5.0f)), pal.wood[1]);
+                DrawRectangle(static_cast<int>(b.x + b.width - 8.0f), static_cast<int>(tableY + 5.0f), 4, static_cast<int>(b.height - (tableY - b.y + 5.0f)), pal.wood[1]);
+
+                Color vaseBase   = Color{ 245, 246, 250, 255 };
+                Color vaseShade  = Color{ 205, 210, 222, 255 };
+                Color blueFloral = Color{ 38, 92, 184, 255 };
+
+                float vx = c.x;
+                float vy = tableY - 10.0f;
+                // Опукле пузате тіло вази
+                DrawCircle(static_cast<int>(vx), static_cast<int>(vy), 8.5f, vaseBase);
+                DrawCircle(static_cast<int>(vx + 2.0f), static_cast<int>(vy), 7.5f, vaseShade);
+                DrawCircle(static_cast<int>(vx), static_cast<int>(vy), 7.0f, vaseBase);
+
+                // Кобальтовий синій орнамент
+                DrawCircle(static_cast<int>(vx), static_cast<int>(vy), 2.5f, blueFloral);
+                DrawCircle(static_cast<int>(vx - 3.5f), static_cast<int>(vy), 1.5f, blueFloral);
+                DrawCircle(static_cast<int>(vx + 3.5f), static_cast<int>(vy), 1.5f, blueFloral);
+                DrawCircle(static_cast<int>(vx), static_cast<int>(vy - 3.5f), 1.5f, blueFloral);
+
+                // Витончене горлечко та вінець
+                DrawRectangle(static_cast<int>(vx - 3.5f), static_cast<int>(vy - 16.0f), 7, 7, vaseBase);
+                DrawLine(static_cast<int>(vx + 2.0f), static_cast<int>(vy - 16.0f), static_cast<int>(vx + 2.0f), static_cast<int>(vy - 9.0f), vaseShade);
+                DrawRectangle(static_cast<int>(vx - 5.5f), static_cast<int>(vy - 18.0f), 11, 3, vaseBase);
+                DrawLine(static_cast<int>(vx - 5.5f), static_cast<int>(vy - 18.0f), static_cast<int>(vx + 5.5f), static_cast<int>(vy - 18.0f), blueFloral);
+                // Блік світла на порцеляні
+                DrawCircle(static_cast<int>(vx - 3.0f), static_cast<int>(vy - 3.0f), 1.5f, WHITE);
             }
             break;
         }
@@ -664,6 +726,48 @@ void Interactable::Draw(const GameContext& /*ctx*/) const {
             } else {
                 DrawCircleGradient(static_cast<int>(c.x), static_cast<int>(b.y + 6.0f), 12.0f, Fade(pal.moonMagic[3], 0.25f), Fade(pal.outline, 0.0f));
             }
+            break;
+        }
+
+        case InteractableKind::Statue: {
+            // Автентична лицарська кам'яна статуя на різьбленому постаменті Rogue Legacy
+            Color stoneDark = pal.castle.stoneTile[0];
+            Color stoneMid  = pal.castle.stoneTile[1];
+            Color stoneBase = pal.castle.stoneTile[2];
+            Color stoneHi   = pal.castle.stoneTile[4];
+
+            // 1. Постамент (Pedestal): 28x14px з карнизом
+            float pedW = 28.0f;
+            float pedH = 14.0f;
+            float pedX = c.x - pedW * 0.5f;
+            float pedY = GetBottom() - pedH;
+            DrawRectangle(static_cast<int>(pedX), static_cast<int>(pedY), static_cast<int>(pedW), static_cast<int>(pedH), stoneBase);
+            DrawRectangleLines(static_cast<int>(pedX), static_cast<int>(pedY), static_cast<int>(pedW), static_cast<int>(pedH), stoneDark);
+            DrawLine(static_cast<int>(pedX + 1), static_cast<int>(pedY + 1), static_cast<int>(pedX + pedW - 2), static_cast<int>(pedY + 1), stoneHi);
+            DrawRectangle(static_cast<int>(pedX - 2.0f), static_cast<int>(GetBottom() - 4.0f), static_cast<int>(pedW + 4.0f), 4, stoneDark);
+
+            // 2. Ноги та торс лицаря
+            DrawRectangle(static_cast<int>(c.x - 7.0f), static_cast<int>(pedY - 14.0f), 14, 14, stoneMid);
+            DrawRectangleLines(static_cast<int>(c.x - 7.0f), static_cast<int>(pedY - 14.0f), 14, 14, stoneDark);
+
+            // 3. Закритий шолом лицаря
+            float headY = pedY - 26.0f;
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(headY), 7.0f, stoneBase);
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(headY), 7.0f, stoneDark);
+            // Прорізь заборола шолома (Visor slit)
+            DrawRectangle(static_cast<int>(c.x - 4.0f), static_cast<int>(headY - 1.0f), 8, 2, stoneDark);
+            // Плюмаж шолома (кам'яний гребінь)
+            DrawTriangle({ c.x - 2.0f, headY - 11.0f }, { c.x + 2.0f, headY - 11.0f }, { c.x, headY - 6.0f }, stoneHi);
+
+            // 4. Великий лицарський дворучний меч вістрям донизу
+            DrawLineEx({ c.x, headY + 5.0f }, { c.x, pedY + 4.0f }, 3.0f, stoneDark);
+            DrawLineEx({ c.x, headY + 5.0f }, { c.x, pedY + 3.0f }, 1.5f, stoneHi);
+            // Гарда меча
+            DrawLineEx({ c.x - 6.0f, headY + 10.0f }, { c.x + 6.0f, headY + 10.0f }, 2.5f, stoneDark);
+
+            // 5. Щит на лівій руці
+            DrawRectangleRounded({ c.x - 12.0f, pedY - 18.0f, 8.0f, 15.0f }, 0.4f, 3, stoneBase);
+            DrawRectangleRoundedLines({ c.x - 12.0f, pedY - 18.0f, 8.0f, 15.0f }, 0.4f, 3, 1.5f, stoneDark);
             break;
         }
     }

@@ -720,17 +720,20 @@ void ProceduralRenderer::DrawBiomeBackground(BiomeType biome, int roomGx, int ro
     const auto& pal = GetPalette();
     const auto& bp = pal.GetBiome(biome);
 
-    Color bgTop    = bp.stoneBg[1]; // Luminance ~8%
-    Color bgBottom = bp.stoneBg[0]; // Luminance ~5%
-    Color brickLine = bp.stoneBg[2]; // Luminance ~12%
+    Color bgTop     = bp.stoneBg[2]; // Базовий виразний сланцево-бірюзовий камінь (#243036)
+    Color bgBottom  = bp.stoneBg[1]; // Глибший тон
+    Color brickLine = bp.stoneBg[0]; // Темний розчин / шви (#161E22)
+    Color brickHi   = bp.stoneBg[3]; // Світліші цегляні ряди (#2C3A41)
 
     DrawRectangleGradientV(0, 0, pixelW, pixelH, bgTop, bgBottom);
 
     for (int y = 0; y < pixelH; y += 48) {
         DrawLine(0, y, pixelW, y, brickLine);
+        DrawLine(0, y + 1, pixelW, y + 1, Fade(brickHi, 0.40f));
         int offset = ((y / 48) % 2) * 48;
         for (int x = offset; x < pixelW; x += 96) {
             DrawLine(x, y, x, y + 48, brickLine);
+            DrawLine(x + 1, y, x + 1, y + 48, Fade(brickHi, 0.30f));
         }
     }
 
@@ -810,223 +813,92 @@ void ProceduralRenderer::DrawTile(
     bool s_solid = (neighborMask & 4) != 0;
     bool w = (neighborMask & 8) != 0;
 
-    bool nw = (diagMask & 1) != 0;
-    bool ne = (diagMask & 2) != 0;
-    bool sw = (diagMask & 4) != 0;
-    bool se = (diagMask & 8) != 0;
+    [[maybe_unused]] bool nw = (diagMask & 1) != 0;
+    [[maybe_unused]] bool ne = (diagMask & 2) != 0;
+    [[maybe_unused]] bool sw = (diagMask & 4) != 0;
+    [[maybe_unused]] bool se = (diagMask & 8) != 0;
 
     if (tileCode == '#' || tileCode == 'X' || tileCode == 'I') {
-        // 1. Автотайлінг стіни за маскою 4-біт (16 варіацій)
-        Color baseCol = (neighborMask == 0x0F) ? bp.stoneTile[1] : bp.stoneTile[2];
+        Color baseCol   = bp.stoneTile[2]; // Базовий світлий камінь (#8E8C84 для Hamson)
+        Color mortarCol = bp.stoneTile[0]; // Темний розчин / шви (#4A4842)
+        Color shadowCol = bp.stoneTile[1]; // Тіньові цеглини (#7A7870)
+        Color lightCol  = bp.stoneTile[3]; // Світлі цеглини (#9E9C94)
+        Color reliefCol = bp.stoneTile[4]; // Рельєфна фаска бордюру (#D2D6DA)
         Color borderCol = pal.outline;
-        Color highlightCol = bp.stoneTile[4];
-        Color shadowCol = bp.stoneTile[0];
-        Color capCol = bp.stoneTile[3];
 
         if (tileCode == 'I') {
-            baseCol = ColorAlpha(baseCol, illusionAlpha);
-            borderCol = ColorAlpha(borderCol, illusionAlpha);
-            highlightCol = ColorAlpha(highlightCol, illusionAlpha);
+            baseCol   = ColorAlpha(baseCol, illusionAlpha);
+            mortarCol = ColorAlpha(mortarCol, illusionAlpha);
             shadowCol = ColorAlpha(shadowCol, illusionAlpha);
-            capCol = ColorAlpha(capCol, illusionAlpha);
+            lightCol  = ColorAlpha(lightCol, illusionAlpha);
+            reliefCol = ColorAlpha(reliefCol, illusionAlpha);
+            borderCol = ColorAlpha(borderCol, illusionAlpha);
         }
 
-        // Базовий блок каменю
+        // 1. Базовий суцільний моноліт
         DrawRectangle(x, y, s, s, baseCol);
 
-        // 4. Скісні зрізи (45°) на зовнішніх кутах (зрізаємо 4px кута для готичної фаски)
-        const float cut = 4.0f;
-        if (!n && !w) {
-            DrawTriangle({ static_cast<float>(x), static_cast<float>(y) },
-                         { static_cast<float>(x + cut), static_cast<float>(y) },
-                         { static_cast<float>(x), static_cast<float>(y + cut) }, pal.outline);
-            DrawLine(x, y + 4, x + 4, y, highlightCol);
+        // 2. Внутрішня цегляна кладка: 2 ряди цегли по 24px заввишки
+        // Горизонтальний шов посередині тайла:
+        DrawLine(x, y + s / 2, x + s, y + s / 2, mortarCol);
+
+        // Вертикальні шви кладки зі зміщенням у шаховому порядку за координатами:
+        int bondShift = ((col + row) % 2 == 0) ? 0 : 24;
+        int topSeam = x + bondShift;
+        if (topSeam > x && topSeam < x + s) {
+            DrawLine(topSeam, y, topSeam, y + s / 2, mortarCol);
         }
-        if (!n && !e) {
-            DrawTriangle({ static_cast<float>(x + s), static_cast<float>(y) },
-                         { static_cast<float>(x + s), static_cast<float>(y + cut) },
-                         { static_cast<float>(x + s - cut), static_cast<float>(y) }, pal.outline);
-            DrawLine(x + s - 4, y, x + s, y + 4, highlightCol);
-        }
-        if (!s_solid && !w) {
-            DrawTriangle({ static_cast<float>(x), static_cast<float>(y + s) },
-                         { static_cast<float>(x), static_cast<float>(y + s - cut) },
-                         { static_cast<float>(x + cut), static_cast<float>(y + s) }, pal.outline);
-            DrawLine(x, y + s - 4, x + 4, y + s, shadowCol);
-        }
-        if (!s_solid && !e) {
-            DrawTriangle({ static_cast<float>(x + s), static_cast<float>(y + s) },
-                         { static_cast<float>(x + s - cut), static_cast<float>(y + s) },
-                         { static_cast<float>(x + s), static_cast<float>(y + s - cut) }, pal.outline);
-            DrawLine(x + s - 4, y + s, x + s, y + s - 4, shadowCol);
+        int botSeam = x + ((bondShift + 24) % 48);
+        if (botSeam > x && botSeam < x + s) {
+            DrawLine(botSeam, y + s / 2, botSeam, y + s, mortarCol);
         }
 
-        // Внутрішні кути (inner corners crevice details)
-        if (n && w && !nw) {
-            DrawPixel(x, y, borderCol);
-            DrawPixel(x + 1, y, borderCol);
-            DrawPixel(x, y + 1, borderCol);
-        }
-        if (n && e && !ne) {
-            DrawPixel(x + s - 1, y, borderCol);
-            DrawPixel(x + s - 2, y, borderCol);
-            DrawPixel(x + s - 1, y + 1, borderCol);
-        }
-        if (s_solid && w && !sw) {
-            DrawPixel(x, y + s - 1, borderCol);
-            DrawPixel(x + 1, y + s - 1, borderCol);
-            DrawPixel(x, y + s - 2, borderCol);
-        }
-        if (s_solid && e && !se) {
-            DrawPixel(x + s - 1, y + s - 1, borderCol);
-            DrawPixel(x + s - 2, y + s - 1, borderCol);
-            DrawPixel(x + s - 1, y + s - 2, borderCol);
-        }
-
-        // 2. Детерміновані варіації кладки (5 патернів через TileHash)
+        // Детерміновані варіації відтінків цеглин для живої фактури муру:
         uint32_t th = TileHash(col, row);
-        uint32_t pattern = th % 5;
-        int halfS = s / 2;
-
-        switch (pattern) {
-            case 0: { // Класична перев'язка 2:1
-                DrawLine(x, y + halfS, x + s - 1, y + halfS, borderCol);
-                DrawLine(x, y + halfS + 1, x + s - 1, y + halfS + 1, bp.stoneTile[3]);
-                int offTop = ((row % 2) == 0) ? (s / 2) : (s / 3);
-                DrawLine(x + offTop, y, x + offTop, y + halfS, borderCol);
-                DrawLine(x + offTop + 1, y, x + offTop + 1, y + halfS, bp.stoneTile[3]);
-                int offBot = ((row % 2) == 0) ? (s / 4) : (3 * s / 4);
-                DrawLine(x + offBot, y + halfS, x + offBot, y + s, borderCol);
-                DrawLine(x + offBot + 1, y + halfS, x + offBot + 1, y + s, bp.stoneTile[3]);
-                break;
-            }
-            case 1: { // Великий моноліт з бічними блоками
-                int leftSplit = s / 3;
-                int rightSplit = 2 * s / 3;
-                DrawLine(x + leftSplit, y, x + leftSplit, y + s, borderCol);
-                DrawLine(x + leftSplit + 1, y, x + leftSplit + 1, y + s, bp.stoneTile[3]);
-                DrawLine(x + rightSplit, y, x + rightSplit, y + s, borderCol);
-                DrawLine(x + rightSplit + 1, y, x + rightSplit + 1, y + s, bp.stoneTile[3]);
-                DrawLine(x, y + halfS, x + leftSplit, y + halfS, borderCol);
-                DrawLine(x + rightSplit, y + halfS, x + s - 1, y + halfS, borderCol);
-                break;
-            }
-            case 2: { // Асиметрична 3-рядна кладка
-                int y1 = y + 16;
-                int y2 = y + 32;
-                DrawLine(x, y1, x + s - 1, y1, borderCol);
-                DrawLine(x, y2, x + s - 1, y2, borderCol);
-                DrawLine(x + 14, y, x + 14, y1, borderCol);
-                DrawLine(x + 30, y1, x + 30, y2, borderCol);
-                DrawLine(x + 20, y2, x + 20, y + s, borderCol);
-                break;
-            }
-            case 3: { // Рустовані кам'яні плити
-                int cx = x + (s * 3) / 5;
-                int cy = y + (s * 2) / 5;
-                DrawLine(x, cy, x + s - 1, cy, borderCol);
-                DrawLine(cx, y, cx, cy, borderCol);
-                DrawLine(x + s / 3, cy, x + s / 3, y + s, borderCol);
-                break;
-            }
-            case 4: { // Плити зі зміщеним швом
-                DrawLine(x, y + halfS, x + s - 1, y + halfS, borderCol);
-                int seam = x + 16 + ((th >> 4) % 16);
-                DrawLine(seam, y, seam, y + halfS, borderCol);
-                int seam2 = x + 10 + ((th >> 7) % 22);
-                DrawLine(seam2, y + halfS, seam2, y + s, borderCol);
-                break;
-            }
+        if ((th % 4) == 0) {
+            DrawRectangle(x + 2, y + 2, 20, 20, Fade(lightCol, 0.35f));
+        } else if ((th % 4) == 1) {
+            DrawRectangle(x + 26, y + 26, 20, 20, Fade(shadowCol, 0.30f));
         }
 
-        // Детерміновані деталі поверхні:
-        // 1 з 5 тайлів (20%): Тонка тріщина
-        if ((th % 5) == 0) {
-            int cx1 = 6 + ((th >> 2) % 18);
-            int cy1 = 2 + ((th >> 4) % 10);
-            int cx2 = cx1 + 5 + ((th >> 6) % 8);
-            int cy2 = cy1 + 10 + ((th >> 8) % 12);
-            int cx3 = cx2 - 3 + ((th >> 10) % 8);
-            int cy3 = cy2 + 12 + ((th >> 12) % 10);
-            DrawLine(x + cx1, y + cy1, x + cx2, y + cy2, borderCol);
-            DrawLine(x + cx2, y + cy2, x + cx3, y + cy3, borderCol);
-            DrawLine(x + cx2 + 1, y + cy2, x + cx3 + 1, y + cy3, bp.stoneTile[3]);
+        // Тріщини на стінах (1 з 6 тайлів)
+        if ((th % 6) == 2) {
+            int cx1 = 8 + ((th >> 3) % 16);
+            int cy1 = 4 + ((th >> 5) % 10);
+            DrawLine(x + cx1, y + cy1, x + cx1 + 6, y + cy1 + 14, mortarCol);
+            DrawLine(x + cx1 + 6, y + cy1 + 14, x + cx1 + 2, y + cy1 + 26, mortarCol);
         }
 
-        // 1 з 8 тайлів (12.5%): Вибита цеглина
-        if ((th % 8) == 1) {
-            int bx = x + 8 + ((th >> 3) % 22);
-            int by = y + 8 + ((th >> 5) % 22);
-            DrawRectangle(bx, by, 9, 6, shadowCol);
-            DrawLine(bx, by + 6, bx + 9, by + 6, bp.stoneTile[3]);
+        // 3. ЗОВНІШНІЙ РЕЛЬЄФНИЙ БОРДЮР (Edge Trim 6px) — ТІЛЬКИ на гранях, що межують з вільним простором:
+        if (!n) { // Верхній край відкритий
+            DrawRectangle(x, y, s, 2, borderCol);
+            DrawRectangle(x, y + 2, s, 2, reliefCol);
+            DrawRectangle(x, y + 4, s, 2, shadowCol);
+        }
+        if (!s_solid) { // Нижній край відкритий
+            DrawRectangle(x, y + s - 6, s, 2, shadowCol);
+            DrawRectangle(x, y + s - 4, s, 2, reliefCol);
+            DrawRectangle(x, y + s - 2, s, 2, borderCol);
+        }
+        if (!w) { // Лівий край відкритий
+            DrawRectangle(x, y, 2, s, borderCol);
+            DrawRectangle(x + 2, y, 2, s, reliefCol);
+            DrawRectangle(x + 4, y, 2, s, shadowCol);
+        }
+        if (!e) { // Правий край відкритий
+            DrawRectangle(x + s - 6, y, 2, s, shadowCol);
+            DrawRectangle(x + s - 4, y, 2, s, reliefCol);
+            DrawRectangle(x + s - 2, y, 2, s, borderCol);
         }
 
-        // 1 з 10 тайлів (10%): Залізна кована скоба
-        if ((th % 10) == 2) {
-            int ix = x + 10 + ((th >> 4) % 20);
-            int iy = y + halfS - 3;
-            DrawRectangle(ix, iy, 12, 6, pal.metal[1]);
-            DrawRectangle(ix + 1, iy + 1, 10, 4, pal.metal[3]);
-            DrawCircle(ix + 3, iy + 3, 1.0f, pal.metal[4]);
-            DrawCircle(ix + 9, iy + 3, 1.0f, pal.metal[4]);
-        }
-
-        // Верхня грань (Top cap / трав'яний чи кам'яний відблиск)
-        if (!n) {
-            DrawRectangle(x, y, s, 3, capCol);
-            DrawLine(x, y, x + s - 1, y, highlightCol);
-            DrawLine(x, y + 1, x + s - 1, y + 1, highlightCol);
-
-            // Сад: звисаючий мох / плющ
-            if (biome == BiomeType::ForestAbkhazia) {
-                for (int i = 2; i < s - 2; i += 4) {
-                    uint32_t mh = TileHash(col * 31 + i, row * 17);
-                    int mossLen = 3 + (mh % 5);
-                    DrawLine(x + i, y, x + i, y + mossLen, pal.poisonSlime[2]);
-                    DrawPixel(x + i, y + mossLen, pal.poisonSlime[3]);
-                }
-            }
-        }
-
-        // Нижня грань: глибока тінь
-        if (!s_solid) {
-            DrawRectangle(x, y + s - 3, s, 3, shadowCol);
-            DrawLine(x, y + s - 1, x + s - 1, y + s - 1, borderCol);
-        }
-
-        // Бокові грані: темний контур та кладка з торця
-        if (!w) {
-            DrawLine(x, y, x, y + s - 1, borderCol);
-            DrawLine(x + 1, y, x + 1, y + s - 1, highlightCol);
-        }
-        if (!e) {
-            DrawLine(x + s - 1, y, x + s - 1, y + s - 1, borderCol);
-            DrawLine(x + s - 2, y, x + s - 2, y + s - 1, shadowCol);
-        }
-
-        // Особливість секретної стіни 'X': глибокі сяючі золоті розломи
+        // Особливість секретної стіни 'X': тріщини з золотим сяйвом
         if (tileCode == 'X') {
             float pulse = 0.5f + 0.5f * std::sin(trapTimer * 4.0f + col * 0.7f + row * 1.1f);
-            Color crackGlow = ColorAlpha(pal.fireGold[3], 0.45f + 0.35f * pulse);
-
-            Vector2 p0 = { static_cast<float>(x + 8), static_cast<float>(y) };
-            Vector2 p1 = { static_cast<float>(x + 18), static_cast<float>(y + 14) };
-            Vector2 p2 = { static_cast<float>(x + 12), static_cast<float>(y + 26) };
-            Vector2 p3 = { static_cast<float>(x + 28), static_cast<float>(y + 36) };
-            Vector2 p4 = { static_cast<float>(x + 38), static_cast<float>(y + s) };
-
-            DrawLineEx(p0, p1, 3.0f, borderCol);
-            DrawLineEx(p1, p2, 3.0f, borderCol);
-            DrawLineEx(p2, p3, 3.0f, borderCol);
-            DrawLineEx(p3, p4, 3.0f, borderCol);
-
-            DrawLineEx(p0, p1, 1.5f, crackGlow);
-            DrawLineEx(p1, p2, 1.5f, crackGlow);
-            DrawLineEx(p2, p3, 1.5f, crackGlow);
-            DrawLineEx(p3, p4, 1.5f, crackGlow);
-
-            DrawCircle(x + 14, y + 20, 1.5f, crackGlow);
-            DrawCircle(x + 24, y + 32, 1.5f, crackGlow);
+            Color crackGlow = ColorAlpha(pal.fireGold[3], 0.50f + 0.35f * pulse);
+            DrawLineEx({ static_cast<float>(x + 10), static_cast<float>(y) }, { static_cast<float>(x + 20), static_cast<float>(y + 16) }, 2.5f, crackGlow);
+            DrawLineEx({ static_cast<float>(x + 20), static_cast<float>(y + 16) }, { static_cast<float>(x + 14), static_cast<float>(y + 32) }, 2.5f, crackGlow);
+            DrawLineEx({ static_cast<float>(x + 14), static_cast<float>(y + 32) }, { static_cast<float>(x + 36), static_cast<float>(y + s) }, 2.5f, crackGlow);
+            DrawCircle(x + 18, y + 22, 2.0f, crackGlow);
         }
 
         // Особливість ілюзорної стіни 'I': мерехтіння місячних рун
@@ -1034,51 +906,128 @@ void ProceduralRenderer::DrawTile(
             Color runeGlow = ColorAlpha(pal.moonMagic[3], (1.0f - illusionAlpha) * 0.6f);
             DrawPolyLines({ static_cast<float>(x + s / 2), static_cast<float>(y + s / 2) }, 6, 12.0f, trapTimer * 45.0f, runeGlow);
         }
+    } else if (tileCode == '/') {
+        // Схил 45° підйом праворуч: трикутник (x, y + s) -> (x + s, y + s) -> (x + s, y)
+        Color baseCol   = bp.stoneTile[2];
+        Color mortarCol = bp.stoneTile[0];
+        Color reliefCol = bp.stoneTile[4];
+        Color shadowCol = bp.stoneTile[1];
+        Color borderCol = pal.outline;
+
+        // 1. Тіло кам'яного блоку (трикутна основа)
+        DrawTriangle({ static_cast<float>(x), static_cast<float>(y + s) },
+                     { static_cast<float>(x + s), static_cast<float>(y + s) },
+                     { static_cast<float>(x + s), static_cast<float>(y) },
+                     baseCol);
+
+        // 2. Внутрішня цегляна кладка всередині схилу
+        DrawLine(x + s / 2, y + s / 2, x + s - 1, y + s / 2, mortarCol);
+        DrawLine(x + 3 * s / 4, y + s / 2, x + 3 * s / 4, y + s - 1, mortarCol);
+
+        // 3. 6px рельєфний бордюр вздовж гіпотенузи схилу
+        Vector2 pA = { static_cast<float>(x), static_cast<float>(y + s) };
+        Vector2 pB = { static_cast<float>(x + s), static_cast<float>(y) };
+        DrawLineEx(pA, pB, 2.0f, borderCol);
+        DrawLineEx({ pA.x + 1.5f, pA.y - 1.5f }, { pB.x + 1.5f, pB.y - 1.5f }, 2.0f, reliefCol);
+        DrawLineEx({ pA.x + 3.5f, pA.y - 3.5f }, { pB.x + 3.5f, pB.y - 3.5f }, 2.0f, shadowCol);
+
+        if (!s_solid) {
+            DrawLine(x, y + s - 1, x + s, y + s - 1, borderCol);
+        }
+        if (!e) {
+            DrawLine(x + s - 1, y, x + s - 1, y + s, borderCol);
+        }
+    } else if (tileCode == '\\') {
+        // Схил 45° спуск праворуч: трикутник (x, y) -> (x, y + s) -> (x + s, y + s)
+        Color baseCol   = bp.stoneTile[2];
+        Color mortarCol = bp.stoneTile[0];
+        Color reliefCol = bp.stoneTile[4];
+        Color shadowCol = bp.stoneTile[1];
+        Color borderCol = pal.outline;
+
+        // 1. Тіло кам'яного блоку (трикутна основа)
+        DrawTriangle({ static_cast<float>(x), static_cast<float>(y) },
+                     { static_cast<float>(x), static_cast<float>(y + s) },
+                     { static_cast<float>(x + s), static_cast<float>(y + s) },
+                     baseCol);
+
+        // 2. Внутрішня цегляна кладка всередині схилу
+        DrawLine(x + 1, y + s / 2, x + s / 2, y + s / 2, mortarCol);
+        DrawLine(x + s / 4, y + s / 2, x + s / 4, y + s - 1, mortarCol);
+
+        // 3. 6px рельєфний бордюр вздовж гіпотенузи схилу
+        Vector2 pA = { static_cast<float>(x), static_cast<float>(y) };
+        Vector2 pB = { static_cast<float>(x + s), static_cast<float>(y + s) };
+        DrawLineEx(pA, pB, 2.0f, borderCol);
+        DrawLineEx({ pA.x - 1.5f, pA.y + 1.5f }, { pB.x - 1.5f, pB.y + 1.5f }, 2.0f, reliefCol);
+        DrawLineEx({ pA.x - 3.5f, pA.y + 3.5f }, { pB.x - 3.5f, pB.y + 3.5f }, 2.0f, shadowCol);
+
+        if (!s_solid) {
+            DrawLine(x, y + s - 1, x + s, y + s - 1, borderCol);
+        }
+        if (!w) {
+            DrawLine(x, y, x, y + s - 1, borderCol);
+        }
     } else if (tileCode == '=') {
-        int platH = 6;
-        Color woodMain  = pal.wood[2];
-        Color woodShade = pal.wood[0];
-        Color woodHi    = pal.wood[3];
+        // Чиста горизонтальна плита завтовшки 14px з біомною стилізацією
+        int platH = 14;
+        Color platTop, platMid, platDark;
+        if (biome == BiomeType::CastleHamson) {
+            // Світло-сірі кам'яні плити з карнизом
+            platTop  = Color{ 168, 172, 178, 255 };
+            platMid  = Color{ 128, 132, 138, 255 };
+            platDark = Color{ 74, 76, 82, 255 };
+        } else if (biome == BiomeType::ForestAbkhazia) {
+            // Моховиті дерев'яні балки
+            platTop  = Color{ 116, 142, 85, 255 };
+            platMid  = Color{ 115, 80, 48, 255 };
+            platDark = Color{ 62, 42, 24, 255 };
+        } else if (biome == BiomeType::TheMaya) {
+            // Золотистий сонячний пісковик
+            platTop  = Color{ 218, 188, 108, 255 };
+            platMid  = Color{ 175, 145, 75, 255 };
+            platDark = Color{ 115, 90, 45, 255 };
+        } else { // LandOfDarkness
+            // Темне коване обсидіанове залізо
+            platTop  = Color{ 86, 78, 102, 255 };
+            platMid  = Color{ 52, 45, 64, 255 };
+            platDark = Color{ 26, 22, 34, 255 };
+        }
+
         Color ironCol   = pal.metal[2];
         Color ironHi    = pal.metal[4];
 
+        // М'яка тінь під плитою
+        DrawRectangle(x, y + platH, s, 4, Fade(pal.outline, 0.35f));
+
+        // Основна горизонтальна плита
+        DrawRectangle(x, y, s, 3, platTop);
+        DrawRectangle(x, y + 3, s, 7, platMid);
+        DrawRectangle(x, y + 10, s, 4, platDark);
+        DrawLine(x, y + platH, x + s, y + platH, pal.outline);
+
+        // Ковані залізні накладки з заклепками по краях
+        bool leftEnd = !w || (col % 4 == 0);
+        bool rightEnd = !e || ((col + 1) % 4 == 0);
+
+        if (leftEnd) {
+            DrawRectangle(x + 1, y - 1, 6, platH + 2, ironCol);
+            DrawLine(x + 1, y - 1, x + 1, y + platH, ironHi);
+            DrawCircle(x + 4, y + 6, 1.5f, ironHi);
+        }
+        if (rightEnd) {
+            DrawRectangle(x + s - 7, y - 1, 6, platH + 2, ironCol);
+            DrawLine(x + s - 7, y - 1, x + s - 7, y + platH, ironHi);
+            DrawCircle(x + s - 4, y + 6, 1.5f, ironHi);
+        }
+
         if (ehsActive) {
-            // E.H.S.: Платформа-люк постійно відкинута вниз (Open Trapdoor)
-            DrawCircle(x + 3, y + 2, 3.2f, ironCol);
-            DrawCircle(x + 3, y + 2, 1.4f, ironHi);
-            Vector2 hBase = { static_cast<float>(x + 3), static_cast<float>(y + 2) };
-            Vector2 hTip  = { static_cast<float>(x + 9), static_cast<float>(y + s - 6) };
-            DrawLineEx(hBase, hTip, 5.0f, woodMain);
-            DrawLineEx(hBase, hTip, 2.0f, woodHi);
-            float sparkPhase = std::fmod(trapTimer * 8.0f + static_cast<float>(col), 1.0f);
-            if (sparkPhase < 0.35f) {
-                DrawCircle(x + 6, y + 8, 1.8f, pal.moonMagic[3]);
-            }
-        } else {
-            // М'яка тінь під дошкою
-            DrawRectangle(x, y + platH, s, 3, Fade(pal.outline, 0.40f));
-
-            // Основна дерев'яна планка
-            DrawRectangle(x, y, s, platH, woodMain);
-
-            // Дерев'яна текстура: 2-3 лінії різного тону
-            DrawLine(x, y, x + s - 1, y, woodHi);
-            DrawLine(x, y + 2, x + s - 1, y + 2, woodShade);
-            DrawLine(x, y + platH - 1, x + s - 1, y + platH - 1, pal.outline);
-
-            // Ковані залізні накладки з заклепками по краях
-            bool leftEnd = !w || (col % 4 == 0);
-            bool rightEnd = !e || ((col + 1) % 4 == 0);
-
-            if (leftEnd) {
-                DrawRectangle(x + 1, y - 1, 6, platH + 2, ironCol);
-                DrawLine(x + 1, y - 1, x + 1, y + platH, ironHi);
-                DrawCircle(x + 4, y + 2, 1.0f, ironHi);
-            }
-            if (rightEnd) {
-                DrawRectangle(x + s - 7, y - 1, 6, platH + 2, ironCol);
-                DrawLine(x + s - 7, y - 1, x + s - 7, y + platH, ironHi);
-                DrawCircle(x + s - 4, y + 2, 1.0f, ironHi);
+            // Електрична іскра над платформою (без порушення форми платформи)
+            float sparkPhase = std::fmod(trapTimer * 8.0f + static_cast<float>(col) * 0.4f, 1.0f);
+            if (sparkPhase < 0.38f) {
+                int sparkX = x + 10 + (static_cast<int>(sparkPhase * 60.0f) % 28);
+                DrawCircle(sparkX, y - 2, 2.0f, pal.moonMagic[3]);
+                DrawCircle(sparkX, y - 2, 1.0f, pal.metal[4]);
             }
         }
     } else if (tileCode == '^') {

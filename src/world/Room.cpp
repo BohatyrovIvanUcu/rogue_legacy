@@ -102,8 +102,12 @@ void Room::BuildFromNode(
             std::string_view line = tmpl.rows[static_cast<size_t>(r)];
             for (int c = 0; c < totalCols; ++c) {
                 int srcCol = isReversed ? (totalCols - 1 - c) : c;
-                tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] =
-                    (srcCol >= 0 && srcCol < static_cast<int>(line.size())) ? line[static_cast<size_t>(srcCol)] : '.';
+                char ch = (srcCol >= 0 && srcCol < static_cast<int>(line.size())) ? line[static_cast<size_t>(srcCol)] : '.';
+                if (isReversed) {
+                    if (ch == '/') ch = '\\';
+                    else if (ch == '\\') ch = '/';
+                }
+                tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = ch;
             }
         }
     }
@@ -215,6 +219,11 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
                 }
                 case 'H': {
                     interactables.push_back(Interactable::MakeShrine(bottomCenter));
+                    tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
+                    break;
+                }
+                case 'K': {
+                    interactables.push_back(Interactable::MakeStatue(bottomCenter));
                     tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
                     break;
                 }
@@ -557,9 +566,9 @@ void Room::Update(float dt, GameContext& ctx, Player& player) {
         }
     }
 
-    // Перевірка входу у Золоті Двері Фінального Боса у кімнаті Entrance (4, 4)
+    // Перевірка входу у Золоті Двері Фінального Боса у кімнаті Entrance
     if (roomType == RoomType::Entrance && !isBossArenaActive) {
-        Rectangle goldenDoorRec = { Config::VIRTUAL_WIDTH * 0.5f - 58.0f, 14.0f * Config::TILE_SIZE - 168.0f, 116.0f, 168.0f };
+        Rectangle goldenDoorRec = { GetPixelWidth() * 0.5f - 58.0f, 9.0f * Config::TILE_SIZE - 168.0f, 116.0f, 168.0f };
         if (CheckCollisionRecs(player.GetBounds(), goldenDoorRec)) {
             if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_E) || IsKeyPressed(KEY_UP)) {
                 bool allFourSlain = ctx.bossDefeated[0] && ctx.bossDefeated[1] &&
@@ -569,7 +578,7 @@ void Room::Update(float dt, GameContext& ctx, Player& player) {
                     requestedBossArenaType = BossType::JohannesTraitor;
                 } else if (ctx.particles) {
                     ctx.particles->SpawnFloatingText(
-                        { Config::VIRTUAL_WIDTH * 0.5f, goldenDoorRec.y + 40.0f },
+                        { GetPixelWidth() * 0.5f, goldenDoorRec.y + 40.0f },
                         "DEFEAT ALL 4 GUARDIANS TO UNSEAL!",
                         GOLD, 20, false
                     );
@@ -978,50 +987,224 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
     // 1. Фон біому (з урахуванням розмірів багатоклітинних кімнат)
     ctx.renderer->DrawBiomeBackground(biome, originGx, originGy, GetPixelWidth(), GetPixelHeight());
 
-    // 2. Золоті Двері Фінального Боса у кімнаті Entrance
+    // 2. Золоті Двері Фінального Боса у кімнаті Entrance (на центральному постаменті)
     if (roomType == RoomType::Entrance && !isBossArenaActive) {
         Vector2 goldenDoorBottom = {
             GetPixelWidth() * 0.5f,
-            static_cast<float>((totalRows - 1) * Config::TILE_SIZE)
+            static_cast<float>(9 * Config::TILE_SIZE)
         };
         ctx.renderer->DrawGoldenBossDoor(goldenDoorBottom, ctx.bossDefeated, trapTimer);
+
+        // 2.5. Закрита зовнішня брама на лівому виступі (звідки герой прийшов у замок)
+        float gateX = static_cast<float>(Config::ROOM_OFFSET_X);
+        float gateY = static_cast<float>(Config::ROOM_OFFSET_Y + 9 * Config::TILE_SIZE);
+        DrawRectangle(static_cast<int>(gateX), static_cast<int>(gateY - 180.0f), 24, 180, Color{ 20, 24, 30, 255 });
+        for (int barX = static_cast<int>(gateX) + 4; barX < static_cast<int>(gateX) + 24; barX += 5) {
+            DrawRectangle(barX, static_cast<int>(gateY - 176.0f), 3, 176, Color{ 90, 96, 110, 255 });
+            DrawRectangle(barX + 1, static_cast<int>(gateY - 176.0f), 1, 176, Color{ 140, 148, 165, 255 });
+        }
+        for (float hy = gateY - 160.0f; hy < gateY; hy += 40.0f) {
+            DrawRectangle(static_cast<int>(gateX), static_cast<int>(hy), 24, 6, Color{ 60, 65, 75, 255 });
+            DrawRectangle(static_cast<int>(gateX + 2), static_cast<int>(hy + 1), 20, 2, Color{ 110, 118, 132, 255 });
+            DrawCircle(static_cast<int>(gateX + 6), static_cast<int>(hy + 3), 2.0f, Color{ 180, 190, 205, 255 });
+            DrawCircle(static_cast<int>(gateX + 18), static_cast<int>(hy + 3), 2.0f, Color{ 180, 190, 205, 255 });
+        }
+        // Замок, що блокує вихід назад
+        DrawRectangle(static_cast<int>(gateX + 5), static_cast<int>(gateY - 95.0f), 14, 18, Color{ 185, 150, 45, 255 });
+        DrawRectangleLines(static_cast<int>(gateX + 5), static_cast<int>(gateY - 95.0f), 14, 18, Color{ 95, 70, 20, 255 });
+        DrawCircle(static_cast<int>(gateX + 12), static_cast<int>(gateY - 86.0f), 2.0f, Color{ 50, 35, 10, 255 });
+
+        // 2.6. Басейн із водою у лівій ямі вхідної кімнати (колонки 10..15, рядок 13)
+        float poolX = static_cast<float>(Config::ROOM_OFFSET_X + 10 * Config::TILE_SIZE);
+        float poolY = static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE + 18);
+        float poolW = 5.0f * Config::TILE_SIZE;
+        float poolH = 30.0f;
+        DrawRectangle(static_cast<int>(poolX - 4.0f), static_cast<int>(poolY - 4.0f), static_cast<int>(poolW + 8.0f), static_cast<int>(poolH + 4.0f), Color{ 58, 62, 70, 255 });
+        DrawRectangleLines(static_cast<int>(poolX - 4.0f), static_cast<int>(poolY - 4.0f), static_cast<int>(poolW + 8.0f), static_cast<int>(poolH + 4.0f), Color{ 110, 115, 128, 255 });
+        DrawRectangle(static_cast<int>(poolX), static_cast<int>(poolY), static_cast<int>(poolW), static_cast<int>(poolH), Color{ 24, 115, 150, 180 });
+        DrawRectangle(static_cast<int>(poolX), static_cast<int>(poolY + 12.0f), static_cast<int>(poolW), static_cast<int>(poolH - 12.0f), Color{ 14, 75, 110, 210 });
+        for (float wx = poolX; wx < poolX + poolW - 8.0f; wx += 14.0f) {
+            float waveY = poolY + 1.0f + std::sin(trapTimer * 4.0f + wx * 0.12f) * 2.2f;
+            DrawLineEx({ wx, waveY }, { wx + 10.0f, waveY }, 1.5f, Color{ 160, 230, 255, 190 });
+        }
+
+        // Настінний геральдичний банер "CASTLE HAMSON" на задній стіні над басейном
+        float banX = poolX + poolW * 0.5f;
+        float banY = static_cast<float>(Config::ROOM_OFFSET_Y + 11 * Config::TILE_SIZE - 10.0f);
+        DrawRectangle(static_cast<int>(banX - 95.0f), static_cast<int>(banY), 190, 26, Color{ 22, 28, 38, 230 });
+        DrawRectangleLinesEx({ banX - 95.0f, banY, 190.0f, 26.0f }, 2.0f, Color{ 210, 175, 55, 255 });
+        DrawCircle(static_cast<int>(banX - 93.0f), static_cast<int>(banY + 2.0f), 3.0f, Color{ 240, 205, 75, 255 });
+        DrawCircle(static_cast<int>(banX + 93.0f), static_cast<int>(banY + 2.0f), 3.0f, Color{ 240, 205, 75, 255 });
+        Ui::Text("CASTLE HAMSON", static_cast<int>(banX - 68.0f), static_cast<int>(banY + 6.0f), 14, Color{ 240, 215, 120, 255 });
+
+        // 2.7. Кабінет картографа/дослідника у правому крилі стартової кімнати (колонки 33..41, рядок 12..13)
+        float studyX = static_cast<float>(Config::ROOM_OFFSET_X + 33 * Config::TILE_SIZE);
+        float studyY = static_cast<float>(Config::ROOM_OFFSET_Y + 13 * Config::TILE_SIZE);
+
+        DrawRectangle(static_cast<int>(studyX + 10.0f), static_cast<int>(studyY - 130.0f), 150, 95, Color{ 65, 45, 30, 255 });
+        DrawRectangleLinesEx({ studyX + 10.0f, studyY - 130.0f, 150.0f, 95.0f }, 3.0f, Color{ 145, 105, 55, 255 });
+        DrawRectangle(static_cast<int>(studyX + 16.0f), static_cast<int>(studyY - 124.0f), 138, 83, Color{ 215, 198, 160, 240 });
+        DrawRectangleLines(static_cast<int>(studyX + 24.0f), static_cast<int>(studyY - 116.0f), 45, 30, Color{ 110, 80, 50, 200 });
+        DrawRectangleLines(static_cast<int>(studyX + 75.0f), static_cast<int>(studyY - 116.0f), 45, 30, Color{ 110, 80, 50, 200 });
+        DrawRectangleLines(static_cast<int>(studyX + 50.0f), static_cast<int>(studyY - 80.0f), 45, 30, Color{ 110, 80, 50, 200 });
+        DrawLine(static_cast<int>(studyX + 69.0f), static_cast<int>(studyY - 101.0f), static_cast<int>(studyX + 75.0f), static_cast<int>(studyY - 101.0f), Color{ 180, 40, 40, 255 });
+        DrawCircle(static_cast<int>(studyX + 46.0f), static_cast<int>(studyY - 101.0f), 2.5f, Color{ 220, 30, 30, 255 });
+        DrawCircle(static_cast<int>(studyX + 97.0f), static_cast<int>(studyY - 101.0f), 2.5f, Color{ 220, 30, 30, 255 });
+        DrawCircle(static_cast<int>(studyX + 72.0f), static_cast<int>(studyY - 65.0f), 2.5f, Color{ 220, 30, 30, 255 });
+
+        // Стіл картографа з фоліантами та пером
+        DrawRectangle(static_cast<int>(studyX + 175.0f), static_cast<int>(studyY - 26.0f), 70, 8, Color{ 85, 55, 35, 255 });
+        DrawRectangle(static_cast<int>(studyX + 180.0f), static_cast<int>(studyY - 18.0f), 6, 18, Color{ 65, 40, 25, 255 });
+        DrawRectangle(static_cast<int>(studyX + 233.0f), static_cast<int>(studyY - 18.0f), 6, 18, Color{ 65, 40, 25, 255 });
+        DrawRectangle(static_cast<int>(studyX + 184.0f), static_cast<int>(studyY - 33.0f), 22, 7, Color{ 140, 35, 35, 255 });
+        DrawRectangle(static_cast<int>(studyX + 186.0f), static_cast<int>(studyY - 38.0f), 19, 5, Color{ 35, 95, 140, 255 });
+        DrawRectangle(static_cast<int>(studyX + 212.0f), static_cast<int>(studyY - 30.0f), 24, 4, Color{ 225, 215, 180, 255 });
+        DrawRectangle(static_cast<int>(studyX + 238.0f), static_cast<int>(studyY - 32.0f), 5, 6, Color{ 20, 20, 25, 255 });
+        DrawLine(static_cast<int>(studyX + 240.0f), static_cast<int>(studyY - 32.0f), static_cast<int>(studyX + 245.0f), static_cast<int>(studyY - 42.0f), Color{ 230, 230, 235, 255 });
+    }
+
+    // 2.8. Багатий інтер'єрний декор кімнат (Bookcases, Fireplaces & Portraits, Chandeliers)
+    if (!isBossArenaActive) {
+        const auto& pal = GetPalette();
+        for (int r = 1; r < totalRows - 1; ++r) {
+            for (int c = 1; c < totalCols - 1; ++c) {
+                char cur = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
+                if (cur != '.') continue;
+
+                int wx = Config::ROOM_OFFSET_X + c * Config::TILE_SIZE;
+                int wy = Config::ROOM_OFFSET_Y + r * Config::TILE_SIZE;
+                uint32_t h = static_cast<uint32_t>((c + originGx) * 31 + (r + originGy) * 53);
+
+                // 1) Підвісні ковані люстри зі свічками (Ceiling Chandeliers)
+                if (tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)] == '#' &&
+                    tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)] == '.' &&
+                    (h % 13 == 0) && (roomType != RoomType::Entrance || c < 10 || c > 30)) {
+                    float chX = static_cast<float>(wx + Config::TILE_SIZE / 2);
+                    float chY = static_cast<float>(wy);
+                    DrawLineEx({ chX, chY }, { chX, chY + 16.0f }, 2.0f, pal.metal[2]);
+                    DrawLineEx({ chX - 16.0f, chY + 22.0f }, { chX + 16.0f, chY + 22.0f }, 3.0f, pal.metal[3]);
+                    DrawCircle(static_cast<int>(chX), static_cast<int>(chY + 24.0f), 3.5f, pal.metal[4]);
+                    for (int ci = -1; ci <= 1; ++ci) {
+                        float cx = chX + ci * 12.0f;
+                        DrawRectangle(static_cast<int>(cx - 1.5f), static_cast<int>(chY + 14.0f), 3, 8, pal.bone[4]);
+                        float flk = std::sin(trapTimer * 8.0f + cx * 2.0f) * 1.5f;
+                        DrawCircle(static_cast<int>(cx), static_cast<int>(chY + 12.0f), 2.5f + flk * 0.4f, pal.fireGold[3]);
+                        DrawCircle(static_cast<int>(cx), static_cast<int>(chY + 12.0f), 1.2f, WHITE);
+                    }
+                }
+
+                // 2) Книжкові шафи (Bookcases) на твердій підлозі біля стіни
+                if (tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)] == '#' &&
+                    r >= 2 && tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)] == '.' &&
+                    (h % 17 == 0) && (roomType != RoomType::Entrance || c > 32)) {
+                    float bkX = static_cast<float>(wx);
+                    float bkY = static_cast<float>(wy + Config::TILE_SIZE - 74.0f);
+                    DrawRectangle(static_cast<int>(bkX + 4.0f), static_cast<int>(bkY), 40, 74, Color{ 52, 34, 24, 255 });
+                    DrawRectangleLines(static_cast<int>(bkX + 4.0f), static_cast<int>(bkY), 40, 74, Color{ 90, 60, 42, 255 });
+                    for (int sh = 0; sh < 3; ++sh) {
+                        float shY = bkY + 6.0f + sh * 22.0f;
+                        DrawLine(static_cast<int>(bkX + 6.0f), static_cast<int>(shY + 18.0f), static_cast<int>(bkX + 42.0f), static_cast<int>(shY + 18.0f), Color{ 90, 60, 42, 255 });
+                        for (int bk = 0; bk < 5; ++bk) {
+                            Color bCol = (bk % 3 == 0) ? pal.bloodCloth[1] : ((bk % 3 == 1) ? Color{ 32, 90, 140, 255 } : Color{ 40, 120, 65, 255 });
+                            DrawRectangle(static_cast<int>(bkX + 7.0f + bk * 7.0f), static_cast<int>(shY + 2.0f), 6, 16, bCol);
+                            DrawLine(static_cast<int>(bkX + 7.0f + bk * 7.0f), static_cast<int>(shY + 4.0f), static_cast<int>(bkX + 13.0f + bk * 7.0f), static_cast<int>(shY + 4.0f), pal.fireGold[3]);
+                        }
+                    }
+                }
+
+                // 3) Кам'яний камін із тліючим вугіллям та королівським портретом у золотій рамі
+                if (c + 1 < totalCols &&
+                    tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)] == '#' &&
+                    tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c + 1)] == '#' &&
+                    r >= 2 && tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)] == '.' &&
+                    (h % 29 == 0) && roomType != RoomType::Entrance) {
+                    float fpX = static_cast<float>(wx);
+                    float fpY = static_cast<float>(wy + Config::TILE_SIZE);
+                    DrawRectangle(static_cast<int>(fpX + 4.0f), static_cast<int>(fpY - 48.0f), 68, 48, Color{ 74, 72, 70, 255 });
+                    DrawRectangleLines(static_cast<int>(fpX + 4.0f), static_cast<int>(fpY - 48.0f), 68, 48, Color{ 110, 108, 105, 255 });
+                    DrawRectangle(static_cast<int>(fpX + 16.0f), static_cast<int>(fpY - 32.0f), 44, 32, Color{ 18, 16, 18, 255 });
+                    DrawCircle(static_cast<int>(fpX + 38.0f), static_cast<int>(fpY - 32.0f), 22.0f, Color{ 18, 16, 18, 255 });
+                    float fireGlow = 0.75f + 0.25f * std::sin(trapTimer * 6.5f + fpX);
+                    DrawCircle(static_cast<int>(fpX + 38.0f), static_cast<int>(fpY - 10.0f), 14.0f * fireGlow, Color{ 235, 95, 30, 210 });
+                    DrawCircle(static_cast<int>(fpX + 38.0f), static_cast<int>(fpY - 10.0f), 7.0f, Color{ 255, 215, 80, 255 });
+
+                    // Портрет предка у золотій рамі над каміном
+                    DrawRectangle(static_cast<int>(fpX + 22.0f), static_cast<int>(fpY - 88.0f), 32, 36, Color{ 215, 175, 55, 255 });
+                    DrawRectangleLines(static_cast<int>(fpX + 22.0f), static_cast<int>(fpY - 88.0f), 32, 36, Color{ 145, 110, 30, 255 });
+                    DrawRectangle(static_cast<int>(fpX + 25.0f), static_cast<int>(fpY - 85.0f), 26, 30, Color{ 35, 25, 45, 255 });
+                    DrawCircle(static_cast<int>(fpX + 38.0f), static_cast<int>(fpY - 74.0f), 6.5f, pal.fireGold[3]);
+                    DrawTriangle({ fpX + 32.0f, fpY - 80.0f }, { fpX + 44.0f, fpY - 80.0f }, { fpX + 38.0f, fpY - 74.0f }, pal.fireGold[4]);
+                    DrawRectangle(static_cast<int>(fpX + 33.0f), static_cast<int>(fpY - 67.0f), 10, 10, pal.metal[3]);
+                }
+            }
+        }
     }
 
     // 3. Тайлова карта кімнати з процедурним автотайлінгом
     auto IsSolidTile = [this](int col, int row) -> bool {
         char ch = GetTileAt(col, row);
-        return (ch == '#' || ch == 'X' || ch == 'I');
+        return (ch == '#' || ch == 'X' || ch == 'I' || ch == '/' || ch == '\\');
     };
 
     for (int r = 0; r < totalRows; ++r) {
         for (int c = 0; c < totalCols; ++c) {
             char tc = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
-            if (tc != '.') {
-                float illusionAlpha = 1.0f;
-                if (tc == 'I') {
-                    Rectangle tRec = GetTileRect(c, r);
-                    Vector2 tcCenter = { tRec.x + tRec.width * 0.5f, tRec.y + tRec.height * 0.5f };
-                    float d = std::hypot(player.GetCenter().x - tcCenter.x, player.GetCenter().y - tcCenter.y);
-                    if (d < 120.0f) {
-                        illusionAlpha = std::clamp((d - 36.0f) / 84.0f, 0.20f, 1.0f);
+            if (tc == '.') {
+                // Павутиння у внутрішніх кутах ніш стін (Cobwebs in concave corners)
+                bool nSolid = IsSolidTile(c, r - 1);
+                bool sSolid = IsSolidTile(c, r + 1);
+                bool wSolid = IsSolidTile(c - 1, r);
+                bool eSolid = IsSolidTile(c + 1, r);
+
+                if ((nSolid && wSolid) || (nSolid && eSolid) || (sSolid && wSolid) || (sSolid && eSolid)) {
+                    uint32_t wh = static_cast<uint32_t>(c * 37 + r * 59);
+                    if ((wh % 3) == 0) {
+                        int tx = Config::ROOM_OFFSET_X + c * Config::TILE_SIZE;
+                        int ty = Config::ROOM_OFFSET_Y + r * Config::TILE_SIZE;
+                        int ts = Config::TILE_SIZE;
+                        Color webCol = ColorAlpha(GetPalette().bone[4], 0.25f);
+                        if (nSolid && wSolid) {
+                            DrawLine(tx, ty, tx + 16, ty + 3, webCol);
+                            DrawLine(tx, ty, tx + 12, ty + 12, webCol);
+                            DrawLine(tx, ty, tx + 3, ty + 16, webCol);
+                            DrawLine(tx + 16, ty + 3, tx + 12, ty + 12, webCol);
+                            DrawLine(tx + 12, ty + 12, tx + 3, ty + 16, webCol);
+                        } else if (nSolid && eSolid) {
+                            DrawLine(tx + ts, ty, tx + ts - 16, ty + 3, webCol);
+                            DrawLine(tx + ts, ty, tx + ts - 12, ty + 12, webCol);
+                            DrawLine(tx + ts, ty, tx + ts - 3, ty + 16, webCol);
+                            DrawLine(tx + ts - 16, ty + 3, tx + ts - 12, ty + 12, webCol);
+                            DrawLine(tx + ts - 12, ty + 12, tx + ts - 3, ty + 16, webCol);
+                        }
                     }
                 }
-
-                uint8_t nMask = 0;
-                if (IsSolidTile(c, r - 1)) nMask |= 1; // North
-                if (IsSolidTile(c + 1, r)) nMask |= 2; // East
-                if (IsSolidTile(c, r + 1)) nMask |= 4; // South
-                if (IsSolidTile(c - 1, r)) nMask |= 8; // West
-
-                uint8_t dMask = 0;
-                if (IsSolidTile(c - 1, r - 1)) dMask |= 1; // NW
-                if (IsSolidTile(c + 1, r - 1)) dMask |= 2; // NE
-                if (IsSolidTile(c - 1, r + 1)) dMask |= 4; // SW
-                if (IsSolidTile(c + 1, r + 1)) dMask |= 8; // SE
-
-                bool hasEhs = ctx.CurrentHeirHasTrait(TraitType::EHS);
-                ctx.renderer->DrawTile(tc, c, r, biome, trapTimer, illusionAlpha, nMask, dMask, hasEhs);
+                continue;
             }
+
+            float illusionAlpha = 1.0f;
+            if (tc == 'I') {
+                Rectangle tRec = GetTileRect(c, r);
+                Vector2 tcCenter = { tRec.x + tRec.width * 0.5f, tRec.y + tRec.height * 0.5f };
+                float d = std::hypot(player.GetCenter().x - tcCenter.x, player.GetCenter().y - tcCenter.y);
+                if (d < 120.0f) {
+                    illusionAlpha = std::clamp((d - 36.0f) / 84.0f, 0.20f, 1.0f);
+                }
+            }
+
+            uint8_t nMask = 0;
+            if (IsSolidTile(c, r - 1)) nMask |= 1; // North
+            if (IsSolidTile(c + 1, r)) nMask |= 2; // East
+            if (IsSolidTile(c, r + 1)) nMask |= 4; // South
+            if (IsSolidTile(c - 1, r)) nMask |= 8; // West
+
+            uint8_t dMask = 0;
+            if (IsSolidTile(c - 1, r - 1)) dMask |= 1; // NW
+            if (IsSolidTile(c + 1, r - 1)) dMask |= 2; // NE
+            if (IsSolidTile(c - 1, r + 1)) dMask |= 4; // SW
+            if (IsSolidTile(c + 1, r + 1)) dMask |= 8; // SE
+
+            bool hasEhs = ctx.CurrentHeirHasTrait(TraitType::EHS);
+            ctx.renderer->DrawTile(tc, c, r, biome, trapTimer, illusionAlpha, nMask, dMask, hasEhs);
         }
     }
 
@@ -1098,7 +1281,7 @@ void Room::DrawLights([[maybe_unused]] const GameContext& ctx, const Player& pla
 
     // 2. Двері та портали: світлові ареали
     if (roomType == RoomType::Entrance && !isBossArenaActive) {
-        Vector2 doorCenter = { Config::VIRTUAL_WIDTH * 0.5f, static_cast<float>((Config::ROOM_ROWS - 1) * Config::TILE_SIZE - 40.0f) };
+        Vector2 doorCenter = { GetPixelWidth() * 0.5f, static_cast<float>(9 * Config::TILE_SIZE - 80.0f) };
         DrawCircleGradient(static_cast<int>(doorCenter.x), static_cast<int>(doorCenter.y), 210.0f, Color{ 255, 215, 120, 210 }, BLANK);
     }
     for (const auto& it : interactables) {

@@ -458,7 +458,10 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
         int probeCol = tileMap->WorldToCol(probeX);
         int belowRow = tileMap->WorldToRow(GetBottom() + 6.0f);
         bool hasFloorAhead = tileMap->IsSolidAt(probeCol, belowRow, false) ||
-                             tileMap->IsOneWayAt(probeCol, belowRow);
+                             tileMap->IsOneWayAt(probeCol, belowRow) ||
+                             tileMap->IsSlopeAt(probeCol, belowRow) ||
+                             tileMap->IsSlopeAt(probeCol, belowRow - 1) ||
+                             tileMap->IsSlopeAt(probeCol, belowRow + 1);
         bool hasSpikesAhead = tileMap->IsSpikeHazardAt(probeCol, tileMap->WorldToRow(GetBottom() - 4.0f), false);
         if (!hasFloorAhead || hasSpikesAhead) {
             facingDir = -facingDir;
@@ -497,13 +500,37 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
 
     // Вертикальний рух
     float prevBottom = GetBottom();
+    bool wasGround = onGround;
     onGround = false;
     pos.y += vel.y * dt;
     b = GetBounds();
     int cMin = tileMap->WorldToCol(b.x + 4.0f);
     int cMax = tileMap->WorldToCol(b.x + b.width - 4.0f);
 
-    if (vel.y >= 0.0f) {
+    // Схили 45° ('/' та '\') під ногами ворога
+    float footX = b.x + b.width * 0.5f;
+    int cCenter = tileMap->WorldToCol(footX);
+    int rBottom = tileMap->WorldToRow(b.y + b.height);
+
+    bool landedOnSlope = false;
+    for (int rTry : { rBottom, rBottom + 1, rBottom - 1 }) {
+        if (tileMap->IsSlopeAt(cCenter, rTry)) {
+            float surfaceY = 0.0f;
+            if (tileMap->GetSlopeSurfaceY(footX, cCenter, rTry, surfaceY)) {
+                float currentBottom = b.y + b.height;
+                float maxSnapDown = wasGround ? 18.0f : 8.0f;
+                if (currentBottom >= surfaceY - maxSnapDown && currentBottom <= surfaceY + 22.0f && vel.y >= -60.0f) {
+                    pos.y = surfaceY - height;
+                    vel.y = 0.0f;
+                    onGround = true;
+                    landedOnSlope = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!landedOnSlope && vel.y >= 0.0f) {
         int rBot = tileMap->WorldToRow(b.y + b.height);
         for (int c = cMin; c <= cMax; ++c) {
             if (tileMap->IsSolidAt(c, rBot, false) ||

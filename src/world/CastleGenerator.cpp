@@ -488,35 +488,35 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
     auto ConnectCorridor = [&](int startX, int startY, int endX, int endY) {
         int cx = startX;
         int cy = startY;
-        while (cx != endX || cy != endY) {
+        while (true) {
+            if (grid_[cy][cx].state != CellState::Filled) {
+                PlaceRoom(1, cx, cy, BiomeType::CastleHamson, RoomType::Combat,
+                          BossType::Khidr, FairyCondition::KillAll, globalFrontier);
+            }
+            if (cx == endX && cy == endY) break;
             if (cx < endX) cx++;
             else if (cx > endX) cx--;
             else if (cy < endY) cy++;
             else if (cy > endY) cy--;
-
-            if (grid_[cy][cx].state == CellState::Empty) {
-                PlaceRoom(1, cx, cy, BiomeType::CastleHamson, RoomType::Combat,
-                          BossType::Khidr, FairyCondition::KillAll, globalFrontier);
-            }
         }
     };
 
-    ConnectCorridor(24, 32, 30, 32); // East to Forest boundary
-    ConnectCorridor(24, 32, 24, 26); // North to Maya boundary
-    ConnectCorridor(24, 32, 24, 38); // South to Darkness boundary
+    ConnectCorridor(26, 32, 30, 32); // East to Forest boundary
+    ConnectCorridor(26, 32, 26, 26); // North to Maya boundary
+    ConnectCorridor(26, 32, 26, 38); // South to Darkness boundary
 
     // Explicitly seed gateway doors for Forest, Maya, Darkness
     grid_[32][31].state = CellState::NeedsDoor;
     grid_[32][31].requiredDoors |= DoorMask::WEST;
     globalFrontier.push_back({ 31, 32, DoorMask::WEST, BiomeType::ForestAbkhazia });
 
-    grid_[25][24].state = CellState::NeedsDoor;
-    grid_[25][24].requiredDoors |= DoorMask::SOUTH;
-    globalFrontier.push_back({ 24, 25, DoorMask::SOUTH, BiomeType::TheMaya });
+    grid_[25][26].state = CellState::NeedsDoor;
+    grid_[25][26].requiredDoors |= DoorMask::SOUTH;
+    globalFrontier.push_back({ 26, 25, DoorMask::SOUTH, BiomeType::TheMaya });
 
-    grid_[39][24].state = CellState::NeedsDoor;
-    grid_[39][24].requiredDoors |= DoorMask::NORTH;
-    globalFrontier.push_back({ 24, 39, DoorMask::NORTH, BiomeType::LandOfDarkness });
+    grid_[39][26].state = CellState::NeedsDoor;
+    grid_[39][26].requiredDoors |= DoorMask::NORTH;
+    globalFrontier.push_back({ 26, 39, DoorMask::NORTH, BiomeType::LandOfDarkness });
 
     // 2. Grow Castle Hamson (24-26 rooms)
     GrowBiome(BiomeType::CastleHamson, 24 + static_cast<int>(rng() % 3), globalFrontier);

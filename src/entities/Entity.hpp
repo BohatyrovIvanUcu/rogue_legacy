@@ -53,6 +53,26 @@ public:
         return GetTileAt(col, row) == '=';
     }
 
+    bool IsSlopeAt(int col, int row) const {
+        char c = GetTileAt(col, row);
+        return c == '/' || c == '\\';
+    }
+
+    bool GetSlopeSurfaceY(float worldX, int col, int row, float& outSurfaceY) const {
+        char c = GetTileAt(col, row);
+        if (c != '/' && c != '\\') return false;
+        float tileLeft = static_cast<float>(Config::ROOM_OFFSET_X + col * Config::TILE_SIZE);
+        float tileTop  = static_cast<float>(Config::ROOM_OFFSET_Y + row * Config::TILE_SIZE);
+        float tSize    = static_cast<float>(Config::TILE_SIZE);
+        float localX   = std::clamp((worldX - tileLeft) / tSize, 0.0f, 1.0f);
+        if (c == '/') {
+            outSurfaceY = tileTop + tSize * (1.0f - localX);
+        } else {
+            outSurfaceY = tileTop + tSize * localX;
+        }
+        return true;
+    }
+
     bool IsSpikeHazardAt(int col, int row, bool hasPadTrait) const {
         char c = GetTileAt(col, row);
         if (c == '^' || c == 'v') return true;
