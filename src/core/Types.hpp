@@ -40,23 +40,48 @@ enum class SpellType : int {
 };
 
 enum class TraitType : int {
-    Colorblind = 0,
-    Nostalgic = 1,
-    Vertigo = 2,
-    Myopia = 3,
-    Hyperopia = 4,
-    Dwarfism = 5,
-    Gigantism = 6,
-    ADHD = 7,
-    Ectomorph = 8,
-    Endomorph = 9,
-    CIP = 10,
-    Dextrocardia = 11,
-    PAD = 12,
-    Dementia = 13,
-    Savant = 14,
-    IBS = 15,
-    COUNT = 16
+    Colorblind = 0,     // 1. Color Blind
+    Gay = 1,            // 2. Gay
+    NearSighted = 2,    // 3. Near-Sighted
+    FarSighted = 3,     // 4. Far-Sighted
+    Dyslexia = 4,       // 5. Dyslexia
+    Gigantism = 5,      // 6. Gigantism
+    Dwarfism = 6,       // 7. Dwarfism
+    Baldness = 7,       // 8. Baldness
+    Endomorph = 8,      // 9. Endomorph
+    Ectomorph = 9,      // 10. Ectomorph
+    Alzheimers = 10,    // 11. Alzheimers
+    Dextrocardia = 11,  // 12. Dextrocardia
+    Coprolalia = 12,    // 13. Coprolalia / Tourettes
+    ADHD = 13,          // 14. ADHD / Hyperactive
+    OCD = 14,           // 15. O.C.D.
+    Hypergonadism = 15, // 16. Hypergonadism
+    MuscleWk = 16,      // 17. Muscle Wk. / Hypogonadism
+    StereoBlind = 17,   // 18. Stereo Blind
+    IBS = 18,           // 19. I.B.S.
+    Vertigo = 19,       // 20. Vertigo
+    TunnelVision = 20,  // 21. Tunnel Vision
+    Ambilevous = 21,    // 22. Ambilevous
+    PAD = 22,           // 23. P.A.D.
+    Alektorophobia = 23,// 24. Alektorophobia (Kentucky Chicken)
+    Hypochondriac = 24, // 25. Hypochondriac
+    Dementia = 25,      // 26. Dementia
+    Flexible = 26,      // 27. Flexible / Hypermobility
+    EideticMemory = 27, // 28. Eid. Mem.
+    Nostalgic = 28,     // 29. Nostalgic
+    CIP = 29,           // 30. C.I.P.
+    Savant = 30,        // 31. Savant
+    TheOne = 31,        // 32. The One
+    Clumsy = 32,        // 33. Clumsy
+    EHS = 33,           // 34. E.H.S.
+    Glaucoma = 34,      // 35. Glaucoma
+    Clonus = 35,        // 36. Clonus
+    Prosopagnosia = 36, // 37. Prosopagnosia
+    COUNT = 37,
+
+    // Aliases for backward compatibility:
+    Myopia = NearSighted,
+    Hyperopia = FarSighted
 };
 
 enum class EquipSlot : int {
@@ -200,11 +225,12 @@ namespace DoorMask {
 }
 
 namespace TraitConflictGroup {
-    inline constexpr uint32_t NONE        = 0;
-    inline constexpr uint32_t SHADER_TONE = 1 << 0;
-    inline constexpr uint32_t BLUR_VISION = 1 << 1;
-    inline constexpr uint32_t BODY_SCALE  = 1 << 2;
-    inline constexpr uint32_t BODY_WIDTH  = 1 << 3;
+    inline constexpr uint32_t NONE          = 0;
+    inline constexpr uint32_t SHADER_TONE   = 1 << 0; // Colorblind, Nostalgic, TheOne
+    inline constexpr uint32_t BLUR_VISION   = 1 << 1; // NearSighted, FarSighted
+    inline constexpr uint32_t BODY_SCALE    = 1 << 2; // Gigantism, Dwarfism
+    inline constexpr uint32_t BODY_WIDTH    = 1 << 3; // Endomorph, Ectomorph
+    inline constexpr uint32_t KNOCKBACK_MOD = 1 << 4; // Hypergonadism, MuscleWk
 }
 
 struct HeirCandidate {

@@ -165,22 +165,43 @@ namespace {
     }};
 
     const std::array<TraitDef, static_cast<size_t>(TraitType::COUNT)> TRAIT_TABLE = {{
-        { TraitType::Colorblind, "Colorblind", "You can't see colors due to monochromacy.", TraitConflictGroup::SHADER_TONE, 0.00f },
-        { TraitType::Nostalgic, "Nostalgic", "You miss the good old days. Everything looks like a vintage sepia film.", TraitConflictGroup::SHADER_TONE, 0.00f },
-        { TraitType::Vertigo, "Vertigo", "Welcome to Barrels! The entire world is upside-down (+15% Gold Bonus).", TraitConflictGroup::NONE, 0.15f },
-        { TraitType::Myopia, "Near-Sighted", "Anything farther than 210 pixels from you is blurry.", TraitConflictGroup::BLUR_VISION, 0.00f },
-        { TraitType::Hyperopia, "Far-Sighted", "Anything closer than 135 pixels to you is blurry.", TraitConflictGroup::BLUR_VISION, 0.00f },
-        { TraitType::Dwarfism, "Dwarfism", "You are tiny (0.48x scale) and can squeeze through narrow 1-tile Dwarf Tunnels.", TraitConflictGroup::BODY_SCALE, 0.00f },
-        { TraitType::Gigantism, "Gigantism", "You are huge (1.55x scale) with a massive sword reach and hitbox.", TraitConflictGroup::BODY_SCALE, 0.00f },
-        { TraitType::ADHD, "ADHD", "So much energy! You move and animate 35% faster than normal.", TraitConflictGroup::NONE, 0.00f },
-        { TraitType::Ectomorph, "Ectomorph", "You are super skinny (0.6x width). Hits send you flying (2.0x knockback).", TraitConflictGroup::BODY_WIDTH, 0.00f },
-        { TraitType::Endomorph, "Endomorph", "You are heavy-set (1.45x width). Enemies cannot knock you back at all.", TraitConflictGroup::BODY_WIDTH, 0.00f },
-        { TraitType::CIP, "C.I.P.", "Congenital Insensitivity to Pain. No health bar values are visible [??? / ???].", TraitConflictGroup::NONE, 0.00f },
-        { TraitType::Dextrocardia, "Dextrocardia", "Your Max HP and Max MP pools are swapped with each other.", TraitConflictGroup::NONE, 0.00f },
-        { TraitType::PAD, "P.A.D.", "Peripheral Artery Disease. Floor pressure spike traps do not trigger when stepped on.", TraitConflictGroup::NONE, 0.00f },
-        { TraitType::Dementia, "Dementia", "You are insane. Hallucinatory purple phantom enemies haunt every room.", TraitConflictGroup::NONE, 0.00f },
-        { TraitType::Savant, "Savant", "Extremely talented, but randomized. Every spell cast fires a random spell.", TraitConflictGroup::NONE, 0.00f },
-        { TraitType::IBS, "I.B.S.", "Irritable Bowel Syndrome. You uncontrollably toot gas clouds when jumping.", TraitConflictGroup::NONE, 0.00f }
+        { TraitType::Colorblind, "Color Blind", "You can't see colors due to monochromacy.", TraitConflictGroup::SHADER_TONE, 0.00f },
+        { TraitType::Gay, "Gay", "You're fabulous! (Attracted to the same gender).", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::NearSighted, "Near-Sighted", "Anything far away from you is blurry.", TraitConflictGroup::BLUR_VISION, 0.00f },
+        { TraitType::FarSighted, "Far-Sighted", "Anything close-up to you is blurry.", TraitConflictGroup::BLUR_VISION, 0.00f },
+        { TraitType::Dyslexia, "Dyslexia", "You hvae trboule raednig tinhgs.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Gigantism, "Gigantism", "You were born to be a basketball player. Huge size and sword reach.", TraitConflictGroup::BODY_SCALE, 0.00f },
+        { TraitType::Dwarfism, "Dwarfism", "You never get to ride rollercoasters. Tiny size, fits into Dwarf Tunnels.", TraitConflictGroup::BODY_SCALE, 0.00f },
+        { TraitType::Baldness, "Baldness", "The bald and the beautiful. You have no plume on your helmet.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Endomorph, "Endomorph", "You're so heavy, enemies can't knock you back as easily (-50% knockback).", TraitConflictGroup::BODY_WIDTH, 0.00f },
+        { TraitType::Ectomorph, "Ectomorph", "You're skinny, so every hit sends you flying (+85% knockback taken).", TraitConflictGroup::BODY_WIDTH, 0.00f },
+        { TraitType::Alzheimers, "Alzheimers", "You have trouble remembering where you are. Map shows only your position.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Dextrocardia, "Dextrocardia", "Your MP and HP pools are swapped. Who knew?", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Coprolalia, "Coprolalia", "Hero uncontrollably swears with speech bubbles (%#&@!) when taking hits.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::ADHD, "ADHD", "So energetic! You move 30% faster than normal.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::OCD, "O.C.D.", "Must. Clear. House. Breaking props and furniture restores 1 MP.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Hypergonadism, "Hypergonadism", "You're perma-roided. Attacks knock enemies twice as far.", TraitConflictGroup::KNOCKBACK_MOD, 0.00f },
+        { TraitType::MuscleWk, "Muscle Wk.", "You have weak limbs. Enemies take no knockback from your attacks.", TraitConflictGroup::KNOCKBACK_MOD, 0.00f },
+        { TraitType::StereoBlind, "Stereo Blind", "You can't see in 3D. Turning around flips your sprite in 2D perspective.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::IBS, "I.B.S.", "Even the most valiant heroes suffer from irritable bowels (10% jump toots).", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Vertigo, "Vertigo", "Welcome to Barfs-ville! Everything is upside down and flipped (+15% Gold).", TraitConflictGroup::NONE, 0.15f },
+        { TraitType::TunnelVision, "Tunnel Vision", "No peripheral vision. Off-screen projectile indicators are disabled.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Ambilevous, "Ambilevous", "Two left hands! Spells cast out of your back in reversed direction.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::PAD, "P.A.D.", "Peripheral Arterial Disease. Floor and wall spike traps do not trigger.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Alektorophobia, "Alektorophobia", "Chickens freak you out! Broken props spawn chicken Kentucky.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Hypochondriac, "Hypochondriac", "You tend to EXAGGERATE the damage you take (100x display).", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Dementia, "Dementia", "You are insane. You see phantom enemies that aren't really there.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Flexible, "Flexible", "You are very flexible. You can turn left/right mid-swing to redirect attacks.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::EideticMemory, "Eid. Mem.", "You remember enemy placement with extreme clarity (dots on visited map).", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Nostalgic, "Nostalgic", "You miss the good old days. Vintage sepia film and film grain everywhere.", TraitConflictGroup::SHADER_TONE, 0.00f },
+        { TraitType::CIP, "C.I.P.", "Congenital Insensitivity to Pain. No visible health bar values [??? / ???].", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Savant, "Savant", "You're very talented with a few issues. Spells are completely randomized.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::TheOne, "The One", "There is no spork. Neon cyberpunk matrix phosphor vision mode.", TraitConflictGroup::SHADER_TONE, 0.00f },
+        { TraitType::Clumsy, "Clumsy", "You break a lot of things. Props break instantly upon walking into them.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::EHS, "E.H.S.", "Electromagnetic Hypersensitivity. Bounce and trap platforms stay open forever.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Glaucoma, "Glaucoma", "It's so dark! Pitch-black darkness vignette covers the castle.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Clonus, "Clonus", "You have random muscle spasms. Every 12-35s your screen shakes violently.", TraitConflictGroup::NONE, 0.00f },
+        { TraitType::Prosopagnosia, "Prosopagnosia", "You can't tell people apart. Successor cards are hidden behind [???].", TraitConflictGroup::NONE, 0.00f }
     }};
 
     const std::array<std::array<EquipmentDef, 5>, 5> EQUIPMENT_TABLE = {{
@@ -452,6 +473,16 @@ HeirCandidate Registry::GenerateHeir(const GameContext& ctx, int generationNumbe
 
             const TraitDef& def = GetTrait(candidate);
             if ((def.conflictMask & activeConflictMask) != 0) {
+                continue;
+            }
+
+            // Class restriction checks (canonical Rogue Legacy rules)
+            if (candidate == TraitType::Dextrocardia &&
+                (heir.classType == ClassType::Lich_Base || heir.classType == ClassType::LichKing_Upgraded)) {
+                continue;
+            }
+            if (candidate == TraitType::Savant &&
+                (heir.classType == ClassType::Mage_Base || heir.classType == ClassType::Archmage_Upgraded || heir.classType == ClassType::Dragon_Special)) {
                 continue;
             }
 

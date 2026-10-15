@@ -2425,6 +2425,140 @@ void ProceduralRenderer::DrawTraitIcon(Vector2 c, TraitType trait, float size, C
             DrawLine(static_cast<int>(c.x - size * 0.8f), static_cast<int>(c.y + size * 0.5f), static_cast<int>(c.x - size * 0.2f), static_cast<int>(c.y + size * 0.5f), col);
             break;
         }
+        case TraitType::Gay: {
+            // Dual linked circles with arrow
+            DrawCircleLines(static_cast<int>(c.x - size * 0.3f), static_cast<int>(c.y), size * 0.5f, col);
+            DrawCircleLines(static_cast<int>(c.x + size * 0.3f), static_cast<int>(c.y), size * 0.5f, col);
+            DrawLineEx({ c.x + size * 0.5f, c.y - size * 0.3f }, { c.x + size * 0.9f, c.y - size * 0.7f }, 2.0f, col);
+            break;
+        }
+        case TraitType::Dyslexia: {
+            // Jumbled text runes
+            DrawText("A", static_cast<int>(c.x - size * 0.6f), static_cast<int>(c.y - size * 0.5f), static_cast<int>(size * 0.8f), col);
+            DrawText("Z", static_cast<int>(c.x + 1), static_cast<int>(c.y - size * 0.2f), static_cast<int>(size * 0.8f), WHITE);
+            break;
+        }
+        case TraitType::Baldness: {
+            // Smooth polished helmet dome without plume
+            DrawCircleSector({ c.x, c.y + size * 0.2f }, size * 0.8f, 180.0f, 360.0f, 12, col);
+            DrawLineEx({ c.x - size * 0.8f, c.y + size * 0.2f }, { c.x + size * 0.8f, c.y + size * 0.2f }, 2.0f, WHITE);
+            break;
+        }
+        case TraitType::Alzheimers: {
+            // Question mark inside head
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.8f, col);
+            DrawText("?", static_cast<int>(c.x - size * 0.25f), static_cast<int>(c.y - size * 0.5f), static_cast<int>(size * 1.1f), WHITE);
+            break;
+        }
+        case TraitType::Coprolalia: {
+            // Speech bubble with exclamation and symbols
+            DrawRectangleRounded({ c.x - size * 0.85f, c.y - size * 0.7f, size * 1.7f, size * 1.1f }, 0.4f, 4, col);
+            DrawTriangle({ c.x - size * 0.4f, c.y + size * 0.4f }, { c.x, c.y + size * 0.4f }, { c.x - size * 0.6f, c.y + size * 0.85f }, col);
+            DrawText("!", static_cast<int>(c.x - 3), static_cast<int>(c.y - size * 0.55f), static_cast<int>(size * 0.9f), BLACK);
+            break;
+        }
+        case TraitType::OCD: {
+            // Sparkle broom / neat symmetry cross
+            DrawLineEx({ c.x, c.y - size * 0.8f }, { c.x, c.y + size * 0.8f }, 2.0f, col);
+            DrawLineEx({ c.x - size * 0.8f, c.y }, { c.x + size * 0.8f, c.y }, 2.0f, col);
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.25f, WHITE);
+            break;
+        }
+        case TraitType::Hypergonadism: {
+            // Heavy muscle fist / anvil
+            DrawRectangle(static_cast<int>(c.x - size * 0.7f), static_cast<int>(c.y - size * 0.4f), static_cast<int>(size * 1.4f), static_cast<int>(size * 0.8f), col);
+            DrawTriangle({ c.x - size * 0.7f, c.y - size * 0.4f }, { c.x + size * 0.7f, c.y - size * 0.4f }, { c.x, c.y - size * 0.9f }, col);
+            break;
+        }
+        case TraitType::MuscleWk: {
+            // Limp drooping arm
+            DrawLineEx({ c.x - size * 0.7f, c.y - size * 0.5f }, { c.x, c.y }, 2.0f, col);
+            DrawLineEx({ c.x, c.y }, { c.x + size * 0.4f, c.y + size * 0.8f }, 2.0f, Fade(col, 0.6f));
+            break;
+        }
+        case TraitType::StereoBlind: {
+            // 2D flat paper card folding in 3D
+            DrawRectangleLines(static_cast<int>(c.x - size * 0.35f), static_cast<int>(c.y - size * 0.75f), static_cast<int>(size * 0.7f), static_cast<int>(size * 1.5f), col);
+            DrawLineEx({ c.x, c.y - size * 0.75f }, { c.x, c.y + size * 0.75f }, 1.5f, WHITE);
+            break;
+        }
+        case TraitType::TunnelVision: {
+            // Two vertical peripheral blinders
+            DrawRectangle(static_cast<int>(c.x - size * 0.85f), static_cast<int>(c.y - size * 0.75f), static_cast<int>(size * 0.45f), static_cast<int>(size * 1.5f), col);
+            DrawRectangle(static_cast<int>(c.x + size * 0.4f), static_cast<int>(c.y - size * 0.75f), static_cast<int>(size * 0.45f), static_cast<int>(size * 1.5f), col);
+            break;
+        }
+        case TraitType::Ambilevous: {
+            // Reversed backward casting arrow
+            DrawLineEx({ c.x + size * 0.6f, c.y }, { c.x - size * 0.6f, c.y }, 2.0f, col);
+            DrawTriangle({ c.x - size * 0.8f, c.y }, { c.x - size * 0.4f, c.y - size * 0.4f }, { c.x - size * 0.4f, c.y + size * 0.4f }, col);
+            break;
+        }
+        case TraitType::Alektorophobia: {
+            // Chicken head comb & beak
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.55f, WHITE);
+            DrawTriangle({ c.x, c.y - size * 0.4f }, { c.x + size * 0.3f, c.y - size * 0.8f }, { c.x - size * 0.3f, c.y - size * 0.8f }, RED);
+            DrawTriangle({ c.x + size * 0.4f, c.y }, { c.x + size * 0.85f, c.y + size * 0.1f }, { c.x + size * 0.4f, c.y + size * 0.25f }, GOLD);
+            break;
+        }
+        case TraitType::Hypochondriac: {
+            // Giant exclamation mark and pulse
+            DrawText("!", static_cast<int>(c.x - size * 0.3f), static_cast<int>(c.y - size * 0.9f), static_cast<int>(size * 1.8f), RED);
+            break;
+        }
+        case TraitType::Flexible: {
+            // 180-degree U-turn flexible arc
+            DrawCircleSector(c, size * 0.75f, 90.0f, 270.0f, 10, col);
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.45f, BLACK);
+            break;
+        }
+        case TraitType::EideticMemory: {
+            // Eye with pinpoint memory dot
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.75f, col);
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), 3.0f, RED);
+            break;
+        }
+        case TraitType::TheOne: {
+            // Digital terminal glyphs [>_]
+            DrawText(">", static_cast<int>(c.x - size * 0.6f), static_cast<int>(c.y - size * 0.6f), static_cast<int>(size * 1.1f), GREEN);
+            DrawLineEx({ c.x + size * 0.1f, c.y + size * 0.4f }, { c.x + size * 0.6f, c.y + size * 0.4f }, 2.0f, GREEN);
+            break;
+        }
+        case TraitType::Clumsy: {
+            // Smashed shattered shards
+            DrawTriangle({ c.x - size * 0.6f, c.y }, { c.x - size * 0.2f, c.y - size * 0.7f }, { c.x, c.y }, col);
+            DrawTriangle({ c.x, c.y + size * 0.2f }, { c.x + size * 0.7f, c.y - size * 0.4f }, { c.x + size * 0.4f, c.y + size * 0.7f }, Fade(col, 0.7f));
+            break;
+        }
+        case TraitType::EHS: {
+            // Permanent lightning energy platform
+            DrawLineEx({ c.x - size * 0.8f, c.y + size * 0.4f }, { c.x + size * 0.8f, c.y + size * 0.4f }, 3.0f, SKYBLUE);
+            DrawLineEx({ c.x - size * 0.3f, c.y - size * 0.5f }, { c.x, c.y + size * 0.2f }, 2.0f, GOLD);
+            break;
+        }
+        case TraitType::Glaucoma: {
+            // Heavy black iris with tiny bright pinhole
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.8f, BLACK);
+            DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.8f, col);
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), 2.5f, WHITE);
+            break;
+        }
+        case TraitType::Clonus: {
+            // Seismograph vibration wave
+            Vector2 p1 = { c.x - size * 0.8f, c.y };
+            Vector2 p2 = { c.x - size * 0.3f, c.y - size * 0.7f };
+            Vector2 p3 = { c.x, c.y + size * 0.7f };
+            Vector2 p4 = { c.x + size * 0.4f, c.y - size * 0.5f };
+            Vector2 p5 = { c.x + size * 0.8f, c.y };
+            DrawLineStrip(std::array<Vector2, 5>{ p1, p2, p3, p4, p5 }.data(), 5, col);
+            break;
+        }
+        case TraitType::Prosopagnosia: {
+            // Blank portrait silhouette with question mark
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y - size * 0.3f), size * 0.45f, Fade(col, 0.5f));
+            DrawText("?", static_cast<int>(c.x - size * 0.2f), static_cast<int>(c.y - size * 0.45f), static_cast<int>(size * 0.9f), WHITE);
+            break;
+        }
         default:
             DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), size * 0.6f, col);
             break;
@@ -2440,22 +2574,43 @@ void ProceduralRenderer::DrawTraitBadge(Vector2 pos, float width, float height, 
         case TraitType::ADHD:
         case TraitType::PAD:
         case TraitType::Savant:
+        case TraitType::OCD:
+        case TraitType::Hypergonadism:
+        case TraitType::Flexible:
+        case TraitType::EideticMemory:
+        case TraitType::EHS:
             themeCol = Color{ 85, 230, 140, 255 }; // Green buff
             break;
         case TraitType::Gigantism:
         case TraitType::Endomorph:
         case TraitType::Vertigo:
+        case TraitType::Gay:
+        case TraitType::Baldness:
+        case TraitType::StereoBlind:
+        case TraitType::Ambilevous:
+        case TraitType::Clumsy:
             themeCol = Color{ 255, 185, 55, 255 }; // Amber/Yellow
             break;
         case TraitType::Dwarfism:
         case TraitType::Ectomorph:
-        case TraitType::Myopia:
-        case TraitType::Hyperopia:
+        case TraitType::NearSighted:
+        case TraitType::FarSighted:
+        case TraitType::TheOne:
+        case TraitType::Hypochondriac:
             themeCol = Color{ 120, 210, 255, 255 }; // Cyan
             break;
         case TraitType::Dextrocardia:
         case TraitType::Dementia:
         case TraitType::CIP:
+        case TraitType::Alzheimers:
+        case TraitType::Coprolalia:
+        case TraitType::MuscleWk:
+        case TraitType::TunnelVision:
+        case TraitType::Alektorophobia:
+        case TraitType::Glaucoma:
+        case TraitType::Clonus:
+        case TraitType::Prosopagnosia:
+        case TraitType::Dyslexia:
             themeCol = Color{ 235, 100, 215, 255 }; // Purple/Magenta
             break;
         case TraitType::Colorblind:
