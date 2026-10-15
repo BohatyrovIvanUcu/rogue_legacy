@@ -27,8 +27,8 @@ void CastlePlayState::OnEnter(GameContext& ctx) {
     curRoomId_ = startRoom.roomId;
 
     Vector2 startPos = {
-        static_cast<float>(Config::ROOM_OFFSET_X + 3.5f * Config::TILE_SIZE),
-        static_cast<float>(Config::ROOM_OFFSET_Y + 8.0f * Config::TILE_SIZE - 40.0f)
+        3.5f * static_cast<float>(Config::TILE_SIZE),
+        8.0f * static_cast<float>(Config::TILE_SIZE) - 40.0f
     };
     player_.InitFromContext(ctx, startPos);
 
@@ -37,7 +37,8 @@ void CastlePlayState::OnEnter(GameContext& ctx) {
     worldCam_.zoom = static_cast<float>(Config::RENDER_WIDTH) / static_cast<float>(Config::CELL_PIXEL_WIDTH);
     float halfViewW = (Config::RENDER_WIDTH * 0.5f) / worldCam_.zoom;
     float halfViewH = (Config::RENDER_HEIGHT * 0.5f) / worldCam_.zoom;
-    camTarget_ = { halfViewW, halfViewH };
+    float roomPxH = static_cast<float>(startRoom.GetPixelHeight());
+    camTarget_ = { halfViewW, roomPxH - halfViewH };
     worldCam_.target = camTarget_;
 
     startRoom.OnPlayerEnterRoom(ctx, player_);
@@ -134,8 +135,8 @@ void CastlePlayState::Update(float dt, GameContext& ctx) {
         camTarget_.x = std::clamp(camTarget_.x, halfViewW, roomPxW - halfViewW);
     }
 
-    if (roomPxH <= halfViewH * 2.0f) {
-        camTarget_.y = roomPxH * 0.5f;
+    if (curRoom.GetHeightCells() == 1) {
+        camTarget_.y = roomPxH - halfViewH;
     } else {
         camTarget_.y = std::clamp(camTarget_.y, halfViewH, roomPxH - halfViewH);
     }
@@ -944,8 +945,8 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
     // Точна позиція гравця (player dot) за дробовими координатами всередині поточної кімнати
     int curRoomMinimapX = mapX + (curRoom.originGx - viewMinGx) * cell;
     int curRoomMinimapY = mapY + (curRoom.originGy - viewMinGy) * cell;
-    float fracX = (player_.GetCenter().x - static_cast<float>(Config::ROOM_OFFSET_X)) / static_cast<float>(curRoom.GetPixelWidth());
-    float fracY = (player_.GetCenter().y - static_cast<float>(Config::ROOM_OFFSET_Y)) / static_cast<float>(curRoom.GetPixelHeight());
+    float fracX = player_.GetCenter().x / static_cast<float>(curRoom.GetPixelWidth());
+    float fracY = player_.GetCenter().y / static_cast<float>(curRoom.GetPixelHeight());
     float pDotX = curRoomMinimapX + std::clamp(fracX, 0.05f, 0.95f) * (curRoom.widthCells * cell);
     float pDotY = curRoomMinimapY + std::clamp(fracY, 0.05f, 0.95f) * (curRoom.heightCells * cell);
 

@@ -4,6 +4,7 @@
 #include "data/RoomTemplates.hpp"
 #include <random>
 #include <queue>
+#include <deque>
 #include <cmath>
 #include <algorithm>
 #include <chrono>
@@ -310,17 +311,59 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         bool placedTreasure = false;
         bool placedSecret = false;
         int multiCellCount = 0;
+        std::deque<int> recentTemplates;
 
-        // Filter or prioritize frontier doors belonging to this biome
-        auto GetBiomeFrontierIdx = [&]() -> int {
-            std::vector<int> valid;
-            for (size_t i = 0; i < frontier.size(); ++i) {
-                if (frontier[i].biome == bType) {
-                    valid.push_back(static_cast<int>(i));
+        auto GetNeighborTemplates = [&](int gx, int gy) -> std::vector<int> {
+            std::vector<int> nTmpls;
+            for (const auto& d : DIRS) {
+                int nx = gx + d.dx;
+                int ny = gy + d.dy;
+                if (nx >= 0 && nx < Config::CASTLE_GRID_W && ny >= 0 && ny < Config::CASTLE_GRID_H) {
+                    if (grid_[ny][nx].state == CellState::Filled && grid_[ny][nx].roomId >= 0) {
+                        nTmpls.push_back(rooms_[static_cast<size_t>(grid_[ny][nx].roomId)].templateIdx);
+                    }
                 }
             }
-            if (valid.empty()) return -1;
-            return valid[rng() % valid.size()];
+            return nTmpls;
+        };
+
+        auto PickDiverseTemplate = [&](const std::vector<int>& pool, int gx, int gy) -> int {
+            std::vector<int> nTmpls = GetNeighborTemplates(gx, gy);
+            std::vector<int> candidates;
+            for (int t : pool) {
+                bool inRecent = std::find(recentTemplates.begin(), recentTemplates.end(), t) != recentTemplates.end();
+                bool inNeighbor = std::find(nTmpls.begin(), nTmpls.end(), t) != nTmpls.end();
+                if (!inRecent && !inNeighbor) {
+                    candidates.push_back(t);
+                }
+            }
+            if (candidates.empty()) {
+                for (int t : pool) {
+                    bool inRecent = std::find(recentTemplates.begin(), recentTemplates.end(), t) != recentTemplates.end();
+                    if (!inRecent) candidates.push_back(t);
+                }
+            }
+            if (candidates.empty()) candidates = pool;
+            return candidates[rng() % candidates.size()];
+        };
+
+        // 2D-гілкування: чергування горизонтальних та вертикальних дверей
+        auto GetBiomeFrontierIdx = [&]() -> int {
+            std::vector<int> matching;
+            std::vector<int> allValid;
+            bool preferVertical = (roomsInBiome % 2 == 1);
+            for (size_t i = 0; i < frontier.size(); ++i) {
+                if (frontier[i].biome == bType) {
+                    allValid.push_back(static_cast<int>(i));
+                    bool isVert = (frontier[i].requiredDoor & (DoorMask::NORTH | DoorMask::SOUTH)) != 0;
+                    if (isVert == preferVertical) {
+                        matching.push_back(static_cast<int>(i));
+                    }
+                }
+            }
+            if (!matching.empty()) return matching[rng() % matching.size()];
+            if (!allValid.empty()) return allValid[rng() % allValid.size()];
+            return -1;
         };
 
         int maxAttempts = 500;
@@ -392,14 +435,14 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
                 if (wantMulti) {
                     int multiType = static_cast<int>(rng() % 3);
                     if (multiType == 0) {
-                        chosenTmpl = pool2x1[rng() % pool2x1.size()];
+                        chosenTmpl = PickDiverseTemplate(pool2x1, fd.targetGx, fd.targetGy);
                     } else if (multiType == 1) {
-                        chosenTmpl = pool1x2[rng() % pool1x2.size()];
+                        chosenTmpl = PickDiverseTemplate(pool1x2, fd.targetGx, fd.targetGy);
                     } else {
-                        chosenTmpl = pool2x2[rng() % pool2x2.size()];
+                        chosenTmpl = PickDiverseTemplate(pool2x2, fd.targetGx, fd.targetGy);
                     }
                 } else {
-                    chosenTmpl = pool1x1[rng() % pool1x1.size()];
+                    chosenTmpl = PickDiverseTemplate(pool1x1, fd.targetGx, fd.targetGy);
                 }
             }
 
@@ -425,8 +468,15 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
                     frontier.push_back(fd);
                     continue;
                 }
-                // Fallback to 1x1 combat
-                for (int tIdx : pool1x1) {
+                // Fallback to 1x1 combat з перемішуванням пулу та пріоритетом неповторюваних
+                std::vector<int> shuffledPool = pool1x1;
+                std::shuffle(shuffledPool.begin(), shuffledPool.end(), rng);
+                std::sort(shuffledPool.begin(), shuffledPool.end(), [&](int a, int b) {
+                    bool aRecent = std::find(recentTemplates.begin(), recentTemplates.end(), a) != recentTemplates.end();
+                    bool bRecent = std::find(recentTemplates.begin(), recentTemplates.end(), b) != recentTemplates.end();
+                    return !aRecent && bRecent;
+                });
+                for (int tIdx : shuffledPool) {
                     int origGx = fd.targetGx;
                     int origGy = fd.targetGy;
                     if (CanPlaceTemplateAt(tIdx, origGx, origGy, bType)) {
@@ -447,6 +497,10 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
 
             PlaceRoom(chosenTmpl, origGx, origGy, bType, rType, bBoss, fCond, frontier);
             roomsInBiome++;
+            recentTemplates.push_back(chosenTmpl);
+            if (recentTemplates.size() > 4) {
+                recentTemplates.pop_front();
+            }
 
             if (rType == RoomType::Teleporter) placedTeleporter = true;
             else if (rType == RoomType::FairyChest) placedFairy = true;

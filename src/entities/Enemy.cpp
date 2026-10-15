@@ -479,14 +479,12 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
         int cRight = tileMap->WorldToCol(b.x + b.width);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cRight, r, false)) {
-                if (r == rMax) {
-                    if (tileMap->IsSlopeAt(cRight, r - 1) || tileMap->IsSlopeAt(cRight, r)) {
-                        continue;
-                    }
-                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
-                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
-                        continue;
-                    }
+                if (tileMap->IsSlopeAt(cRight, r - 1) || tileMap->IsSlopeAt(cRight, r)) {
+                    continue;
+                }
+                int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1) || tileMap->IsSlopeAt(cCur, r - 1)) {
+                    continue;
                 }
                 pos.x = tileMap->GetTileRect(cRight, r).x - width - 0.01f;
                 facingDir = -1.0f;
@@ -498,14 +496,12 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
         int cLeft = tileMap->WorldToCol(b.x);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cLeft, r, false)) {
-                if (r == rMax) {
-                    if (tileMap->IsSlopeAt(cLeft, r - 1) || tileMap->IsSlopeAt(cLeft, r)) {
-                        continue;
-                    }
-                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
-                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
-                        continue;
-                    }
+                if (tileMap->IsSlopeAt(cLeft, r - 1) || tileMap->IsSlopeAt(cLeft, r)) {
+                    continue;
+                }
+                int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1) || tileMap->IsSlopeAt(cCur, r - 1)) {
+                    continue;
                 }
                 Rectangle tRec = tileMap->GetTileRect(cLeft, r);
                 pos.x = tRec.x + tRec.width + 0.01f;
@@ -536,8 +532,9 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
             float surfaceY = 0.0f;
             if (tileMap->GetSlopeSurfaceY(footX, cCenter, rTry, surfaceY)) {
                 float currentBottom = b.y + b.height;
-                float maxSnapDown = wasGround ? 18.0f : 8.0f;
-                if (currentBottom >= surfaceY - maxSnapDown && currentBottom <= surfaceY + 22.0f && vel.y >= -60.0f) {
+                float maxSnapDown = wasGround ? 24.0f : 12.0f;
+                float maxStepUp   = 48.0f;
+                if (currentBottom >= surfaceY - maxSnapDown && currentBottom <= surfaceY + maxStepUp && vel.y >= -100.0f) {
                     pos.y = surfaceY - height;
                     vel.y = 0.0f;
                     onGround = true;
@@ -548,11 +545,38 @@ void Enemy::ResolvePhysicsAndTiles(float dt, const ITileMap* tileMap, bool stopA
         }
     }
 
+    if (!landedOnSlope) {
+        float probeX = (vel.x >= 0.0f) ? (b.x + b.width - 2.0f) : (b.x + 2.0f);
+        int probeCol = tileMap->WorldToCol(probeX);
+        if (probeCol != cCenter) {
+            for (int rTry : { rBottom, rBottom + 1, rBottom - 1 }) {
+                if (tileMap->IsSlopeAt(probeCol, rTry)) {
+                    float surfaceY = 0.0f;
+                    if (tileMap->GetSlopeSurfaceY(probeX, probeCol, rTry, surfaceY)) {
+                        float currentBottom = b.y + b.height;
+                        float maxSnapDown = wasGround ? 24.0f : 12.0f;
+                        float maxStepUp   = 48.0f;
+                        if (currentBottom >= surfaceY - maxSnapDown && currentBottom <= surfaceY + maxStepUp && vel.y >= -100.0f) {
+                            pos.y = surfaceY - height;
+                            vel.y = 0.0f;
+                            onGround = true;
+                            landedOnSlope = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (!landedOnSlope && vel.y >= 0.0f) {
         int rBot = tileMap->WorldToRow(b.y + b.height);
         for (int c = cMin; c <= cMax; ++c) {
+            if (tileMap->IsSlopeAt(c, rBot - 1) || tileMap->IsSlopeAt(c, rBot)) {
+                continue;
+            }
             if (tileMap->IsSolidAt(c, rBot, false) ||
-                (tileMap->IsOneWayAt(c, rBot) && prevBottom <= tileMap->GetTileRect(c, rBot).y + 10.0f)) {
+                (tileMap->IsOneWayAt(c, rBot) && prevBottom <= tileMap->GetTileRect(c, rBot).y + 16.0f)) {
                 pos.y = tileMap->GetTileRect(c, rBot).y - height;
                 vel.y = 0.0f;
                 onGround = true;

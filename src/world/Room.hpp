@@ -104,6 +104,7 @@ public:
 
 private:
     void ApplyDoorMasksToTiles();
+    void SanitizeRoomGeometry();
     void SpawnEntitiesFromTemplate(const GameContext& ctx);
     void EvaluateFairyTrial(float dt, GameContext& ctx, Player& player);
     void HandleCombatCollisions(GameContext& ctx, Player& player);

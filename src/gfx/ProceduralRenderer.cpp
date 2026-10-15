@@ -809,8 +809,8 @@ void ProceduralRenderer::DrawTile(
     const auto& pal = GetPalette();
     const auto& bp = pal.GetBiome(biome);
 
-    int x = Config::ROOM_OFFSET_X + col * Config::TILE_SIZE;
-    int y = Config::ROOM_OFFSET_Y + row * Config::TILE_SIZE;
+    int x = col * Config::TILE_SIZE;
+    int y = row * Config::TILE_SIZE;
     int s = Config::TILE_SIZE;
 
     bool n = (neighborMask & 1) != 0;

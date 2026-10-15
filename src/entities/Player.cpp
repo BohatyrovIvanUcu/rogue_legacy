@@ -764,14 +764,13 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
         int cRight = tileMap->WorldToCol(b.x + b.width);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cRight, r, isDwarf)) {
-                if (r == rMax) {
-                    if (tileMap->IsSlopeAt(cRight, r - 1) || tileMap->IsSlopeAt(cRight, r)) {
-                        continue;
-                    }
-                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
-                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
-                        continue;
-                    }
+                // Якщо над або на цьому блоці є схил, це фундамент рампи, який не блокує рух
+                if (tileMap->IsSlopeAt(cRight, r - 1) || tileMap->IsSlopeAt(cRight, r)) {
+                    continue;
+                }
+                int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1) || tileMap->IsSlopeAt(cCur, r - 1)) {
+                    continue;
                 }
                 Rectangle tRec = tileMap->GetTileRect(cRight, r);
                 pos.x = tRec.x - width - 0.01f;
@@ -783,14 +782,12 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
         int cLeft = tileMap->WorldToCol(b.x);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cLeft, r, isDwarf)) {
-                if (r == rMax) {
-                    if (tileMap->IsSlopeAt(cLeft, r - 1) || tileMap->IsSlopeAt(cLeft, r)) {
-                        continue;
-                    }
-                    int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
-                    if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1)) {
-                        continue;
-                    }
+                if (tileMap->IsSlopeAt(cLeft, r - 1) || tileMap->IsSlopeAt(cLeft, r)) {
+                    continue;
+                }
+                int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
+                if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1) || tileMap->IsSlopeAt(cCur, r - 1)) {
+                    continue;
                 }
                 Rectangle tRec = tileMap->GetTileRect(cLeft, r);
                 pos.x = tRec.x + tRec.width + 0.01f;
@@ -801,17 +798,38 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
     }
 }
 
-void Player::ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float prevBottom, bool hasEhs) {
+void Player::ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float prevBottom, [[maybe_unused]] bool hasEhs) {
     if (!tileMap) return;
 
     Rectangle b = GetBounds();
     int cMin = tileMap->WorldToCol(b.x + 3.0f);
     int cMax = tileMap->WorldToCol(b.x + b.width - 3.0f);
+    int rBottom = tileMap->WorldToRow(b.y + b.height);
 
-    // 1. Схили 45° ('/' та '\') — перевірка під ногами гравця
+    // 1. Напівпрозорі платформи '=' при русі вниз (dropThroughPlatformTimer <= 0)
+    bool landedOnPlatform = false;
+    if (dropThroughPlatformTimer <= 0.0f && vel.y >= 0.0f) {
+        for (int c = cMin; c <= cMax; ++c) {
+            if (tileMap->IsOneWayAt(c, rBottom)) {
+                Rectangle tRec = tileMap->GetTileRect(c, rBottom);
+                if (prevBottom <= tRec.y + 16.0f && (pos.y + height) >= tRec.y) {
+                    pos.y = tRec.y - height;
+                    vel.y = 0.0f;
+                    onGround = true;
+                    landedOnPlatform = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (landedOnPlatform) {
+        return;
+    }
+
+    // 2. Схили 45° ('/' та '\') — перевірка під ногами гравця
     float footX = b.x + b.width * 0.5f;
     int cCenter = tileMap->WorldToCol(footX);
-    int rBottom = tileMap->WorldToRow(b.y + b.height);
 
     bool landedOnSlope = false;
     for (int rTry : { rBottom, rBottom + 1, rBottom - 1 }) {
@@ -819,8 +837,9 @@ void Player::ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float
             float surfaceY = 0.0f;
             if (tileMap->GetSlopeSurfaceY(footX, cCenter, rTry, surfaceY)) {
                 float currentBottom = b.y + b.height;
-                float maxSnapDown = wasOnGround ? 18.0f : 8.0f;
-                if (currentBottom >= surfaceY - maxSnapDown && currentBottom <= surfaceY + 22.0f && vel.y >= -60.0f) {
+                float maxSnapDown = wasOnGround ? 24.0f : 12.0f;
+                float maxStepUp   = 48.0f;
+                if (currentBottom >= surfaceY - maxSnapDown && currentBottom <= surfaceY + maxStepUp && vel.y >= -100.0f) {
                     pos.y = surfaceY - height;
                     vel.y = 0.0f;
                     onGround = true;
@@ -831,27 +850,48 @@ void Player::ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float
         }
     }
 
+    // Якщо центр не на схилі, але провідний край ступив на схил
+    if (!landedOnSlope) {
+        float probeX = (vel.x >= 0.0f) ? (b.x + b.width - 2.0f) : (b.x + 2.0f);
+        int probeCol = tileMap->WorldToCol(probeX);
+        if (probeCol != cCenter) {
+            for (int rTry : { rBottom, rBottom + 1, rBottom - 1 }) {
+                if (tileMap->IsSlopeAt(probeCol, rTry)) {
+                    float surfaceY = 0.0f;
+                    if (tileMap->GetSlopeSurfaceY(probeX, probeCol, rTry, surfaceY)) {
+                        float currentBottom = b.y + b.height;
+                        float maxSnapDown = wasOnGround ? 24.0f : 12.0f;
+                        float maxStepUp   = 48.0f;
+                        if (currentBottom >= surfaceY - maxSnapDown && currentBottom <= surfaceY + maxStepUp && vel.y >= -100.0f) {
+                            pos.y = surfaceY - height;
+                            vel.y = 0.0f;
+                            onGround = true;
+                            landedOnSlope = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (landedOnSlope) {
         return;
     }
 
+    // 3. Звичайні тверді тайли '#'
     if (vel.y >= 0.0f) {
         for (int c = cMin; c <= cMax; ++c) {
+            // Не блокуємо і не притягуємо до основи під схилом, якщо над цим блоком є схил
+            if (tileMap->IsSlopeAt(c, rBottom - 1) || tileMap->IsSlopeAt(c, rBottom)) {
+                continue;
+            }
             if (tileMap->IsSolidAt(c, rBottom, isDwarf)) {
                 Rectangle tRec = tileMap->GetTileRect(c, rBottom);
                 pos.y = tRec.y - height;
                 vel.y = 0.0f;
                 onGround = true;
                 break;
-            }
-            if (dropThroughPlatformTimer <= 0.0f && !hasEhs && tileMap->IsOneWayAt(c, rBottom)) {
-                Rectangle tRec = tileMap->GetTileRect(c, rBottom);
-                if (prevBottom <= tRec.y + 10.0f) {
-                    pos.y = tRec.y - height;
-                    vel.y = 0.0f;
-                    onGround = true;
-                    break;
-                }
             }
         }
     } else if (vel.y < 0.0f) {

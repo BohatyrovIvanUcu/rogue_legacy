@@ -24,17 +24,17 @@ public:
     virtual int GetPixelHeight() const { return GetTotalRows() * Config::TILE_SIZE; }
 
     int WorldToCol(float worldX) const {
-        return static_cast<int>(std::floor((worldX - static_cast<float>(Config::ROOM_OFFSET_X)) / static_cast<float>(Config::TILE_SIZE)));
+        return static_cast<int>(std::floor(worldX / static_cast<float>(Config::TILE_SIZE)));
     }
 
     int WorldToRow(float worldY) const {
-        return static_cast<int>(std::floor((worldY - static_cast<float>(Config::ROOM_OFFSET_Y)) / static_cast<float>(Config::TILE_SIZE)));
+        return static_cast<int>(std::floor(worldY / static_cast<float>(Config::TILE_SIZE)));
     }
 
     Rectangle GetTileRect(int col, int row) const {
         return Rectangle{
-            static_cast<float>(Config::ROOM_OFFSET_X + col * Config::TILE_SIZE),
-            static_cast<float>(Config::ROOM_OFFSET_Y + row * Config::TILE_SIZE),
+            static_cast<float>(col * Config::TILE_SIZE),
+            static_cast<float>(row * Config::TILE_SIZE),
             static_cast<float>(Config::TILE_SIZE),
             static_cast<float>(Config::TILE_SIZE)
         };
@@ -61,8 +61,8 @@ public:
     bool GetSlopeSurfaceY(float worldX, int col, int row, float& outSurfaceY) const {
         char c = GetTileAt(col, row);
         if (c != '/' && c != '\\') return false;
-        float tileLeft = static_cast<float>(Config::ROOM_OFFSET_X + col * Config::TILE_SIZE);
-        float tileTop  = static_cast<float>(Config::ROOM_OFFSET_Y + row * Config::TILE_SIZE);
+        float tileLeft = static_cast<float>(col * Config::TILE_SIZE);
+        float tileTop  = static_cast<float>(row * Config::TILE_SIZE);
         float tSize    = static_cast<float>(Config::TILE_SIZE);
         float localX   = std::clamp((worldX - tileLeft) / tSize, 0.0f, 1.0f);
         if (c == '/') {
