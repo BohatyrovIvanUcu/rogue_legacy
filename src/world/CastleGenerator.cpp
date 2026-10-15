@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <map>
 
 namespace {
 
@@ -344,6 +345,7 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
         bool placedSecret = false;
         int multiCellCount = 0;
         std::deque<int> recentTemplates;
+        std::map<int, int> tmplUsage;
 
         auto GetNeighborTemplates = [&](int gx, int gy) -> std::vector<int> {
             std::vector<int> nTmpls;
@@ -376,7 +378,16 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
                 }
             }
             if (candidates.empty()) candidates = pool;
-            return candidates[rng() % candidates.size()];
+
+            int minU = 99999;
+            for (int t : candidates) {
+                minU = std::min(minU, tmplUsage[t]);
+            }
+            std::vector<int> best;
+            for (int t : candidates) {
+                if (tmplUsage[t] == minU) best.push_back(t);
+            }
+            return best[rng() % best.size()];
         };
 
         // 2D-гілкування: чергування напрямків та запобігання утворенню 1D-колон/ліній
@@ -528,9 +539,9 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
                 std::vector<int> shuffledPool = pool1x1;
                 std::shuffle(shuffledPool.begin(), shuffledPool.end(), rng);
                 std::sort(shuffledPool.begin(), shuffledPool.end(), [&](int a, int b) {
-                    bool aRecent = std::find(recentTemplates.begin(), recentTemplates.end(), a) != recentTemplates.end();
-                    bool bRecent = std::find(recentTemplates.begin(), recentTemplates.end(), b) != recentTemplates.end();
-                    return !aRecent && bRecent;
+                    int aScore = tmplUsage[a] * 10 + (std::find(recentTemplates.begin(), recentTemplates.end(), a) != recentTemplates.end() ? 5 : 0);
+                    int bScore = tmplUsage[b] * 10 + (std::find(recentTemplates.begin(), recentTemplates.end(), b) != recentTemplates.end() ? 5 : 0);
+                    return aScore < bScore;
                 });
                 for (int tIdx : shuffledPool) {
                     int origGx = fd.targetGx;
@@ -555,8 +566,9 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
 
             PlaceRoom(chosenTmpl, origGx, origGy, bType, rType, bBoss, fCond, frontier);
             roomsInBiome++;
+            tmplUsage[chosenTmpl]++;
             recentTemplates.push_back(chosenTmpl);
-            if (recentTemplates.size() > 4) {
+            if (recentTemplates.size() > 6) {
                 recentTemplates.pop_front();
             }
 

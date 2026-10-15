@@ -757,29 +757,55 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
     if (!tileMap) return;
 
     Rectangle b = GetBounds();
-    int rMin = tileMap->WorldToRow(b.y + 3.0f);
-    int rMax = tileMap->WorldToRow(b.y + b.height - 3.0f);
+    int rHead  = tileMap->WorldToRow(b.y + 4.0f);
+    int rChest = tileMap->WorldToRow(b.y + b.height * 0.45f);
+    int rMin   = rHead;
+    int rMax   = tileMap->WorldToRow(b.y + b.height - 3.0f);
+
+    float footX = b.x + b.width * 0.5f;
+    int cCenter = tileMap->WorldToCol(footX);
+
+    // Чи гравець зараз стоїть на схилі або поряд зі схилом?
+    bool onSlopeNow = false;
+    for (int rTry : { rMax, rMax - 1, rMax + 1 }) {
+        if (tileMap->IsSlopeAt(cCenter, rTry)) {
+            onSlopeNow = true;
+            break;
+        }
+    }
 
     if (vel.x > 0.0f) {
         int cRight = tileMap->WorldToCol(b.x + b.width);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cRight, r, isDwarf)) {
-                // Дозволяємо прохід тільки якщо гравець ступає на поверхню схилу або йде вгору
-                bool bypassForSlope = false;
-                for (int rSlope : { r, r - 1 }) {
-                    if (tileMap->IsSlopeAt(cRight, rSlope)) {
-                        float sY = 0.0f;
-                        if (tileMap->GetSlopeSurfaceY(b.x + b.width, cRight, rSlope, sY)) {
-                            if (b.y + b.height <= sY + 8.0f) {
-                                bypassForSlope = true;
-                                break;
-                            }
+                // 1) Верхня частина тіла (голова та груди) повинна бути в повітрі
+                bool upperBodyClear = (!tileMap->IsSolidAt(cRight, rHead, isDwarf) &&
+                                       !tileMap->IsSolidAt(cRight, rChest, isDwarf));
+
+                // 2) Чи є схил попереду в колонці cRight?
+                bool slopeAhead = (tileMap->IsSlopeAt(cRight, r) ||
+                                   tileMap->IsSlopeAt(cRight, r - 1) ||
+                                   tileMap->IsSlopeAt(cRight, r + 1));
+
+                if (upperBodyClear && (slopeAhead || onSlopeNow)) {
+                    // Перевіряємо, чи перешкода на рівні ніг при підйомі на схил або сході на поверхню
+                    float sY = 0.0f;
+                    if (tileMap->GetSlopeSurfaceY(b.x + b.width, cRight, r, sY) ||
+                        tileMap->GetSlopeSurfaceY(b.x + b.width, cRight, r - 1, sY) ||
+                        tileMap->GetSlopeSurfaceY(footX, cCenter, r, sY) ||
+                        tileMap->GetSlopeSurfaceY(footX, cCenter, r - 1, sY)) {
+                        if (b.y + b.height <= sY + 48.0f) {
+                            continue;
+                        }
+                    } else if (onSlopeNow) {
+                        // Вихід зі схилу на рівну підлогу
+                        Rectangle tRec = tileMap->GetTileRect(cRight, r);
+                        if (b.y + b.height <= tRec.y + 36.0f) {
+                            continue;
                         }
                     }
                 }
-                if (bypassForSlope) {
-                    continue;
-                }
+
                 Rectangle tRec = tileMap->GetTileRect(cRight, r);
                 pos.x = tRec.x - width - 0.01f;
                 vel.x = 0.0f;
@@ -790,21 +816,30 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
         int cLeft = tileMap->WorldToCol(b.x);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cLeft, r, isDwarf)) {
-                bool bypassForSlope = false;
-                for (int rSlope : { r, r - 1 }) {
-                    if (tileMap->IsSlopeAt(cLeft, rSlope)) {
-                        float sY = 0.0f;
-                        if (tileMap->GetSlopeSurfaceY(b.x, cLeft, rSlope, sY)) {
-                            if (b.y + b.height <= sY + 8.0f) {
-                                bypassForSlope = true;
-                                break;
-                            }
+                bool upperBodyClear = (!tileMap->IsSolidAt(cLeft, rHead, isDwarf) &&
+                                       !tileMap->IsSolidAt(cLeft, rChest, isDwarf));
+
+                bool slopeAhead = (tileMap->IsSlopeAt(cLeft, r) ||
+                                   tileMap->IsSlopeAt(cLeft, r - 1) ||
+                                   tileMap->IsSlopeAt(cLeft, r + 1));
+
+                if (upperBodyClear && (slopeAhead || onSlopeNow)) {
+                    float sY = 0.0f;
+                    if (tileMap->GetSlopeSurfaceY(b.x, cLeft, r, sY) ||
+                        tileMap->GetSlopeSurfaceY(b.x, cLeft, r - 1, sY) ||
+                        tileMap->GetSlopeSurfaceY(footX, cCenter, r, sY) ||
+                        tileMap->GetSlopeSurfaceY(footX, cCenter, r - 1, sY)) {
+                        if (b.y + b.height <= sY + 48.0f) {
+                            continue;
+                        }
+                    } else if (onSlopeNow) {
+                        Rectangle tRec = tileMap->GetTileRect(cLeft, r);
+                        if (b.y + b.height <= tRec.y + 36.0f) {
+                            continue;
                         }
                     }
                 }
-                if (bypassForSlope) {
-                    continue;
-                }
+
                 Rectangle tRec = tileMap->GetTileRect(cLeft, r);
                 pos.x = tRec.x + tRec.width + 0.01f;
                 vel.x = 0.0f;
