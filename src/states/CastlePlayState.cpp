@@ -713,36 +713,32 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
     DrawRectangle(mapX - 6, mapY - 6, mapSize + 12, mapSize + 32, Color{ 10, 12, 22, 220 });
     DrawRectangleLines(mapX - 6, mapY - 6, mapSize + 12, mapSize + 32, GOLD);
 
+    bool hasAlzheimers = ctx.CurrentHeirHasTrait(TraitType::Alzheimers);
     bool hasEidetic = ctx.CurrentHeirHasTrait(TraitType::EideticMemory);
     bool isSpelunker = (ctx.activeHeir.classType == ClassType::Spelunker_Upgraded) ||
-                       (ctx.activeHeir.classType == ClassType::Miner_Base && player_.headlampOn) ||
-                       hasEidetic;
+                       (ctx.activeHeir.classType == ClassType::Miner_Base && player_.headlampOn);
 
     for (int y = 0; y < Config::CASTLE_GRID_SIZE; ++y) {
         for (int x = 0; x < Config::CASTLE_GRID_SIZE; ++x) {
             const Room& r = castle_.GetRoom(x, y);
             if (r.doorMask == 0) continue;
 
-            bool showRoom = r.visited || isSpelunker;
-            if (!showRoom) {
-                // Показуємо сусідні невідвідані кімнати тьмяним контуром
-                const int dx[4] = { 0, 1, 0, -1 };
-                const int dy[4] = { -1, 0, 1, 0 };
-                for (int d = 0; d < 4; ++d) {
-                    int nx = x + dx[d];
-                    int ny = y + dy[d];
-                    if (nx >= 0 && nx < Config::CASTLE_GRID_SIZE && ny >= 0 && ny < Config::CASTLE_GRID_SIZE) {
-                        if (castle_.GetRoom(nx, ny).visited) {
-                            showRoom = true;
-                            break;
-                        }
-                    }
-                }
+            // Хвороба Альцгеймера: показуємо тільки поточну кімнату гравця
+            if (hasAlzheimers && (x != curGx_ || y != curGy_)) {
+                continue;
             }
-            if (!showRoom) continue;
 
             int rx = mapX + x * cell;
             int ry = mapY + y * cell;
+
+            // На карті видно ВИКЛЮЧНО ті кімнати, в яких гравець реально побував
+            if (!r.visited) {
+                // Якщо активовано ліхтар Spelunker, показуємо лише мітки скринь
+                if (isSpelunker && (r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened) {
+                    DrawCircle(rx + cell / 2, ry + cell / 2, 2.5f, GOLD);
+                }
+                continue;
+            }
 
             Color c = Color{ 60, 68, 88, 255 };
             switch (r.biome) {
@@ -752,25 +748,22 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
                 case BiomeType::LandOfDarkness: c = Color{ 125, 60, 165, 255 }; break;
                 default: break;
             }
-            if (!r.visited) {
-                c = Fade(c, 0.38f);
-            }
 
             DrawRectangle(rx + 1, ry + 1, cell - 2, cell - 2, c);
 
-            // Іконки спеціальних кімнат
+            // Іконки спеціальних кімнат (лише для відвіданих кімнат)
             if (r.roomType == RoomType::BossEntrance) {
                 DrawCircle(rx + cell / 2, ry + cell / 2, 3.5f, RED);
             } else if (r.roomType == RoomType::Teleporter || r.roomType == RoomType::Entrance) {
                 DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, SKYBLUE);
-            } else if ((r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened && isSpelunker) {
+            } else if ((r.roomType == RoomType::FairyChest || r.roomType == RoomType::Treasure) && !r.chestOpened) {
                 DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, GOLD);
-            } else if (r.roomType == RoomType::Secret && !r.chestOpened && isSpelunker) {
+            } else if (r.roomType == RoomType::Secret && !r.chestOpened) {
                 DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, MAGENTA);
             }
 
-            // Eidetic Memory: точкові позиції активних ворогів
-            if (hasEidetic && r.visited) {
+            // Eidetic Memory: точкові позиції активних ворогів у відвіданих кімнатах
+            if (hasEidetic) {
                 for (const auto& en : r.enemies) {
                     if (en.active) {
                         float relX = (en.pos.x - Config::ROOM_OFFSET_X) / static_cast<float>(Config::ROOM_COLS * Config::TILE_SIZE);
