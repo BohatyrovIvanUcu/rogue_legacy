@@ -105,8 +105,7 @@ jobs:
           chmod +x AppDir/AppRun
 
           # Download appimagetool and generate standalone AppImage
-          curl -sL https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -o appimagetool || \
-          curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          curl -fsSL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
           chmod +x appimagetool
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir RogueLegacy-x86_64.AppImage
           chmod +x RogueLegacy-x86_64.AppImage
@@ -204,4 +203,5 @@ jobs:
             release_assets/RogueLegacy-x86_64.AppImage
             release_assets/rogue_legacy_linux_x64.tar.gz
             release_assets/rogue_legacy_linux_x64.zip
+          fail_on_unmatched_files: false
           prerelease: false
