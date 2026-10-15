@@ -35,19 +35,22 @@ jobs:
           if (-not $exe) { throw "rogue_legacy_cpp.exe not found in build directory!" }
           Copy-Item $exe.FullName dist/rogue_legacy_windows/rogue_legacy.exe
           Copy-Item README.md dist/rogue_legacy_windows/
-          @'
-@echo off
-cd /d "%~dp0"
-echo ========================================================
-echo Starting Rogue Legacy C++ (x64 Windows Standalone)...
-echo ========================================================
-rogue_legacy.exe %*
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo [ERROR] Game closed unexpectedly with exit code %ERRORLEVEL%.
-    pause
-)
-'@ | Set-Content -Path dist/rogue_legacy_windows/start_game.bat -Encoding ASCII
+          if (Test-Path assets/icon.ico) { Copy-Item assets/icon.ico dist/rogue_legacy_windows/ }
+          if (Test-Path assets/icon.png) { Copy-Item assets/icon.png dist/rogue_legacy_windows/ }
+          $bat = @(
+              "@echo off",
+              "cd /d `"%~dp0`"",
+              "echo ========================================================",
+              "echo Starting Rogue Legacy C++ (x64 Windows Standalone)...",
+              "echo ========================================================",
+              "rogue_legacy.exe %*",
+              "if %ERRORLEVEL% NEQ 0 (",
+              "    echo.",
+              "    echo [ERROR] Game closed unexpectedly with exit code %ERRORLEVEL%.",
+              "    pause",
+              ")"
+          ) -join "`r`n"
+          Set-Content -Path dist/rogue_legacy_windows/start_game.bat -Value $bat -Encoding ASCII
           Compress-Archive -Path dist/rogue_legacy_windows/* -DestinationPath rogue_legacy_windows_x64.zip
 
       - name: Upload Windows Artifact
@@ -58,7 +61,7 @@ if %ERRORLEVEL% NEQ 0 (
           retention-days: 90
 
   build-linux:
-    name: Build Linux x64
+    name: Build Linux x64 & AppImage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -67,7 +70,7 @@ if %ERRORLEVEL% NEQ 0 (
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev file wget curl zip
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -75,19 +78,49 @@ if %ERRORLEVEL% NEQ 0 (
       - name: Build executable
         run: cmake --build build --config Release -j$(nproc)
 
-      - name: Package Linux game
+      - name: Package Linux AppImage (1-Click Executable)
+        run: |
+          mkdir -p AppDir/usr/bin
+          cp build/rogue_legacy_cpp AppDir/usr/bin/rogue_legacy
+          chmod +x AppDir/usr/bin/rogue_legacy
+
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/rogue_legacy.png
+          cp assets/icon.png AppDir/rogue_legacy.png
+          cp assets/icon.png AppDir/.DirIcon
+
+          echo "[Desktop Entry]" > AppDir/rogue_legacy.desktop
+          echo "Type=Application" >> AppDir/rogue_legacy.desktop
+          echo "Name=Rogue Legacy C++" >> AppDir/rogue_legacy.desktop
+          echo "GenericName=Roguelite Action Platformer" >> AppDir/rogue_legacy.desktop
+          echo "Comment=Faithful high-performance remake of Rogue Legacy in C++" >> AppDir/rogue_legacy.desktop
+          echo "Exec=rogue_legacy" >> AppDir/rogue_legacy.desktop
+          echo "Icon=rogue_legacy" >> AppDir/rogue_legacy.desktop
+          echo "Categories=Game;ActionGame;" >> AppDir/rogue_legacy.desktop
+          echo "Terminal=false" >> AppDir/rogue_legacy.desktop
+
+          echo '#!/bin/sh' > AppDir/AppRun
+          echo 'HERE="$(dirname "$(readlink -f "${0}")")"' >> AppDir/AppRun
+          echo 'exec "$HERE/usr/bin/rogue_legacy" "$@"' >> AppDir/AppRun
+          chmod +x AppDir/AppRun
+
+          # Download appimagetool and generate standalone AppImage
+          curl -sL https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage -o appimagetool || \
+          curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir RogueLegacy-x86_64.AppImage
+          chmod +x RogueLegacy-x86_64.AppImage
+
+      - name: Package Linux Portable Archive
         run: |
           mkdir -p dist/rogue_legacy_linux
           cp build/rogue_legacy_cpp dist/rogue_legacy_linux/rogue_legacy
           chmod +x dist/rogue_legacy_linux/rogue_legacy
           cp README.md dist/rogue_legacy_linux/
-          cat << 'EOF' > dist/rogue_legacy_linux/start_game.sh
-          #!/usr/bin/env bash
-          cd "$(dirname "$0")"
-          chmod +x ./rogue_legacy
-          ./rogue_legacy "$@"
-          EOF
-          chmod +x dist/rogue_legacy_linux/start_game.sh
+          cp -r assets dist/rogue_legacy_linux/
+          cp start_game.sh dist/rogue_legacy_linux/
+          cp install_desktop.sh dist/rogue_legacy_linux/
+          chmod +x dist/rogue_legacy_linux/*.sh
           tar -czvf rogue_legacy_linux_x64.tar.gz -C dist/rogue_legacy_linux .
           cd dist/rogue_legacy_linux && zip -r ../../rogue_legacy_linux_x64.zip . && cd ../..
 
@@ -96,6 +129,7 @@ if %ERRORLEVEL% NEQ 0 (
         with:
           name: rogue_legacy_linux_x64
           path: |
+            RogueLegacy-x86_64.AppImage
             rogue_legacy_linux_x64.tar.gz
             rogue_legacy_linux_x64.zip
           retention-days: 90
@@ -106,6 +140,17 @@ if %ERRORLEVEL% NEQ 0 (
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update latest tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git tag -f latest ${{ github.sha }}
+          git push -f origin latest
+
       - name: Create release assets directory
         run: mkdir -p release_assets
 
@@ -124,29 +169,39 @@ if %ERRORLEVEL% NEQ 0 (
       - name: Publish Release to GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: "Rogue Legacy C++ Latest Release (Windows & Linux)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && format('Rogue Legacy C++ {0} (Windows & Linux)', github.ref_name) || 'Rogue Legacy C++ Latest Release (Windows & Linux)' }}
+          make_latest: true
           body: |
             ### 🎮 Rogue Legacy C++ Standalone Builds
 
-            Автоматичні готові збірки для **Windows** та **Linux** (без потреби встановлювати компілятори чи сторонні бібліотеки).
+            Автоматичні готові збірки для **Windows** та **Linux** (без потреби встановлювати компілятор чи збирати з сирців).
+
+            ---
+
+            #### 🐧 Для Linux (2 найпростіші способи запуску):
+
+            ##### ⚡ Варіант 1: AppImage (Як .exe на Windows — один файл, без встановлення!):
+            1. Завантажте файл **`RogueLegacy-x86_64.AppImage`**.
+            2. Надайте дозвіл на запуск (один раз):
+               - Через меню файлу: Правий клік -> **Властивості (Properties)** -> **Дозволити запуск файлу як програми (Allow executing file as program)**.
+               - Або в терміналі: `chmod +x RogueLegacy-x86_64.AppImage`
+            3. **Двічі клацніть по файлу AppImage і грайте!**
+
+            ##### 📦 Варіант 2: Portable архів або додавання в меню програм:
+            1. Завантажте `rogue_legacy_linux_x64.tar.gz` та розархівуйте його.
+            2. Запустіть `./start_game.sh` для миттєвої гри.
+            3. *(За бажанням)* Запустіть `./install_desktop.sh`, щоб додати гру в системне меню та на Робочий стіл з іконкою!
 
             ---
 
             #### 🪟 Для Windows:
-            1. Завантажте `rogue_legacy_windows_x64.zip`.
-            2. **Повністю видобудьте (розархівуйте) архів** у зручну теку (наприклад, на Робочий стіл або в окрему папку). Не запускайте гру напряму зсередини нерозпакованого zip!
-            3. Запустіть `start_game.bat` або `rogue_legacy.exe`!
-
-            ---
-
-            #### 🐧 Для Linux:
-            1. Завантажте `rogue_legacy_linux_x64.tar.gz` (або `rogue_legacy_linux_x64.zip`).
-            2. Розархівуйте: `tar -xvf rogue_legacy_linux_x64.tar.gz`.
-            3. Запустіть `./start_game.sh` або `./rogue_legacy`!
+            1. Завантажте **`rogue_legacy_windows_x64.zip`**.
+            2. **Повністю розархівуйте архів** у зручну папку.
+            3. Двічі клацніть **`rogue_legacy.exe`** (або `start_game.bat`)!
           files: |
             release_assets/rogue_legacy_windows_x64.zip
+            release_assets/RogueLegacy-x86_64.AppImage
             release_assets/rogue_legacy_linux_x64.tar.gz
             release_assets/rogue_legacy_linux_x64.zip
           prerelease: false
-

@@ -59,20 +59,22 @@ Featuring **100% pure procedural rendering** (no external sprite sheets required
 
 ## Quick Download (No Compilation Required)
 
-🎮 **Want to play immediately?** Check the [**GitHub Releases**](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/latest) for precompiled binaries:
+🎮 **Want to play immediately?** Check [**GitHub Releases**](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/latest) for standalone precompiled builds:
+
+### 🐧 Linux (64-bit) — 1-Click Executable (Just like an `.exe`!)
+- **Recommended (Standalone AppImage)**:
+  1. Download 👉 **[RogueLegacy-x86_64.AppImage](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/RogueLegacy-x86_64.AppImage)**
+  2. Allow execution (right-click -> *Properties* -> *Allow executing file as program*, or `chmod +x RogueLegacy-x86_64.AppImage`).
+  3. **Double-click to play!** No installation, no compiler, and no package manager required.
+- **Alternative (Tarball & Desktop Shortcut)**:
+  1. Download 👉 **[rogue_legacy_linux_x64.tar.gz](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_linux_x64.tar.gz)**
+  2. Extract: `tar -xvf rogue_legacy_linux_x64.tar.gz`
+  3. Run `./start_game.sh` to play, or `./install_desktop.sh` to add the game with its icon to your system Applications Menu!
 
 ### 🪟 Windows (64-bit)
 1. Download 👉 **[rogue_legacy_windows_x64.zip](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_windows_x64.zip)**
-2. Extract the `.zip` archive.
-3. Run `rogue_legacy.exe`!
-
-### 🐧 Linux (64-bit)
-1. Download 👉 **[rogue_legacy_linux_x64.tar.gz](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_linux_x64.tar.gz)** *(or [rogue_legacy_linux_x64.zip](https://github.com/BohatyrovIvanUcu/rogue_legacy/releases/download/latest/rogue_legacy_linux_x64.zip))*
-2. Extract the archive:
-   ```bash
-   tar -xvf rogue_legacy_linux_x64.tar.gz
-   ```
-3. Run `./start_game.sh` (or `./rogue_legacy`)!
+2. Extract the `.zip` archive completely into a folder.
+3. Double-click `rogue_legacy.exe` (or `start_game.bat`)!
 
 ---
 

@@ -480,7 +480,10 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
                         else                eType = EnemyType::Warg;
 
                         Enemy en;
-                        en.Init(eType, enemyTier, roomLevel, { center.x, bottomCenter.y - 24.0f }, false);
+                        en.Init(eType, enemyTier, roomLevel, center, false);
+                        en.pos.y = bottomCenter.y - en.height - 0.01f;
+                        en.pos.x = bottomCenter.x - en.width * 0.5f;
+                        en.anchorPos = en.GetCenter();
                         if (isReversed) {
                             en.facingDir = -1.0f;
                         }
@@ -570,6 +573,13 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
 
                 Enemy en;
                 en.Init(eType, enemyTier, roomLevel, spot.pos, false);
+                if (!spot.isAir) {
+                    int rFloor = WorldToRow(spot.pos.y) + 1;
+                    float floorY = static_cast<float>(rFloor * Config::TILE_SIZE);
+                    en.pos.y = floorY - en.height - 0.01f;
+                    en.pos.x = spot.pos.x - en.width * 0.5f;
+                    en.anchorPos = en.GetCenter();
+                }
                 if (isReversed) {
                     en.facingDir = -1.0f;
                 }
@@ -595,14 +605,130 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
             if (it.kind == InteractableKind::Shrine)     hasShrine = true;
         }
 
+        auto FindSafeGroundSpot = [&](int startCol, int endCol, int step) -> Vector2 {
+            for (int c = startCol; (step > 0) ? (c <= endCol) : (c >= endCol); c += step) {
+                if (c < 3 || c + 2 >= totalCols - 3) continue;
+                for (int r = totalRows - 2; r >= totalRows - 6; --r) {
+                    if (r < 2 || r + 1 >= totalRows) continue;
+                    char f0 = tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)];
+                    char f1 = tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c + 1)];
+                    char a0 = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
+                    char a1 = tiles[static_cast<size_t>(r)][static_cast<size_t>(c + 1)];
+                    char u0 = tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)];
+                    char u1 = tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c + 1)];
+
+                    if ((f0 == '#' || f0 == '=') && (f1 == '#' || f1 == '=') &&
+                        a0 == '.' && a1 == '.' && u0 == '.' && u1 == '.') {
+                        float floorY = static_cast<float>((r + 1) * Config::TILE_SIZE);
+                        float midX = static_cast<float>(c * Config::TILE_SIZE + Config::TILE_SIZE);
+                        return Vector2{ midX, floorY };
+                    }
+                }
+            }
+            return Vector2{ 0.0f, 0.0f };
+        };
+
+        int midCol = totalCols / 2;
         if (!hasTeleporter) {
-            Vector2 telPos = { centerX - 7.0f * Config::TILE_SIZE, bottomY + Config::TILE_SIZE };
-            interactables.push_back(Interactable::MakeTeleporter(telPos));
+            Vector2 telPos = FindSafeGroundSpot(midCol - 4, 3, -1);
+            if (telPos.x > 0.0f) {
+                interactables.push_back(Interactable::MakeTeleporter(telPos));
+            }
         }
 
         if (!hasShrine) {
-            Vector2 shrinePos = { centerX + 7.0f * Config::TILE_SIZE, bottomY + Config::TILE_SIZE };
-            interactables.push_back(Interactable::MakeShrine(shrinePos));
+            Vector2 shrinePos = FindSafeGroundSpot(midCol + 4, totalCols - 4, 1);
+            if (shrinePos.x > 0.0f) {
+                interactables.push_back(Interactable::MakeShrine(shrinePos));
+            }
+        }
+    }
+
+    // 5. Повна перевірка та очищення колізій об'єктів і ворогів зі стінами та схилами
+    auto IsBoxClipping = [&](const Rectangle& rec) -> bool {
+        int cMin = WorldToCol(rec.x + 2.0f);
+        int cMax = WorldToCol(rec.x + rec.width - 2.0f);
+        int rMin = WorldToRow(rec.y + 2.0f);
+        int rMax = WorldToRow(rec.y + rec.height - 2.0f);
+        for (int r = rMin; r <= rMax; ++r) {
+            for (int c = cMin; c <= cMax; ++c) {
+                if (IsSolidAt(c, r, false) || IsSlopeAt(c, r)) return true;
+            }
+        }
+        return false;
+    };
+
+    // Очищення інтерактивних об'єктів (скрині, смолоскипи, шафи, вівтарі)
+    for (auto it = interactables.begin(); it != interactables.end(); ) {
+        if (!IsBoxClipping(it->GetBounds())) {
+            ++it;
+            continue;
+        }
+
+        // Пробуємо посунути об'єкт убік від стіни у вільний простір
+        bool resolved = false;
+        for (float nudgeX : { -8.0f, 8.0f, -16.0f, 16.0f, -24.0f, 24.0f }) {
+            Rectangle testRec = it->GetBounds();
+            testRec.x += nudgeX;
+            if (!IsBoxClipping(testRec)) {
+                it->pos.x += nudgeX;
+                resolved = true;
+                break;
+            }
+        }
+        if (!resolved) {
+            for (float nudgeY : { -8.0f, -16.0f, -24.0f }) {
+                Rectangle testRec = it->GetBounds();
+                testRec.y += nudgeY;
+                if (!IsBoxClipping(testRec)) {
+                    it->pos.y += nudgeY;
+                    resolved = true;
+                    break;
+                }
+            }
+        }
+
+        if (resolved) {
+            ++it;
+        } else {
+            it = interactables.erase(it);
+        }
+    }
+
+    // Очищення ворогів від застрягання в геометрії
+    for (auto it = enemies.begin(); it != enemies.end(); ) {
+        if (!IsBoxClipping(it->GetBounds())) {
+            ++it;
+            continue;
+        }
+
+        bool resolved = false;
+        for (float nudgeX : { -8.0f, 8.0f, -16.0f, 16.0f, -24.0f, 24.0f }) {
+            Rectangle testRec = it->GetBounds();
+            testRec.x += nudgeX;
+            if (!IsBoxClipping(testRec)) {
+                it->pos.x += nudgeX;
+                resolved = true;
+                break;
+            }
+        }
+        if (!resolved) {
+            for (float nudgeY : { -6.0f, -12.0f, -18.0f, -24.0f }) {
+                Rectangle testRec = it->GetBounds();
+                testRec.y += nudgeY;
+                if (!IsBoxClipping(testRec)) {
+                    it->pos.y += nudgeY;
+                    resolved = true;
+                    break;
+                }
+            }
+        }
+
+        if (resolved) {
+            it->anchorPos = it->GetCenter();
+            ++it;
+        } else {
+            it = enemies.erase(it);
         }
     }
 }
