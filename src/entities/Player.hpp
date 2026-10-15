@@ -72,11 +72,12 @@ public:
     bool wasOnGround = true;
     float footstepDustTimer = 0.0f;
 
-    // Риси Clonus та StereoBlind
+    // Риси Clonus, StereoBlind та Ambilevous
     float clonusIntervalTimer = 18.0f;
     float clonusSpasmTimer = 0.0f;
     float turnFlipTimer = 0.0f;
     float prevFacingDir = 1.0f;
+    float ambilevousTimer = 0.0f;
 
     // Прапорці для випробувань Скринь Феї (Fairy Chest) у поточній кімнаті
     bool jumpedInCurrentRoom = false;
@@ -138,5 +139,5 @@ private:
     );
 
     void ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf);
-    void ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float prevBottom);
+    void ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float prevBottom, bool hasEhs = false);
 };

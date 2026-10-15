@@ -198,6 +198,21 @@ void Player::Update(
         turnFlipTimer = 0.0f;
     }
 
+    // Риса Ambilevous: якщо герой стоїть на місці, кожні 0.4s над головою спливає знак питання
+    if (ctx.CurrentHeirHasTrait(TraitType::Ambilevous)) {
+        if (onGround && std::abs(vel.x) < 5.0f) {
+            ambilevousTimer -= dt;
+            if (ambilevousTimer <= 0.0f) {
+                ambilevousTimer = 0.40f;
+                if (ctx.particles) {
+                    ctx.particles->SpawnFloatingText({ GetCenter().x, pos.y - 10.0f }, "?", SKYBLUE, 18, false);
+                }
+            }
+        } else {
+            ambilevousTimer = 0.20f;
+        }
+    }
+
     HandleCombatAndAbilities(dt, ctx, tileMap, projectiles);
     HandleMovementAndPhysics(dt, ctx, tileMap, projectiles);
 
@@ -275,7 +290,8 @@ void Player::HandleMovementAndPhysics(
         pos.x += vel.x * dt;
         ResolveTileCollisionsX(tileMap, isDwarf);
         pos.y += vel.y * dt;
-        ResolveTileCollisionsY(tileMap, isDwarf, prevBottom);
+        bool hasEhs = ctx.CurrentHeirHasTrait(TraitType::EHS);
+        ResolveTileCollisionsY(tileMap, isDwarf, prevBottom, hasEhs);
         return;
     }
 
@@ -397,8 +413,9 @@ void Player::HandleMovementAndPhysics(
 
     float preLandVelY = vel.y;
     onGround = false;
+    bool hasEhs = ctx.CurrentHeirHasTrait(TraitType::EHS);
     pos.y += vel.y * dt;
-    ResolveTileCollisionsY(tileMap, isDwarf, prevBottom);
+    ResolveTileCollisionsY(tileMap, isDwarf, prevBottom, hasEhs);
 
     if (onGround) {
         isDownStriking = false;
@@ -453,11 +470,17 @@ void Player::HandleCombatAndAbilities(
             if (mp >= 12) {
                 mp -= 12;
                 attackCooldownTimer = 0.26f;
-                Vector2 aimDir = { facingDir, 0.0f };
+                float castDir = facingDir;
+                Vector2 spawnPos = GetCenter();
+                if (ctx.CurrentHeirHasTrait(TraitType::Ambilevous)) {
+                    castDir = -facingDir;
+                    spawnPos.x -= facingDir * 14.0f;
+                }
+                Vector2 aimDir = { castDir, 0.0f };
                 if (ctx.input.IsActionDown(InputAction::MoveUp))   aimDir.y = -0.6f;
                 if (ctx.input.IsActionDown(InputAction::MoveDown)) aimDir.y =  0.6f;
                 int fbDmg = std::max(8, static_cast<int>(std::round(stats.str * 0.65f + stats.intelligence * 0.85f)));
-                projectiles.push_back(Projectile::MakeDragonFireball(GetCenter(), aimDir, fbDmg));
+                projectiles.push_back(Projectile::MakeDragonFireball(spawnPos, aimDir, fbDmg));
                 if (ctx.audio) ctx.audio->PlaySfx(SfxId::SpellCast, 0.9f);
             }
         } else {
@@ -519,8 +542,14 @@ void Player::HandleCombatAndAbilities(
                 timeStopTimer = 3.5f;
                 if (ctx.particles) ctx.particles->SpawnExplosion(GetCenter(), 140.0f, SKYBLUE);
             } else {
+                float castDir = facingDir;
+                Vector2 spawnPos = GetCenter();
+                if (ctx.CurrentHeirHasTrait(TraitType::Ambilevous)) {
+                    castDir = -facingDir;
+                    spawnPos.x -= facingDir * 14.0f;
+                }
                 int spellDmg = std::max(5, static_cast<int>(std::round(stats.intelligence * sDef.intMultiplier)));
-                Projectile::SpawnPlayerSpell(projectiles, spellToCast, GetCenter(), facingDir, spellDmg, 1.0f, 1.0f);
+                Projectile::SpawnPlayerSpell(projectiles, spellToCast, spawnPos, castDir, spellDmg, 1.0f, 1.0f);
             }
         }
     }
@@ -754,7 +783,7 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
     }
 }
 
-void Player::ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float prevBottom) {
+void Player::ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float prevBottom, bool hasEhs) {
     if (!tileMap) return;
 
     Rectangle b = GetBounds();
@@ -771,7 +800,7 @@ void Player::ResolveTileCollisionsY(const ITileMap* tileMap, bool isDwarf, float
                 onGround = true;
                 break;
             }
-            if (dropThroughPlatformTimer <= 0.0f && tileMap->IsOneWayAt(c, rBottom)) {
+            if (dropThroughPlatformTimer <= 0.0f && !hasEhs && tileMap->IsOneWayAt(c, rBottom)) {
                 Rectangle tRec = tileMap->GetTileRect(c, rBottom);
                 if (prevBottom <= tRec.y + 10.0f) {
                     pos.y = tRec.y - height;
@@ -942,7 +971,28 @@ bool Player::TakeDamage(
     if (ctx.particles) {
         ctx.particles->SpawnBlood(GetCenter(), 14);
         if (!ctx.CurrentHeirHasTrait(TraitType::CIP)) {
-            ctx.particles->SpawnFloatingText(GetCenter(), "-" + std::to_string(finalDmg), RED, 22, false);
+            int displayDmg = finalDmg;
+            bool isExaggerated = false;
+            if (ctx.CurrentHeirHasTrait(TraitType::Hypochondriac)) {
+                displayDmg = finalDmg * 12;
+                isExaggerated = true;
+            }
+            ctx.particles->SpawnFloatingText(
+                GetCenter(),
+                "-" + std::to_string(displayDmg),
+                RED,
+                isExaggerated ? 28 : 22,
+                isExaggerated
+            );
+        }
+        if (ctx.CurrentHeirHasTrait(TraitType::Coprolalia)) {
+            static const char* kGrawlix[] = { "%#&@!", "$*@#&!", "#&%!?", "!@#$%" };
+            int gIdx = std::rand() % 4;
+            ctx.particles->SpawnSpeechBubble(
+                { GetCenter().x, pos.y - 12.0f },
+                kGrawlix[gIdx],
+                0.90f
+            );
         }
     }
 

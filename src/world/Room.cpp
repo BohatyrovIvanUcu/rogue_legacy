@@ -336,7 +336,10 @@ void Room::Update(float dt, GameContext& ctx, Player& player) {
             Vector2 d = { en.GetCenter().x - shout.origin.x, en.GetCenter().y - shout.origin.y };
             float len = std::max(1.0f, std::hypot(d.x, d.y));
             if (len <= shout.radius) {
-                Vector2 kb = { (d.x / len) * shout.knockbackSpeed, -240.0f };
+                float shoutKbMult = 1.0f;
+                if (ctx.CurrentHeirHasTrait(TraitType::Hypergonadism)) shoutKbMult = 2.0f;
+                else if (ctx.CurrentHeirHasTrait(TraitType::MuscleWk)) shoutKbMult = 0.0f;
+                Vector2 kb = { (d.x / len) * shout.knockbackSpeed * shoutKbMult, -240.0f * (shoutKbMult > 0.0f ? 1.0f : 0.0f) };
                 en.ApplyStunAndKnockback(kb, shout.stunDuration);
                 if (shout.damage > 0) {
                     if (en.TakeDamage(shout.damage, kb, false, ctx)) {
@@ -490,7 +493,14 @@ void Room::Update(float dt, GameContext& ctx, Player& player) {
     }
 
     for (const auto& drop : newlySpawnedDrops) {
-        interactables.push_back(drop);
+        if (drop.kind == InteractableKind::MeatDrop && ctx.CurrentHeirHasTrait(TraitType::Alektorophobia)) {
+            Enemy chicken;
+            chicken.Init(EnemyType::ChickenKentucky, 1, roomLevel, drop.GetCenter(), false);
+            enemies.push_back(chicken);
+            if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChickenCluck, 1.0f, 0.85f);
+        } else {
+            interactables.push_back(drop);
+        }
     }
     interactables.erase(
         std::remove_if(interactables.begin(), interactables.end(), [](const Interactable& i) { return !i.active; }),
@@ -551,6 +561,19 @@ void Room::EvaluateFairyTrial(float dt, GameContext& ctx, Player& player) {
 
 void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
     std::vector<Interactable> combatDrops;
+
+    // Риса Clumsy: будь-який тілесний контакт із розбивними предметами руйнує їх
+    if (ctx.CurrentHeirHasTrait(TraitType::Clumsy)) {
+        Rectangle pBounds = player.GetBounds();
+        for (auto& it : interactables) {
+            if (!it.active) continue;
+            if (it.kind == InteractableKind::BreakableProp || it.kind == InteractableKind::Torch) {
+                if (CheckCollisionRecs(pBounds, it.GetBounds())) {
+                    it.OnHitByPlayer(ctx, player, combatDrops);
+                }
+            }
+        }
+    }
 
     // 1. УДАР МЕЧЕМ ГРАВЦЯ (включаючи Pogo Down-Strike)
     if (player.isAttacking) {
@@ -627,8 +650,13 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
 
             bool isCrit = false;
             int dmg = player.RollMeleeDamage(player.isDownStriking, isCrit);
+
+            float kbMult = 1.0f;
+            if (ctx.CurrentHeirHasTrait(TraitType::Hypergonadism)) kbMult = 2.0f;
+            else if (ctx.CurrentHeirHasTrait(TraitType::MuscleWk)) kbMult = 0.0f;
+
             float kbDir = (en.GetCenter().x >= player.GetCenter().x) ? 1.0f : -1.0f;
-            Vector2 kbVel = { kbDir * 210.0f, -150.0f };
+            Vector2 kbVel = { kbDir * 210.0f * kbMult, -150.0f * (kbMult > 0.0f ? 1.0f : 0.0f) };
 
             // Phase 7: Hit-stop (3 кадри) та trauma screen shake (0.25 normal, 0.40 crit)
             ctx.RequestHitStop(3);
@@ -643,8 +671,19 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
                 if (en.type == EnemyType::Skeleton && ctx.particles) {
                     ctx.particles->SpawnBones(en.GetCenter(), 14);
                 }
+                if (en.type == EnemyType::ChickenKentucky) {
+                    Interactable meat;
+                    meat.kind = InteractableKind::MeatDrop;
+                    meat.width = 24.0f;
+                    meat.height = 18.0f;
+                    meat.SetCenter(en.GetCenter());
+                    meat.vel = { 0.0f, -220.0f };
+                    meat.pickupDelay = 0.18f;
+                    combatDrops.push_back(meat);
+                    if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChickenCluck, 1.35f, 0.9f);
+                }
                 player.OnEnemyKilled(ctx, en.type);
-                if (!en.isDementiaPhantom) {
+                if (!en.isDementiaPhantom && en.type != EnemyType::ChickenKentucky) {
                     Interactable::SpawnLootBurst(combatDrops, en.GetCenter(), en.goldReward, true);
                 }
             }
@@ -734,11 +773,26 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
                 continue;
             }
 
+            float kbMult = 1.0f;
+            if (ctx.CurrentHeirHasTrait(TraitType::Hypergonadism)) kbMult = 2.0f;
+            else if (ctx.CurrentHeirHasTrait(TraitType::MuscleWk)) kbMult = 0.0f;
+
             float kbDir = (en.GetCenter().x >= proj.pos.x) ? 1.0f : -1.0f;
-            bool killed = en.TakeDamage(proj.damage, { kbDir * 140.0f, -100.0f }, false, ctx);
+            bool killed = en.TakeDamage(proj.damage, { kbDir * 140.0f * kbMult, -100.0f * (kbMult > 0.0f ? 1.0f : 0.0f) }, false, ctx);
             if (killed) {
+                if (en.type == EnemyType::ChickenKentucky) {
+                    Interactable meat;
+                    meat.kind = InteractableKind::MeatDrop;
+                    meat.width = 24.0f;
+                    meat.height = 18.0f;
+                    meat.SetCenter(en.GetCenter());
+                    meat.vel = { 0.0f, -220.0f };
+                    meat.pickupDelay = 0.18f;
+                    combatDrops.push_back(meat);
+                    if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChickenCluck, 1.35f, 0.9f);
+                }
                 player.OnEnemyKilled(ctx, en.type);
-                if (!en.isDementiaPhantom) {
+                if (!en.isDementiaPhantom && en.type != EnemyType::ChickenKentucky) {
                     Interactable::SpawnLootBurst(combatDrops, en.GetCenter(), en.goldReward, true);
                 }
             }
@@ -805,7 +859,14 @@ void Room::HandleCombatCollisions(GameContext& ctx, Player& player) {
     }
 
     for (const auto& d : combatDrops) {
-        interactables.push_back(d);
+        if (d.kind == InteractableKind::MeatDrop && ctx.CurrentHeirHasTrait(TraitType::Alektorophobia)) {
+            Enemy chicken;
+            chicken.Init(EnemyType::ChickenKentucky, 1, roomLevel, d.GetCenter(), false);
+            enemies.push_back(chicken);
+            if (ctx.audio) ctx.audio->PlaySfx(SfxId::ChickenCluck, 1.0f, 0.85f);
+        } else {
+            interactables.push_back(d);
+        }
     }
 }
 
@@ -872,7 +933,8 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
                 if (IsSolidTile(c - 1, r + 1)) dMask |= 4; // SW
                 if (IsSolidTile(c + 1, r + 1)) dMask |= 8; // SE
 
-                ctx.renderer->DrawTile(tc, c, r, biome, trapTimer, illusionAlpha, nMask, dMask);
+                bool hasEhs = ctx.CurrentHeirHasTrait(TraitType::EHS);
+                ctx.renderer->DrawTile(tc, c, r, biome, trapTimer, illusionAlpha, nMask, dMask, hasEhs);
             }
         }
     }

@@ -58,7 +58,8 @@ public:
         float trapTimer = 0.0f,
         float illusionAlpha = 1.0f,
         uint8_t neighborMask = 0x0F,
-        uint8_t diagMask = 0x0F
+        uint8_t diagMask = 0x0F,
+        bool ehsActive = false
     ) const;
     void DrawGoldenBossDoor(Vector2 bottomCenter, const std::array<bool, 5>& bossDefeated, float time) const;
     void DrawManorCastle(const GameContext& ctx, float time) const;

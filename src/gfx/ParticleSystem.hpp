@@ -38,11 +38,20 @@ struct DecoyLog {
     bool active = false;
 };
 
+struct SpeechBubble {
+    Vector2 pos{};
+    std::string text;
+    float life = 0.0f;
+    float maxLife = 1.0f;
+    bool active = false;
+};
+
 class ParticleSystem {
 public:
     static constexpr size_t POOL_SIZE = 512;
     static constexpr size_t TEXT_POOL_SIZE = 64;
     static constexpr size_t LOG_POOL_SIZE = 16;
+    static constexpr size_t BUBBLE_POOL_SIZE = 8;
 
     ParticleSystem();
 
@@ -72,6 +81,12 @@ public:
         bool isCrit = false
     );
 
+    void SpawnSpeechBubble(
+        Vector2 pos,
+        const std::string& text,
+        float duration = 1.0f
+    );
+
 private:
     void EmitParticle(const Particle& p);
 
@@ -83,4 +98,7 @@ private:
 
     std::array<DecoyLog, LOG_POOL_SIZE> decoyLogs_{};
     size_t logHead_ = 0;
+
+    std::array<SpeechBubble, BUBBLE_POOL_SIZE> speechBubbles_{};
+    size_t bubbleHead_ = 0;
 };

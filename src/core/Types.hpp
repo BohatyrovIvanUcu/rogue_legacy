@@ -177,7 +177,8 @@ enum class EnemyType : int {
     FireMage = 3,
     Warg = 4,
     WallTurret = 5,
-    COUNT = 6
+    ChickenKentucky = 6,
+    COUNT = 7
 };
 
 enum class BossType : int {

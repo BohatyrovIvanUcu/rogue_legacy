@@ -281,6 +281,14 @@ bool Interactable::OnHitByPlayer(
         int goldRoll = (std::rand() % 100 < 65) ? ((1 + std::rand() % 2) * 10) : 0;
         SpawnLootBurst(outDrops, GetCenter(), goldRoll, true);
 
+        // Риса O.C.D.: ламання меблів та факелів відновлює 1 MP
+        if (ctx.CurrentHeirHasTrait(TraitType::OCD)) {
+            player.RestoreMp(1, ctx);
+            if (ctx.particles) {
+                ctx.particles->SpawnFloatingText(GetCenter(), "+1 MP", SKYBLUE, 16, false);
+            }
+        }
+
         if (player.isDownStriking) {
             player.TriggerPogoBounce(ctx);
         }

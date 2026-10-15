@@ -72,13 +72,22 @@ void Enemy::Init(
             break;
 
         case EnemyType::WallTurret:
-        default:
             width = 44.0f;
             height = 44.0f;
             maxHp = static_cast<int>(std::round(40.0f * lvlScale * tierMult));
             contactDamage = static_cast<int>(std::round(15.0f * lvlScale * (0.85f + 0.15f * tier)));
             goldReward = 15 * tier;
             attackCooldown = 2.2f;
+            break;
+
+        case EnemyType::ChickenKentucky:
+        default:
+            width = 24.0f;
+            height = 20.0f;
+            maxHp = 1;
+            contactDamage = 0;
+            goldReward = 0;
+            attackCooldown = 0.5f;
             break;
     }
 
@@ -108,13 +117,14 @@ void Enemy::ResetToSpawn() {
     hurtFlashTimer = 0.0f;
 
     switch (type) {
-        case EnemyType::Skeleton:     attackCooldown = 1.8f; break;
-        case EnemyType::FloatingEye:  attackCooldown = 2.4f; break;
-        case EnemyType::ShieldKnight: attackCooldown = 1.2f; break;
-        case EnemyType::FireMage:     attackCooldown = 3.0f; break;
-        case EnemyType::Warg:         attackCooldown = 1.6f; break;
-        case EnemyType::WallTurret:   attackCooldown = 2.2f; break;
-        default:                      attackCooldown = 1.5f; break;
+        case EnemyType::Skeleton:        attackCooldown = 1.8f; break;
+        case EnemyType::FloatingEye:     attackCooldown = 2.4f; break;
+        case EnemyType::ShieldKnight:    attackCooldown = 1.2f; break;
+        case EnemyType::FireMage:        attackCooldown = 3.0f; break;
+        case EnemyType::Warg:            attackCooldown = 1.6f; break;
+        case EnemyType::WallTurret:      attackCooldown = 2.2f; break;
+        case EnemyType::ChickenKentucky: attackCooldown = 0.5f; break;
+        default:                         attackCooldown = 1.5f; break;
     }
 }
 
@@ -122,13 +132,14 @@ std::string Enemy::GetDisplayName() const {
     if (isDementiaPhantom) return "Dementia Phantom";
     std::string prefix = (tier == 1) ? "" : ((tier == 2) ? "Greater " : "Elite ");
     switch (type) {
-        case EnemyType::Skeleton:     return prefix + "Skeleton";
-        case EnemyType::FloatingEye:  return prefix + "Floating Eye";
-        case EnemyType::ShieldKnight: return prefix + "Shield Knight";
-        case EnemyType::FireMage:     return prefix + "Fire Mage";
-        case EnemyType::Warg:         return prefix + "Dire Warg";
-        case EnemyType::WallTurret:   return prefix + "Gargoyle Turret";
-        default:                      return "Castle Monster";
+        case EnemyType::Skeleton:        return prefix + "Skeleton";
+        case EnemyType::FloatingEye:     return prefix + "Floating Eye";
+        case EnemyType::ShieldKnight:    return prefix + "Shield Knight";
+        case EnemyType::FireMage:        return prefix + "Fire Mage";
+        case EnemyType::Warg:            return prefix + "Dire Warg";
+        case EnemyType::WallTurret:      return prefix + "Gargoyle Turret";
+        case EnemyType::ChickenKentucky: return "Kentucky";
+        default:                         return "Castle Monster";
     }
 }
 
@@ -405,6 +416,28 @@ void Enemy::Update(
                 Vector2 muzzle = { myCenter.x + facingDir * 24.0f, myCenter.y };
                 outProjectiles.push_back(Projectile::MakeEnemyArrow(muzzle, facingDir, contactDamage));
             }
+            break;
+        }
+
+        case EnemyType::ChickenKentucky: {
+            stateTimer += dt;
+            float chickenSpeed = 135.0f;
+            if (std::abs(pCenter.x - myCenter.x) < 200.0f) {
+                facingDir = (pCenter.x >= myCenter.x) ? -1.0f : 1.0f;
+                chickenSpeed = 180.0f;
+            }
+            if (onGround) {
+                vel.x = facingDir * chickenSpeed;
+                if (stateTimer >= 1.0f) {
+                    stateTimer = 0.0f;
+                    vel.y = -140.0f;
+                    onGround = false;
+                    if (ctx.audio && (std::rand() % 3 == 0)) {
+                        ctx.audio->PlaySfx(SfxId::ChickenCluck, 0.95f + (std::rand() % 20) * 0.01f, 0.7f);
+                    }
+                }
+            }
+            ResolvePhysicsAndTiles(dt, tileMap, true);
             break;
         }
 
@@ -1001,6 +1034,62 @@ void Enemy::Draw() const {
             Vector2 gEye = { headC.x + facingDir * 2.5f, headC.y - 2.5f };
             DrawCircleV(gEye, 2.2f, isTelegraphing ? pal.fireGold[3] : pal.bloodCloth[3]);
             DrawCircleV(gEye, 1.0f, pal.metal[4]);
+            break;
+        }
+
+        case EnemyType::ChickenKentucky: {
+            // Маленька біло-бежева курочка Кентуккі
+            Color featherBase = Color{ 245, 242, 235, 255 };
+            Color featherShadow = Color{ 210, 202, 192, 255 };
+            Color combRed = Color{ 225, 45, 40, 255 };
+            Color beakGold = Color{ 255, 195, 30, 255 };
+            Color legOrange = Color{ 235, 140, 20, 255 };
+
+            float waddle = std::sin(animTimer * 16.0f) * 2.0f;
+            Vector2 bodyC = { c.x, pos.y + 11.0f + (onGround ? std::abs(waddle) * 0.5f : 0.0f) };
+
+            // Тінь
+            DrawEllipse(static_cast<int>(c.x), static_cast<int>(GetBottom() + 1.0f), 9.0f, 3.0f, Fade(pal.outline, 0.35f * alpha));
+
+            // Ніжки (жовті лапки)
+            Vector2 leg1 = { bodyC.x - 4.0f, GetBottom() };
+            Vector2 leg2 = { bodyC.x + 3.0f, GetBottom() };
+            DrawLineEx({ leg1.x, bodyC.y + 5.0f }, leg1, 2.0f, Fade(legOrange, alpha));
+            DrawLineEx({ leg2.x, bodyC.y + 5.0f }, leg2, 2.0f, Fade(legOrange, alpha));
+
+            // Кругле тільце
+            DrawCircleV(bodyC, 8.5f, Fade(featherBase, alpha));
+            DrawCircleSector(bodyC, 8.5f, 90.0f, 270.0f, 10, Fade(featherShadow, alpha * 0.7f));
+            DrawCircleLines(static_cast<int>(bodyC.x), static_cast<int>(bodyC.y), 8.5f, Fade(pal.outline, alpha));
+
+            // Крильце (махає при бігу або стрибку)
+            float wingFlap = std::sin(animTimer * 20.0f) * 3.5f;
+            Vector2 wingBase = { bodyC.x - facingDir * 2.0f, bodyC.y };
+            Vector2 wingTip  = { bodyC.x - facingDir * 8.0f, bodyC.y - 2.0f + wingFlap };
+            DrawTriangle(wingBase, wingTip, { wingBase.x, bodyC.y + 4.0f }, Fade(featherShadow, alpha));
+
+            // Голівка
+            Vector2 headC = { bodyC.x + facingDir * 6.0f, bodyC.y - 4.0f };
+            DrawCircleV(headC, 5.5f, Fade(featherBase, alpha));
+            DrawCircleLines(static_cast<int>(headC.x), static_cast<int>(headC.y), 5.5f, Fade(pal.outline, alpha));
+
+            // Червоний гребінець
+            Vector2 combC = { headC.x, headC.y - 6.0f };
+            DrawCircleV(combC, 2.8f, Fade(combRed, alpha));
+            DrawCircleV({ combC.x - facingDir * 2.2f, combC.y + 1.0f }, 2.0f, Fade(combRed, alpha));
+
+            // Дзьобик
+            Vector2 beakTip = { headC.x + facingDir * 7.5f, headC.y + 1.0f };
+            DrawTriangle({ headC.x + facingDir * 4.0f, headC.y - 1.5f },
+                         { headC.x + facingDir * 4.0f, headC.y + 3.0f },
+                         beakTip,
+                         Fade(beakGold, alpha));
+
+            // Червоні сережки під дзьобом
+            DrawCircleV({ headC.x + facingDir * 4.0f, headC.y + 4.5f }, 1.8f, Fade(combRed, alpha));
+
+            // Очко
+            DrawCircleV({ headC.x + facingDir * 2.5f, headC.y - 1.0f }, 1.4f, Fade(pal.outline, alpha));
             break;
         }
 

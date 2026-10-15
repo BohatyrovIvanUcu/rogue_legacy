@@ -548,7 +548,7 @@ void CastlePlayState::Draw(GameContext& ctx) {
     curRoom.DrawWorldUi(ctx, player_, worldCam_);
 }
 
-void CastlePlayState::DrawHud(const GameContext& ctx, [[maybe_unused]] const Room& curRoom) const {
+void CastlePlayState::DrawHud(const GameContext& ctx, const Room& curRoom) const {
     bool hasCip = ctx.CurrentHeirHasTrait(TraitType::CIP);
 
     int hudX = 24;
@@ -675,6 +675,32 @@ void CastlePlayState::DrawHud(const GameContext& ctx, [[maybe_unused]] const Roo
         DrawRectangleLines(bx - 18, by - 8, bw + 36, 42, Fade(GOLD, alpha));
         Ui::Text(bannerText_, bx + 1, by + 1, 24, Fade(BLACK, alpha));
         Ui::Text(bannerText_, bx, by, 24, Fade(Color{ 255, 230, 90, 255 }, alpha));
+    }
+
+    // 7. Попереджувальні індикатори снарядів поза межами екрана (Off-Screen Projectile Warnings)
+    // Пригнічуються, якщо активна риса TunnelVision!
+    if (!ctx.CurrentHeirHasTrait(TraitType::TunnelVision)) {
+        for (const auto& proj : curRoom.projectiles) {
+            if (!proj.active || proj.fromPlayer) continue;
+
+            Vector2 scr = GetWorldToScreen2D(proj.pos, worldCam_);
+            bool offScreen = (scr.x < -6.0f || scr.x > Config::VIRTUAL_WIDTH + 6.0f ||
+                              scr.y < -6.0f || scr.y > Config::VIRTUAL_HEIGHT + 6.0f);
+            bool nearby = (scr.x >= -360.0f && scr.x <= Config::VIRTUAL_WIDTH + 360.0f &&
+                           scr.y >= -360.0f && scr.y <= Config::VIRTUAL_HEIGHT + 360.0f);
+
+            if (offScreen && nearby) {
+                float edgeX = std::clamp(scr.x, 32.0f, static_cast<float>(Config::VIRTUAL_WIDTH - 32));
+                float edgeY = std::clamp(scr.y, 32.0f, static_cast<float>(Config::VIRTUAL_HEIGHT - 32));
+
+                float pulse = 0.65f + 0.35f * std::sin(static_cast<float>(GetTime()) * 14.0f);
+                Color indCol = Fade(RED, pulse);
+
+                DrawCircle(static_cast<int>(edgeX), static_cast<int>(edgeY), 12.0f, Fade(Color{ 30, 10, 15, 240 }, pulse));
+                DrawCircleLines(static_cast<int>(edgeX), static_cast<int>(edgeY), 12.0f, indCol);
+                Ui::Text("!", static_cast<int>(edgeX - 3.0f), static_cast<int>(edgeY - 9.0f), 18, indCol);
+            }
+        }
     }
 }
 

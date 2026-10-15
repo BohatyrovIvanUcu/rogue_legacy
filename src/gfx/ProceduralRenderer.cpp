@@ -791,7 +791,8 @@ void ProceduralRenderer::DrawTile(
     float trapTimer,
     float illusionAlpha,
     uint8_t neighborMask,
-    uint8_t diagMask
+    uint8_t diagMask,
+    bool ehsActive
 ) const {
     const auto& pal = GetPalette();
     const auto& bp = pal.GetBiome(biome);
@@ -1030,7 +1031,6 @@ void ProceduralRenderer::DrawTile(
             DrawPolyLines({ static_cast<float>(x + s / 2), static_cast<float>(y + s / 2) }, 6, 12.0f, trapTimer * 45.0f, runeGlow);
         }
     } else if (tileCode == '=') {
-        // 3. Платформи ('='): тонка дерев'яна планка (6 px) з кованими залізними накладками по краях і текстурою
         int platH = 6;
         Color woodMain  = pal.wood[2];
         Color woodShade = pal.wood[0];
@@ -1038,30 +1038,44 @@ void ProceduralRenderer::DrawTile(
         Color ironCol   = pal.metal[2];
         Color ironHi    = pal.metal[4];
 
-        // М'яка тінь під дошкою
-        DrawRectangle(x, y + platH, s, 3, Fade(pal.outline, 0.40f));
+        if (ehsActive) {
+            // E.H.S.: Платформа-люк постійно відкинута вниз (Open Trapdoor)
+            DrawCircle(x + 3, y + 2, 3.2f, ironCol);
+            DrawCircle(x + 3, y + 2, 1.4f, ironHi);
+            Vector2 hBase = { static_cast<float>(x + 3), static_cast<float>(y + 2) };
+            Vector2 hTip  = { static_cast<float>(x + 9), static_cast<float>(y + s - 6) };
+            DrawLineEx(hBase, hTip, 5.0f, woodMain);
+            DrawLineEx(hBase, hTip, 2.0f, woodHi);
+            float sparkPhase = std::fmod(trapTimer * 8.0f + static_cast<float>(col), 1.0f);
+            if (sparkPhase < 0.35f) {
+                DrawCircle(x + 6, y + 8, 1.8f, pal.moonMagic[3]);
+            }
+        } else {
+            // М'яка тінь під дошкою
+            DrawRectangle(x, y + platH, s, 3, Fade(pal.outline, 0.40f));
 
-        // Основна дерев'яна планка
-        DrawRectangle(x, y, s, platH, woodMain);
+            // Основна дерев'яна планка
+            DrawRectangle(x, y, s, platH, woodMain);
 
-        // Дерев'яна текстура: 2-3 лінії різного тону
-        DrawLine(x, y, x + s - 1, y, woodHi);
-        DrawLine(x, y + 2, x + s - 1, y + 2, woodShade);
-        DrawLine(x, y + platH - 1, x + s - 1, y + platH - 1, pal.outline);
+            // Дерев'яна текстура: 2-3 лінії різного тону
+            DrawLine(x, y, x + s - 1, y, woodHi);
+            DrawLine(x, y + 2, x + s - 1, y + 2, woodShade);
+            DrawLine(x, y + platH - 1, x + s - 1, y + platH - 1, pal.outline);
 
-        // Ковані залізні накладки з заклепками по краях
-        bool leftEnd = !w || (col % 4 == 0);
-        bool rightEnd = !e || ((col + 1) % 4 == 0);
+            // Ковані залізні накладки з заклепками по краях
+            bool leftEnd = !w || (col % 4 == 0);
+            bool rightEnd = !e || ((col + 1) % 4 == 0);
 
-        if (leftEnd) {
-            DrawRectangle(x + 1, y - 1, 6, platH + 2, ironCol);
-            DrawLine(x + 1, y - 1, x + 1, y + platH, ironHi);
-            DrawCircle(x + 4, y + 2, 1.0f, ironHi);
-        }
-        if (rightEnd) {
-            DrawRectangle(x + s - 7, y - 1, 6, platH + 2, ironCol);
-            DrawLine(x + s - 7, y - 1, x + s - 7, y + platH, ironHi);
-            DrawCircle(x + s - 4, y + 2, 1.0f, ironHi);
+            if (leftEnd) {
+                DrawRectangle(x + 1, y - 1, 6, platH + 2, ironCol);
+                DrawLine(x + 1, y - 1, x + 1, y + platH, ironHi);
+                DrawCircle(x + 4, y + 2, 1.0f, ironHi);
+            }
+            if (rightEnd) {
+                DrawRectangle(x + s - 7, y - 1, 6, platH + 2, ironCol);
+                DrawLine(x + s - 7, y - 1, x + s - 7, y + platH, ironHi);
+                DrawCircle(x + s - 4, y + 2, 1.0f, ironHi);
+            }
         }
     } else if (tileCode == '^') {
         // 5. Шипи ('^'): нерівні зазубрені залізні піки різної висоти з краплями застиглої крові
@@ -3225,6 +3239,15 @@ void ProceduralRenderer::DrawEnemyIcon(Vector2 c, EnemyType type, float size) co
             DrawCircleLines(static_cast<int>(c.x), static_cast<int>(c.y), 8.5f * s, GOLD);
             DrawRectangle(static_cast<int>(c.x + 2.0f * s), static_cast<int>(c.y - 3.0f * s), static_cast<int>(10.0f * s), static_cast<int>(6.0f * s), Color{ 68, 52, 38, 255 });
             DrawCircle(static_cast<int>(c.x - 2.0f * s), static_cast<int>(c.y), 3.0f * s, RED);
+            break;
+        }
+
+        case EnemyType::ChickenKentucky: {
+            DrawCircle(static_cast<int>(c.x), static_cast<int>(c.y), 7.5f * s, RAYWHITE);
+            DrawCircle(static_cast<int>(c.x + 4.0f * s), static_cast<int>(c.y - 3.0f * s), 4.5f * s, RAYWHITE);
+            DrawCircle(static_cast<int>(c.x + 3.5f * s), static_cast<int>(c.y - 7.5f * s), 2.2f * s, RED);
+            DrawTriangle({ c.x + 6.5f * s, c.y - 4.5f * s }, { c.x + 6.5f * s, c.y - 1.5f * s }, { c.x + 10.5f * s, c.y - 3.0f * s }, GOLD);
+            DrawCircle(static_cast<int>(c.x + 4.5f * s), static_cast<int>(c.y - 3.5f * s), 1.2f * s, BLACK);
             break;
         }
 

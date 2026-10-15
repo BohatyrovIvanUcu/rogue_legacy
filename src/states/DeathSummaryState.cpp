@@ -241,10 +241,15 @@ void DeathSummaryState::DrawRunOverviewModal(GameContext& ctx) {
     }
     Ui::Text(fateLine.c_str(), sx, sy + 46, 17, ctx.lastRunVictory ? LIME : RED);
 
-    Ui::Text(("Gold Plundered in Run: " + std::to_string(ctx.runGoldCollected) + " G").c_str(), sx, sy + 88, 16, YELLOW);
-    Ui::Text(("Royal Treasury for Lineage: " + std::to_string(ctx.gold) + " G").c_str(), sx, sy + 124, 16, GOLD);
-    Ui::Text(("Total Monsters Slain: " + std::to_string(ctx.runKills)).c_str(), sx, sy + 160, 16, RAYWHITE);
-    Ui::Text(("Charon Toll Incurred: " + std::to_string(ctx.charonTollPaid) + " G").c_str(), sx, sy + 196, 16, Color{ 220, 140, 70, 255 });
+    if (ctx.CurrentHeirHasTrait(TraitType::Coprolalia)) {
+        Ui::Text("Final Words: #)!(%*#@!%^", sx, sy + 68, 15, Color{ 235, 115, 135, 255 });
+    }
+
+    int statOff = ctx.CurrentHeirHasTrait(TraitType::Coprolalia) ? 22 : 0;
+    Ui::Text(("Gold Plundered in Run: " + std::to_string(ctx.runGoldCollected) + " G").c_str(), sx, sy + 88 + statOff, 16, YELLOW);
+    Ui::Text(("Royal Treasury for Lineage: " + std::to_string(ctx.gold) + " G").c_str(), sx, sy + 120 + statOff, 16, GOLD);
+    Ui::Text(("Total Monsters Slain: " + std::to_string(ctx.runKills)).c_str(), sx, sy + 152 + statOff, 16, RAYWHITE);
+    Ui::Text(("Charon Toll Incurred: " + std::to_string(ctx.charonTollPaid) + " G").c_str(), sx, sy + 184 + statOff, 16, Color{ 220, 140, 70, 255 });
 
     // Кнопка швидкого переходу до галереї картин
     Rectangle galleryBtn = { static_cast<float>(sx), static_cast<float>(sy + 250), 280.0f, 44.0f };
@@ -262,41 +267,42 @@ void DeathSummaryState::DrawRunOverviewModal(GameContext& ctx) {
     DrawRectangleRounded(beastsRec, 0.05f, 4, Color{ 14, 12, 22, 255 });
     DrawRectangleRoundedLines(beastsRec, 0.05f, 4, 1.8f, GOLD);
 
-    Ui::Text("BEASTS SLAIN THIS EXPEDITION", rx + 20, ry + 16, 18, GOLD);
-    DrawLine(rx + 20, ry + 42, rx + rw - 20, ry + 42, Color{ 90, 75, 45, 255 });
+    Ui::Text("BEASTS SLAIN THIS EXPEDITION", rx + 20, ry + 14, 18, GOLD);
+    DrawLine(rx + 20, ry + 38, rx + rw - 20, ry + 38, Color{ 90, 75, 45, 255 });
 
-    // 6 рядків для кожного типу ворогів: Skeleton, FloatingEye, ShieldKnight, FireMage, Warg, WallTurret
-    const char* enemyNames[6] = {
+    // 7 рядків для кожного типу ворогів: Skeleton, FloatingEye, ShieldKnight, FireMage, Warg, WallTurret, ChickenKentucky
+    const char* enemyNames[7] = {
         "Skeleton Soldier",
         "Floating Doom Eye",
         "Castle Shield Knight",
         "Pyromancer Mage",
         "Blood Warg",
-        "Wall Cannon Turret"
+        "Wall Cannon Turret",
+        "Kentucky the Chicken"
     };
 
-    for (int e = 0; e < 6; ++e) {
+    for (int e = 0; e < 7; ++e) {
         EnemyType et = static_cast<EnemyType>(e);
         int count = ctx.runSlainByType[static_cast<size_t>(e)];
-        int rowY = ry + 54 + e * 64;
+        int rowY = ry + 46 + e * 56;
 
-        Rectangle itemRec = { static_cast<float>(rx + 16), static_cast<float>(rowY), static_cast<float>(rw - 32), 54.0f };
+        Rectangle itemRec = { static_cast<float>(rx + 16), static_cast<float>(rowY), static_cast<float>(rw - 32), 48.0f };
         DrawRectangleRounded(itemRec, 0.25f, 4, (count > 0) ? Color{ 26, 22, 36, 255 } : Color{ 18, 16, 24, 255 });
         DrawRectangleRoundedLines(itemRec, 0.25f, 4, 1.2f, (count > 0) ? Color{ 78, 70, 96, 255 } : Color{ 40, 36, 48, 255 });
 
         // Мініатюрна процедурна моделька монстра
         if (ctx.renderer) {
-            ctx.renderer->DrawEnemyIcon({ itemRec.x + 28.0f, itemRec.y + 27.0f }, et, 28.0f);
+            ctx.renderer->DrawEnemyIcon({ itemRec.x + 28.0f, itemRec.y + 24.0f }, et, 24.0f);
         }
 
         // Назва монстра
-        Ui::Text(enemyNames[e], itemRec.x + 60.0f, itemRec.y + 10.0f, 15, (count > 0) ? RAYWHITE : DARKGRAY);
+        Ui::Text(enemyNames[e], itemRec.x + 58.0f, itemRec.y + 8.0f, 14, (count > 0) ? RAYWHITE : DARKGRAY);
 
         // Кількість убитих
         std::string countStr = "x " + std::to_string(count);
         Color cCol = (count > 0) ? GOLD : DARKGRAY;
-        int cw = Ui::Measure(countStr.c_str(), 18);
-        Ui::Text(countStr.c_str(), itemRec.x + itemRec.width - cw - 18.0f, itemRec.y + 16.0f, 18, cCol);
+        int cw = Ui::Measure(countStr.c_str(), 16);
+        Ui::Text(countStr.c_str(), itemRec.x + itemRec.width - cw - 16.0f, itemRec.y + 14.0f, 16, cCol);
     }
 
     // Нижня підказка

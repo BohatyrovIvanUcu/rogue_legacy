@@ -32,6 +32,11 @@ void ParticleSystem::Clear() {
         l.active = false;
     }
     logHead_ = 0;
+
+    for (auto& b : speechBubbles_) {
+        b.active = false;
+    }
+    bubbleHead_ = 0;
 }
 
 void ParticleSystem::EmitParticle(const Particle& p) {
@@ -78,6 +83,16 @@ void ParticleSystem::Update(float dt) {
         log.pos.y += log.vel.y * dt;
         log.rotation += 280.0f * dt;
     }
+
+    for (auto& sb : speechBubbles_) {
+        if (!sb.active) continue;
+        sb.life -= dt;
+        if (sb.life <= 0.0f) {
+            sb.active = false;
+            continue;
+        }
+        sb.pos.y -= 12.0f * dt;
+    }
 }
 
 void ParticleSystem::Draw() const {
@@ -117,6 +132,32 @@ void ParticleSystem::Draw() const {
 
         Ui::Text(ft.text, drawX + 1, drawY + 1, fSize, Fade(pal.outline, alpha));
         Ui::Text(ft.text, drawX, drawY, fSize, Fade(ft.color, alpha));
+    }
+
+    for (const auto& sb : speechBubbles_) {
+        if (!sb.active) continue;
+        float alpha = std::clamp(sb.life / 0.20f, 0.0f, 1.0f);
+        int fSize = 18;
+        int textW = Ui::Measure(sb.text, fSize);
+        int padX = 8;
+        int bubbleW = textW + padX * 2;
+        int bubbleH = 26;
+        float bx = sb.pos.x - bubbleW * 0.5f;
+        float by = sb.pos.y - bubbleH - 8.0f;
+
+        Rectangle bRec = { bx, by, static_cast<float>(bubbleW), static_cast<float>(bubbleH) };
+        DrawRectangleRounded(bRec, 0.40f, 4, Fade(Color{ 252, 252, 250, 255 }, alpha));
+        DrawRectangleRoundedLines(bRec, 0.40f, 4, 1.8f, Fade(pal.outline, alpha));
+
+        // Хвостик бульбашки до рота персонажа
+        Vector2 t1 = { sb.pos.x - 4.0f, by + bubbleH - 0.5f };
+        Vector2 t2 = { sb.pos.x + 4.0f, by + bubbleH - 0.5f };
+        Vector2 t3 = { sb.pos.x - 1.0f, sb.pos.y };
+        DrawTriangle(t1, t3, t2, Fade(Color{ 252, 252, 250, 255 }, alpha));
+        DrawLineEx(t1, t3, 1.5f, Fade(pal.outline, alpha));
+        DrawLineEx(t2, t3, 1.5f, Fade(pal.outline, alpha));
+
+        Ui::Text(sb.text, static_cast<int>(bx + padX), static_cast<int>(by + 4), fSize, Fade(Color{ 18, 16, 24, 255 }, alpha));
     }
 }
 
@@ -323,3 +364,20 @@ void ParticleSystem::SpawnFloatingText(
     texts_[textHead_] = ft;
     textHead_ = (textHead_ + 1) % TEXT_POOL_SIZE;
 }
+
+void ParticleSystem::SpawnSpeechBubble(
+    Vector2 pos,
+    const std::string& text,
+    float duration
+) {
+    SpeechBubble b;
+    b.pos = pos;
+    b.text = text;
+    b.maxLife = duration;
+    b.life = duration;
+    b.active = true;
+
+    speechBubbles_[bubbleHead_] = b;
+    bubbleHead_ = (bubbleHead_ + 1) % BUBBLE_POOL_SIZE;
+}
+
