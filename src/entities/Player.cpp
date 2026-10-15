@@ -764,12 +764,20 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
         int cRight = tileMap->WorldToCol(b.x + b.width);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cRight, r, isDwarf)) {
-                // Якщо над або на цьому блоці є схил, це фундамент рампи, який не блокує рух
-                if (tileMap->IsSlopeAt(cRight, r - 1) || tileMap->IsSlopeAt(cRight, r)) {
-                    continue;
+                // Дозволяємо прохід тільки якщо гравець ступає на поверхню схилу або йде вгору
+                bool bypassForSlope = false;
+                for (int rSlope : { r, r - 1 }) {
+                    if (tileMap->IsSlopeAt(cRight, rSlope)) {
+                        float sY = 0.0f;
+                        if (tileMap->GetSlopeSurfaceY(b.x + b.width, cRight, rSlope, sY)) {
+                            if (b.y + b.height <= sY + 8.0f) {
+                                bypassForSlope = true;
+                                break;
+                            }
+                        }
+                    }
                 }
-                int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
-                if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1) || tileMap->IsSlopeAt(cCur, r - 1)) {
+                if (bypassForSlope) {
                     continue;
                 }
                 Rectangle tRec = tileMap->GetTileRect(cRight, r);
@@ -782,11 +790,19 @@ void Player::ResolveTileCollisionsX(const ITileMap* tileMap, bool isDwarf) {
         int cLeft = tileMap->WorldToCol(b.x);
         for (int r = rMin; r <= rMax; ++r) {
             if (tileMap->IsSolidAt(cLeft, r, isDwarf)) {
-                if (tileMap->IsSlopeAt(cLeft, r - 1) || tileMap->IsSlopeAt(cLeft, r)) {
-                    continue;
+                bool bypassForSlope = false;
+                for (int rSlope : { r, r - 1 }) {
+                    if (tileMap->IsSlopeAt(cLeft, rSlope)) {
+                        float sY = 0.0f;
+                        if (tileMap->GetSlopeSurfaceY(b.x, cLeft, rSlope, sY)) {
+                            if (b.y + b.height <= sY + 8.0f) {
+                                bypassForSlope = true;
+                                break;
+                            }
+                        }
+                    }
                 }
-                int cCur = tileMap->WorldToCol(b.x + b.width * 0.5f);
-                if (tileMap->IsSlopeAt(cCur, r) || tileMap->IsSlopeAt(cCur, r + 1) || tileMap->IsSlopeAt(cCur, r - 1)) {
+                if (bypassForSlope) {
                     continue;
                 }
                 Rectangle tRec = tileMap->GetTileRect(cLeft, r);

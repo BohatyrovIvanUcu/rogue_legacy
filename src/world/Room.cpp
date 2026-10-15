@@ -114,6 +114,78 @@ void Room::BuildFromNode(
 
     ApplyDoorMasksToTiles();
     SanitizeRoomGeometry();
+
+    // 2.5. Розміщення великих 2-тайлових книжкових шаф з фізичною платформою нагорі
+    bookcaseRects.clear();
+    if (!isBossArenaActive) {
+        auto TryPlaceBookcase = [&](int c, int floorR) -> bool {
+            if (c < 3 || c + 1 >= totalCols - 3) return false;
+            if (floorR < 3 || floorR >= totalRows) return false;
+            int topR = floorR - 2;
+            if (topR < 1) return false;
+
+            if (tiles[static_cast<size_t>(floorR)][static_cast<size_t>(c)] != '#' ||
+                tiles[static_cast<size_t>(floorR)][static_cast<size_t>(c + 1)] != '#') {
+                return false;
+            }
+            char r1c0 = tiles[static_cast<size_t>(floorR - 1)][static_cast<size_t>(c)];
+            char r1c1 = tiles[static_cast<size_t>(floorR - 1)][static_cast<size_t>(c + 1)];
+            char r2c0 = tiles[static_cast<size_t>(topR)][static_cast<size_t>(c)];
+            char r2c1 = tiles[static_cast<size_t>(topR)][static_cast<size_t>(c + 1)];
+
+            auto IsOpen = [](char ch) {
+                return ch == '.' || ch == '=' || ch == 'B' || ch == 'C' || ch == 'S' || ch == 'T' || ch == '$' || ch == 'K';
+            };
+
+            if (!IsOpen(r1c0) || !IsOpen(r1c1)) return false;
+            if (!IsOpen(r2c0) || !IsOpen(r2c1)) return false;
+
+            if (topR - 1 >= 0) {
+                char above0 = tiles[static_cast<size_t>(topR - 1)][static_cast<size_t>(c)];
+                char above1 = tiles[static_cast<size_t>(topR - 1)][static_cast<size_t>(c + 1)];
+                if (above0 == '#' || above1 == '#') return false;
+            }
+
+            tiles[static_cast<size_t>(topR)][static_cast<size_t>(c)] = '=';
+            tiles[static_cast<size_t>(topR)][static_cast<size_t>(c + 1)] = '=';
+            tiles[static_cast<size_t>(floorR - 1)][static_cast<size_t>(c)] = '.';
+            tiles[static_cast<size_t>(floorR - 1)][static_cast<size_t>(c + 1)] = '.';
+
+            float bX = static_cast<float>(c * Config::TILE_SIZE);
+            float bY = static_cast<float>(topR * Config::TILE_SIZE);
+            float bW = static_cast<float>(2 * Config::TILE_SIZE);
+            float bH = static_cast<float>(2 * Config::TILE_SIZE);
+            bookcaseRects.push_back(Rectangle{ bX, bY, bW, bH });
+            return true;
+        };
+
+        if (roomType == RoomType::Entrance) {
+            TryPlaceBookcase(35, 14);
+        } else if (templateIdx == 3) {
+            TryPlaceBookcase(3, 14);
+            TryPlaceBookcase(19, 14);
+        } else if (templateIdx == 23) {
+            TryPlaceBookcase(3, 14);
+            TryPlaceBookcase(19, 14);
+            TryPlaceBookcase(3, 29);
+            TryPlaceBookcase(19, 29);
+        } else if (roomType == RoomType::Combat || roomType == RoomType::Treasure) {
+            uint32_t seed = static_cast<uint32_t>((originGx + 7) * 31 + (originGy + 11) * 47);
+            if (seed % 3 == 0) {
+                for (int r = 3; r < totalRows - 1; ++r) {
+                    for (int c = 3; c < totalCols - 4; ++c) {
+                        if (tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c - 1)] == '#' ||
+                            tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c + 2)] == '#') {
+                            if (TryPlaceBookcase(c, r)) {
+                                c += 4;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     SpawnEntitiesFromTemplate(ctx);
 }
 
@@ -265,20 +337,21 @@ void Room::SanitizeRoomGeometry() {
         for (int rx = 0; rx < widthCells; ++rx) {
             uint8_t mask = subCellDoors[ry][rx];
 
-            // WEST door (rx == 0): чисте повітря на рядках 6..8, тверда підлога на рядку 9
+            // WEST door (rx == 0): чисте повітря на рядках 6..8, суцільний камінь від рядка 9 донизу (без порожнин і висячих козирків)
             if (rx == 0 && (mask & DoorMask::WEST)) {
                 for (int c = 0; c <= 4 && c < totalCols; ++c) {
                     for (int r = ry * Config::CELL_ROWS + 6; r <= ry * Config::CELL_ROWS + 8; ++r) {
                         tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
                     }
                     int floorR = ry * Config::CELL_ROWS + 9;
-                    if (floorR < totalRows) {
-                        tiles[static_cast<size_t>(floorR)][static_cast<size_t>(c)] = '#';
+                    int maxFillR = (ry == heightCells - 1) ? totalRows : std::min(totalRows, (ry + 1) * Config::CELL_ROWS + 6);
+                    for (int fillR = floorR; fillR < maxFillR; ++fillR) {
+                        tiles[static_cast<size_t>(fillR)][static_cast<size_t>(c)] = '#';
                     }
                 }
             }
 
-            // EAST door (rx == widthCells - 1): чисте повітря на рядках 6..8, тверда підлога на рядку 9
+            // EAST door (rx == widthCells - 1): чисте повітря на рядках 6..8, суцільний камінь від рядка 9 донизу
             if (rx == widthCells - 1 && (mask & DoorMask::EAST)) {
                 for (int c = totalCols - 5; c < totalCols; ++c) {
                     if (c < 0) continue;
@@ -286,8 +359,9 @@ void Room::SanitizeRoomGeometry() {
                         tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] = '.';
                     }
                     int floorR = ry * Config::CELL_ROWS + 9;
-                    if (floorR < totalRows) {
-                        tiles[static_cast<size_t>(floorR)][static_cast<size_t>(c)] = '#';
+                    int maxFillR = (ry == heightCells - 1) ? totalRows : std::min(totalRows, (ry + 1) * Config::CELL_ROWS + 6);
+                    for (int fillR = floorR; fillR < maxFillR; ++fillR) {
+                        tiles[static_cast<size_t>(fillR)][static_cast<size_t>(c)] = '#';
                     }
                 }
             }
@@ -416,6 +490,90 @@ void Room::SpawnEntitiesFromTemplate(const GameContext& ctx) {
                 }
                 default:
                     break;
+            }
+        }
+    }
+
+    // 4.5. Гарантоване поповнення ворогів для Combat-кімнат (щоб жодна кімната не була пустою)
+    if (roomType == RoomType::Combat && !cleared) {
+        int minEnemies = 3;
+        if (widthCells == 2 && heightCells == 2) {
+            minEnemies = 7;
+        } else if (widthCells == 2 || heightCells == 2) {
+            minEnemies = 5;
+        }
+
+        if (static_cast<int>(enemies.size()) < minEnemies) {
+            struct SpawnSpot {
+                Vector2 pos;
+                bool isAir;
+            };
+            std::vector<SpawnSpot> candidates;
+
+            // Наземні споти
+            for (int r = 2; r < totalRows - 1; ++r) {
+                for (int c = 3; c < totalCols - 3; ++c) {
+                    char floorCh = tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)];
+                    char curCh   = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
+                    char aboveCh = tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)];
+
+                    if ((floorCh == '#' || floorCh == '=') && curCh == '.' && aboveCh == '.') {
+                        if (floorCh != '^' && floorCh != '~') {
+                            Rectangle tRec = GetTileRect(c, r);
+                            candidates.push_back({ { tRec.x + tRec.width * 0.5f, tRec.y + tRec.height - 24.0f }, false });
+                        }
+                    }
+                }
+            }
+
+            // Повітряні споти (для FloatingEye)
+            for (int r = 3; r < totalRows - 4; ++r) {
+                for (int c = 4; c < totalCols - 4; ++c) {
+                    if (tiles[static_cast<size_t>(r)][static_cast<size_t>(c)] == '.' &&
+                        tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)] == '.' &&
+                        tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)] == '.') {
+                        Rectangle tRec = GetTileRect(c, r);
+                        candidates.push_back({ { tRec.x + tRec.width * 0.5f, tRec.y + tRec.height * 0.5f }, true });
+                    }
+                }
+            }
+
+            uint32_t seed = static_cast<uint32_t>(roomId * 37 + originGx * 101 + originGy * 131);
+            int attempts = 0;
+            while (static_cast<int>(enemies.size()) < minEnemies && !candidates.empty() && attempts < 50) {
+                attempts++;
+                size_t pickIdx = (seed + static_cast<uint32_t>(attempts) * 17) % candidates.size();
+                const auto& spot = candidates[pickIdx];
+
+                bool tooClose = false;
+                for (const auto& en : enemies) {
+                    float distSq = (en.pos.x - spot.pos.x) * (en.pos.x - spot.pos.x) +
+                                   (en.pos.y - spot.pos.y) * (en.pos.y - spot.pos.y);
+                    if (distSq < 130.0f * 130.0f) {
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (tooClose) continue;
+
+                EnemyType eType = EnemyType::Skeleton;
+                if (spot.isAir) {
+                    eType = EnemyType::FloatingEye;
+                } else {
+                    int roll = (seed + static_cast<uint32_t>(attempts) * 7 + static_cast<uint32_t>(enemies.size()) * 11) % 5;
+                    if (roll == 0)      eType = EnemyType::Skeleton;
+                    else if (roll == 1) eType = (biome == BiomeType::CastleHamson) ? EnemyType::Skeleton : EnemyType::FireMage;
+                    else if (roll == 2) eType = EnemyType::ShieldKnight;
+                    else if (roll == 3) eType = EnemyType::FloatingEye;
+                    else                eType = EnemyType::Warg;
+                }
+
+                Enemy en;
+                en.Init(eType, enemyTier, roomLevel, spot.pos, false);
+                if (isReversed) {
+                    en.facingDir = -1.0f;
+                }
+                enemies.push_back(en);
             }
         }
     }
@@ -1241,6 +1399,71 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
     // 2.8. Багатий інтер'єрний декор кімнат (Bookcases, Fireplaces & Portraits, Chandeliers)
     if (!isBossArenaActive) {
         const auto& pal = GetPalette();
+
+        // 1) Великі 2-тайлові книжкові шафи (Grand Bookcases) з фізичною платформою на верхівці
+        for (const auto& b : bookcaseRects) {
+            float bkX = b.x;
+            float bkY = b.y;
+            float bkW = b.width;
+            float bkH = b.height;
+
+            // Задня стінка шафи (темне поліроване дерево)
+            DrawRectangle(static_cast<int>(bkX + 2.0f), static_cast<int>(bkY), static_cast<int>(bkW - 4.0f), static_cast<int>(bkH), Color{ 45, 28, 18, 255 });
+
+            // Різьблений карниз / верхівка шафи (підтримує фізичну платформу '=')
+            DrawRectangle(static_cast<int>(bkX), static_cast<int>(bkY), static_cast<int>(bkW), 8, Color{ 82, 54, 36, 255 });
+            DrawRectangle(static_cast<int>(bkX - 2.0f), static_cast<int>(bkY - 2.0f), static_cast<int>(bkW + 4.0f), 4, Color{ 110, 75, 50, 255 });
+            DrawLine(static_cast<int>(bkX - 2.0f), static_cast<int>(bkY - 2.0f), static_cast<int>(bkX + bkW + 2.0f), static_cast<int>(bkY - 2.0f), Color{ 150, 105, 70, 255 });
+
+            // Бокові різьблені колони / пілястри
+            DrawRectangle(static_cast<int>(bkX), static_cast<int>(bkY + 6.0f), 7, static_cast<int>(bkH - 6.0f), Color{ 75, 48, 32, 255 });
+            DrawLine(static_cast<int>(bkX + 2.0f), static_cast<int>(bkY + 6.0f), static_cast<int>(bkX + 2.0f), static_cast<int>(bkY + bkH), Color{ 110, 75, 50, 255 });
+            DrawRectangle(static_cast<int>(bkX + bkW - 7.0f), static_cast<int>(bkY + 6.0f), 7, static_cast<int>(bkH - 6.0f), Color{ 75, 48, 32, 255 });
+            DrawLine(static_cast<int>(bkX + bkW - 3.0f), static_cast<int>(bkY + 6.0f), static_cast<int>(bkX + bkW - 3.0f), static_cast<int>(bkY + bkH), Color{ 50, 32, 22, 255 });
+
+            // Масивний плінтус / нижня база шафи
+            DrawRectangle(static_cast<int>(bkX), static_cast<int>(bkY + bkH - 12.0f), static_cast<int>(bkW), 12, Color{ 70, 45, 30, 255 });
+            DrawRectangleLines(static_cast<int>(bkX), static_cast<int>(bkY + bkH - 12.0f), static_cast<int>(bkW), 12, Color{ 45, 28, 18, 255 });
+
+            // 3 полиці (ділять шафу на 4 яруси)
+            float shelfSpacing = (bkH - 24.0f) / 4.0f;
+            for (int sh = 0; sh < 3; ++sh) {
+                float shY = bkY + 8.0f + (sh + 1) * shelfSpacing;
+                DrawRectangle(static_cast<int>(bkX + 6.0f), static_cast<int>(shY), static_cast<int>(bkW - 12.0f), 5, Color{ 85, 56, 38, 255 });
+                DrawLine(static_cast<int>(bkX + 6.0f), static_cast<int>(shY), static_cast<int>(bkX + bkW - 6.0f), static_cast<int>(shY), Color{ 120, 82, 55, 255 });
+            }
+
+            // Старовинні книги на полицях (багата палітра: рубіновий, сапфіровий, смарагдовий, золотий)
+            for (int sh = 0; sh < 4; ++sh) {
+                float shFloorY = (sh < 3) ? (bkY + 8.0f + (sh + 1) * shelfSpacing) : (bkY + bkH - 12.0f);
+                float curBkX = bkX + 9.0f;
+                int bkIdx = 0;
+                while (curBkX < bkX + bkW - 14.0f) {
+                    float bW = 5.0f + static_cast<float>((bkIdx * 3 + sh * 5) % 4);
+                    if (curBkX + bW > bkX + bkW - 9.0f) bW = (bkX + bkW - 9.0f) - curBkX;
+                    if (bW < 3.0f) break;
+                    float bH = 14.0f + static_cast<float>((bkIdx * 7 + sh * 11) % 6);
+
+                    Color bCol;
+                    int colRoll = (bkIdx * 5 + sh * 7 + static_cast<int>(bkX)) % 6;
+                    if (colRoll == 0)      bCol = Color{ 145, 35, 35, 255 };  // Рубін
+                    else if (colRoll == 1) bCol = Color{ 35, 85, 140, 255 };  // Сапфір
+                    else if (colRoll == 2) bCol = Color{ 38, 115, 60, 255 };  // Смарагд
+                    else if (colRoll == 3) bCol = Color{ 175, 135, 45, 255 }; // Золота шкіра
+                    else if (colRoll == 4) bCol = Color{ 85, 45, 110, 255 };  // Пурпур
+                    else                   bCol = Color{ 60, 60, 65, 255 };   // Чорний сап'ян
+
+                    DrawRectangle(static_cast<int>(curBkX), static_cast<int>(shFloorY - bH), static_cast<int>(bW), static_cast<int>(bH), bCol);
+                    if (bW >= 5.0f) {
+                        DrawLine(static_cast<int>(curBkX + 1.0f), static_cast<int>(shFloorY - bH + 3.0f), static_cast<int>(curBkX + bW - 2.0f), static_cast<int>(shFloorY - bH + 3.0f), Color{ 225, 195, 85, 255 });
+                        DrawLine(static_cast<int>(curBkX + 1.0f), static_cast<int>(shFloorY - 4.0f), static_cast<int>(curBkX + bW - 2.0f), static_cast<int>(shFloorY - 4.0f), Color{ 225, 195, 85, 255 });
+                    }
+                    curBkX += bW + 1.0f;
+                    bkIdx++;
+                }
+            }
+        }
+
         for (int r = 1; r < totalRows - 1; ++r) {
             for (int c = 1; c < totalCols - 1; ++c) {
                 char cur = tiles[static_cast<size_t>(r)][static_cast<size_t>(c)];
@@ -1250,7 +1473,7 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
                 int wy = r * Config::TILE_SIZE;
                 uint32_t h = static_cast<uint32_t>((c + originGx) * 31 + (r + originGy) * 53);
 
-                // 1) Підвісні ковані люстри зі свічками (Ceiling Chandeliers)
+                // 2) Підвісні ковані люстри зі свічками (Ceiling Chandeliers)
                 if (tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)] == '#' &&
                     tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)] == '.' &&
                     (h % 13 == 0) && (roomType != RoomType::Entrance || c < 10 || c > 30)) {
@@ -1265,25 +1488,6 @@ void Room::DrawBackgroundAndTiles(const GameContext& ctx, const Player& player) 
                         float flk = std::sin(trapTimer * 8.0f + cx * 2.0f) * 1.5f;
                         DrawCircle(static_cast<int>(cx), static_cast<int>(chY + 12.0f), 2.5f + flk * 0.4f, pal.fireGold[3]);
                         DrawCircle(static_cast<int>(cx), static_cast<int>(chY + 12.0f), 1.2f, WHITE);
-                    }
-                }
-
-                // 2) Книжкові шафи (Bookcases) на твердій підлозі біля стіни
-                if (tiles[static_cast<size_t>(r + 1)][static_cast<size_t>(c)] == '#' &&
-                    r >= 2 && tiles[static_cast<size_t>(r - 1)][static_cast<size_t>(c)] == '.' &&
-                    (h % 17 == 0) && (roomType != RoomType::Entrance || c > 32)) {
-                    float bkX = static_cast<float>(wx);
-                    float bkY = static_cast<float>(wy + Config::TILE_SIZE - 74.0f);
-                    DrawRectangle(static_cast<int>(bkX + 4.0f), static_cast<int>(bkY), 40, 74, Color{ 52, 34, 24, 255 });
-                    DrawRectangleLines(static_cast<int>(bkX + 4.0f), static_cast<int>(bkY), 40, 74, Color{ 90, 60, 42, 255 });
-                    for (int sh = 0; sh < 3; ++sh) {
-                        float shY = bkY + 6.0f + sh * 22.0f;
-                        DrawLine(static_cast<int>(bkX + 6.0f), static_cast<int>(shY + 18.0f), static_cast<int>(bkX + 42.0f), static_cast<int>(shY + 18.0f), Color{ 90, 60, 42, 255 });
-                        for (int bk = 0; bk < 5; ++bk) {
-                            Color bCol = (bk % 3 == 0) ? pal.bloodCloth[1] : ((bk % 3 == 1) ? Color{ 32, 90, 140, 255 } : Color{ 40, 120, 65, 255 });
-                            DrawRectangle(static_cast<int>(bkX + 7.0f + bk * 7.0f), static_cast<int>(shY + 2.0f), 6, 16, bCol);
-                            DrawLine(static_cast<int>(bkX + 7.0f + bk * 7.0f), static_cast<int>(shY + 4.0f), static_cast<int>(bkX + 13.0f + bk * 7.0f), static_cast<int>(shY + 4.0f), pal.fireGold[3]);
-                        }
                     }
                 }
 

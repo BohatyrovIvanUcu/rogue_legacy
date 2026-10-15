@@ -54,6 +54,7 @@ public:
     std::vector<Enemy> enemies{};
     std::vector<Interactable> interactables{};
     std::vector<Projectile> projectiles{};
+    std::vector<Rectangle> bookcaseRects{};
     Boss activeBoss{};
     bool hasActiveBoss = false;
 

@@ -8,6 +8,7 @@
 #include <cmath>
 #include <algorithm>
 #include <chrono>
+#include <iostream>
 
 namespace {
 
@@ -211,23 +212,54 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
             }
         }
 
-        // Check neighbor filled cells: cannot connect door into a filled cell that has NO matching door
-        for (int ry = 0; ry < tmpl.heightCells; ++ry) {
-            for (int rx = 0; rx < tmpl.widthCells; ++rx) {
-                int gx = originGx + rx;
-                int gy = originGy + ry;
-                for (const auto& d : DIRS) {
-                    int nx = gx + d.dx;
-                    int ny = gy + d.dy;
-                    // Skip if within the candidate template itself
-                    if (nx >= originGx && nx < originGx + tmpl.widthCells &&
-                        ny >= originGy && ny < originGy + tmpl.heightCells) {
-                        continue;
-                    }
-                    if (nx < 0 || nx >= Config::CASTLE_GRID_W || ny < 0 || ny >= Config::CASTLE_GRID_H) continue;
+        // Запобігання утворенню 1D-колон/стовпчиків у межах біому (Column Prevention)
+        for (int rx = 0; rx < tmpl.widthCells; ++rx) {
+            int gx = originGx + rx;
+            int upCount = 0;
+            for (int y = originGy - 1; y >= 0; --y) {
+                if (grid_[y][gx].state == CellState::Filled && grid_[y][gx].biome == targetBiome) upCount++;
+                else break;
+            }
+            int downCount = 0;
+            for (int y = originGy + tmpl.heightCells; y < Config::CASTLE_GRID_H; ++y) {
+                if (grid_[y][gx].state == CellState::Filled && grid_[y][gx].biome == targetBiome) downCount++;
+                else break;
+            }
+            int totalVertSpan = upCount + tmpl.heightCells + downCount;
+            if (totalVertSpan >= 4) {
+                bool hasLateral = false;
+                for (int y = originGy - upCount; y < originGy + tmpl.heightCells + downCount; ++y) {
+                    if (gx > 0 && grid_[y][gx - 1].state == CellState::Filled && grid_[y][gx - 1].biome == targetBiome) hasLateral = true;
+                    if (gx + 1 < Config::CASTLE_GRID_W && grid_[y][gx + 1].state == CellState::Filled && grid_[y][gx + 1].biome == targetBiome) hasLateral = true;
+                    if (hasLateral) break;
+                }
+                if (tmpl.widthCells > 1) hasLateral = true;
+
+                if (!hasLateral || totalVertSpan >= 5) {
+                    return false;
                 }
             }
         }
+
+        // Запобігання утворенню 1D-горизонтальних тунелів у межах біому >= 5
+        for (int ry = 0; ry < tmpl.heightCells; ++ry) {
+            int gy = originGy + ry;
+            int leftCount = 0;
+            for (int x = originGx - 1; x >= 0; --x) {
+                if (grid_[gy][x].state == CellState::Filled && grid_[gy][x].biome == targetBiome) leftCount++;
+                else break;
+            }
+            int rightCount = 0;
+            for (int x = originGx + tmpl.widthCells; x < Config::CASTLE_GRID_W; ++x) {
+                if (grid_[gy][x].state == CellState::Filled && grid_[gy][x].biome == targetBiome) rightCount++;
+                else break;
+            }
+            int totalHorizSpan = leftCount + tmpl.widthCells + rightCount;
+            if (totalHorizSpan >= 5) {
+                return false;
+            }
+        }
+
         return true;
     };
 
@@ -347,15 +379,39 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
             return candidates[rng() % candidates.size()];
         };
 
-        // 2D-гілкування: чергування горизонтальних та вертикальних дверей
+        // 2D-гілкування: чергування напрямків та запобігання утворенню 1D-колон/ліній
         auto GetBiomeFrontierIdx = [&]() -> int {
             std::vector<int> matching;
             std::vector<int> allValid;
             bool preferVertical = (roomsInBiome % 2 == 1);
+
+            int colCount[Config::CASTLE_GRID_W]{};
+            int rowCount[Config::CASTLE_GRID_H]{};
+            for (const auto& rm : rooms_) {
+                if (rm.biome == bType) {
+                    for (int rx = 0; rx < rm.widthCells; ++rx) {
+                        int gx = rm.originGx + rx;
+                        if (gx >= 0 && gx < Config::CASTLE_GRID_W) colCount[gx]++;
+                    }
+                    for (int ry = 0; ry < rm.heightCells; ++ry) {
+                        int gy = rm.originGy + ry;
+                        if (gy >= 0 && gy < Config::CASTLE_GRID_H) rowCount[gy]++;
+                    }
+                }
+            }
+
             for (size_t i = 0; i < frontier.size(); ++i) {
                 if (frontier[i].biome == bType) {
                     allValid.push_back(static_cast<int>(i));
+                    int tgx = frontier[i].targetGx;
+                    int tgy = frontier[i].targetGy;
                     bool isVert = (frontier[i].requiredDoor & (DoorMask::NORTH | DoorMask::SOUTH)) != 0;
+
+                    // Запобігаємо витягуванню в лінію: якщо в цій колонці вже 3 кімнати, не ростимо вертикально
+                    if (isVert && tgx >= 0 && tgx < Config::CASTLE_GRID_W && colCount[tgx] >= 3) continue;
+                    // Якщо в цьому рядку вже 4 кімнати, не ростимо горизонтально
+                    if (!isVert && tgy >= 0 && tgy < Config::CASTLE_GRID_H && rowCount[tgy] >= 4) continue;
+
                     if (isVert == preferVertical) {
                         matching.push_back(static_cast<int>(i));
                     }
@@ -385,7 +441,7 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
                                     int ny = gy + d.dy;
                                     if (nx >= 2 && nx < Config::CASTLE_GRID_W - 2 &&
                                         ny >= 2 && ny < Config::CASTLE_GRID_H - 2) {
-                                        if (grid_[ny][nx].state == CellState::Empty && DetermineBiomeAt(nx, ny) == bType) {
+                                        if ((grid_[ny][nx].state == CellState::Empty || grid_[ny][nx].state == CellState::NeedsDoor) && DetermineBiomeAt(nx, ny) == bType) {
                                             grid_[ny][nx].state = CellState::NeedsDoor;
                                             grid_[ny][nx].requiredDoors |= OppositeDoor(d.bit);
                                             frontier.push_back({ nx, ny, OppositeDoor(d.bit), bType });
@@ -488,6 +544,8 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
             }
 
             if (validAnchors.empty()) {
+                grid_[fd.targetGy][fd.targetGx].state = CellState::Empty;
+                grid_[fd.targetGy][fd.targetGx].requiredDoors = 0;
                 continue;
             }
 
@@ -538,51 +596,107 @@ void CastleGenerator::GenerateFreshGraph(GameContext& ctx) {
     rooms_[0].visited = true;
     rooms_[0].cleared = true;
 
-    // Helper to connect gateway corridors from Entrance (24, 32) to borders
-    auto ConnectCorridor = [&](int startX, int startY, int endX, int endY) {
-        int cx = startX;
-        int cy = startY;
-        while (true) {
-            if (grid_[cy][cx].state != CellState::Filled) {
-                PlaceRoom(1, cx, cy, BiomeType::CastleHamson, RoomType::Combat,
-                          BossType::Khidr, FairyCondition::KillAll, globalFrontier);
+    // Helper to guarantee a gateway door from Castle Hamson into another biome
+    auto EnsureGatewaySeed = [&](BiomeType bType) {
+        for (const auto& fd : globalFrontier) {
+            if (fd.biome == bType) return; // вже є точка входу у біом
+        }
+        int bestDist = 9999;
+        int targetGx = -1, targetGy = -1;
+        uint8_t targetReqDoor = 0;
+
+        for (const auto& rm : rooms_) {
+            const auto& tmpl = RoomTemplates::TEMPLATES[static_cast<size_t>(rm.templateIdx)];
+            for (int ry = 0; ry < rm.heightCells; ++ry) {
+                for (int rx = 0; rx < rm.widthCells; ++rx) {
+                    int gx = rm.originGx + rx;
+                    int gy = rm.originGy + ry;
+                    for (const auto& d : DIRS) {
+                        if (!(tmpl.possibleDoors[ry][rx] & d.bit)) continue;
+                        int nx = gx + d.dx;
+                        int ny = gy + d.dy;
+                        if (nx >= 2 && nx < Config::CASTLE_GRID_W - 2 &&
+                            ny >= 2 && ny < Config::CASTLE_GRID_H - 2) {
+                            if (grid_[ny][nx].state == CellState::Empty && DetermineBiomeAt(nx, ny) == bType) {
+                                int dist = std::abs(nx - Config::ENTRANCE_GX) + std::abs(ny - Config::ENTRANCE_GY);
+                                if (dist < bestDist) {
+                                    bestDist = dist;
+                                    targetGx = nx;
+                                    targetGy = ny;
+                                    targetReqDoor = OppositeDoor(d.bit);
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            if (cx == endX && cy == endY) break;
-            if (cx < endX) cx++;
-            else if (cx > endX) cx--;
-            else if (cy < endY) cy++;
-            else if (cy > endY) cy--;
+        }
+
+        if (targetGx >= 0) {
+            grid_[targetGy][targetGx].state = CellState::NeedsDoor;
+            grid_[targetGy][targetGx].requiredDoors |= targetReqDoor;
+            globalFrontier.push_back({ targetGx, targetGy, targetReqDoor, bType });
+        } else {
+            // Прокладаємо місток з найближчої кімнати
+            int closestDist = 9999;
+            int bridgeGx = Config::ENTRANCE_GX;
+            int bridgeGy = Config::ENTRANCE_GY;
+            for (const auto& rm : rooms_) {
+                for (int ry = 0; ry < rm.heightCells; ++ry) {
+                    for (int rx = 0; rx < rm.widthCells; ++rx) {
+                        int gx = rm.originGx + rx;
+                        int gy = rm.originGy + ry;
+                        int dist = (bType == BiomeType::TheMaya) ? (gy - 25) :
+                                   ((bType == BiomeType::LandOfDarkness) ? (39 - gy) :
+                                   ((bType == BiomeType::ForestAbkhazia) ? (31 - gx) : 9999));
+                        if (dist >= 0 && dist < closestDist) {
+                            closestDist = dist;
+                            bridgeGx = gx;
+                            bridgeGy = gy;
+                        }
+                    }
+                }
+            }
+
+            int curX = bridgeGx;
+            int curY = bridgeGy;
+            while (DetermineBiomeAt(curX, curY) != bType) {
+                if (bType == BiomeType::TheMaya) curY--;
+                else if (bType == BiomeType::LandOfDarkness) curY++;
+                else if (bType == BiomeType::ForestAbkhazia) curX++;
+                else break;
+
+                if (curX < 2 || curX >= Config::CASTLE_GRID_W - 2 || curY < 2 || curY >= Config::CASTLE_GRID_H - 2) break;
+
+                if (DetermineBiomeAt(curX, curY) == bType) {
+                    uint8_t reqDoor = (bType == BiomeType::TheMaya) ? DoorMask::SOUTH :
+                                      ((bType == BiomeType::LandOfDarkness) ? DoorMask::NORTH : DoorMask::WEST);
+                    grid_[curY][curX].state = CellState::NeedsDoor;
+                    grid_[curY][curX].requiredDoors |= reqDoor;
+                    globalFrontier.push_back({ curX, curY, reqDoor, bType });
+                    break;
+                } else if (grid_[curY][curX].state == CellState::Empty) {
+                    int tmpl = pool1x1[rng() % pool1x1.size()];
+                    PlaceRoom(tmpl, curX, curY, DetermineBiomeAt(curX, curY), RoomType::Combat, BossType::Khidr, FairyCondition::KillAll, globalFrontier);
+                }
+            }
         }
     };
 
-    ConnectCorridor(26, 32, 30, 32); // East to Forest boundary
-    ConnectCorridor(26, 32, 26, 26); // North to Maya boundary
-    ConnectCorridor(26, 32, 26, 38); // South to Darkness boundary
+    // 2. Grow Castle Hamson organically (22-26 rooms)
+    GrowBiome(BiomeType::CastleHamson, 22 + static_cast<int>(rng() % 5), globalFrontier);
 
-    // Explicitly seed gateway doors for Forest, Maya, Darkness
-    grid_[32][31].state = CellState::NeedsDoor;
-    grid_[32][31].requiredDoors |= DoorMask::WEST;
-    globalFrontier.push_back({ 31, 32, DoorMask::WEST, BiomeType::ForestAbkhazia });
+    // 3. Grow Forest (22-26 rooms)
+    EnsureGatewaySeed(BiomeType::ForestAbkhazia);
+    GrowBiome(BiomeType::ForestAbkhazia, 22 + static_cast<int>(rng() % 5), globalFrontier);
 
-    grid_[25][26].state = CellState::NeedsDoor;
-    grid_[25][26].requiredDoors |= DoorMask::SOUTH;
-    globalFrontier.push_back({ 26, 25, DoorMask::SOUTH, BiomeType::TheMaya });
+    // 4. Grow Maya (22-26 rooms)
+    EnsureGatewaySeed(BiomeType::TheMaya);
+    GrowBiome(BiomeType::TheMaya, 22 + static_cast<int>(rng() % 5), globalFrontier);
 
-    grid_[39][26].state = CellState::NeedsDoor;
-    grid_[39][26].requiredDoors |= DoorMask::NORTH;
-    globalFrontier.push_back({ 26, 39, DoorMask::NORTH, BiomeType::LandOfDarkness });
-
-    // 2. Grow Castle Hamson (24-26 rooms)
-    GrowBiome(BiomeType::CastleHamson, 24 + static_cast<int>(rng() % 3), globalFrontier);
-
-    // 3. Grow Forest (24-26 rooms)
-    GrowBiome(BiomeType::ForestAbkhazia, 24 + static_cast<int>(rng() % 3), globalFrontier);
-
-    // 4. Grow Maya (24-26 rooms)
-    GrowBiome(BiomeType::TheMaya, 24 + static_cast<int>(rng() % 3), globalFrontier);
-
-    // 5. Grow Darkness (24-26 rooms)
-    GrowBiome(BiomeType::LandOfDarkness, 24 + static_cast<int>(rng() % 3), globalFrontier);
+    // 5. Grow Darkness (22-26 rooms)
+    EnsureGatewaySeed(BiomeType::LandOfDarkness);
+    GrowBiome(BiomeType::LandOfDarkness, 22 + static_cast<int>(rng() % 5), globalFrontier);
 
     // 7. Connect doors and cap all hanging doors
     for (auto& rm : rooms_) {
