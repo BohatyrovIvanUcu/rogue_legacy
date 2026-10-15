@@ -38,6 +38,17 @@ void CastlePlayState::OnEnter(GameContext& ctx) {
     Room& startRoom = castle_.GetRoom(curGx_, curGy_);
     startRoom.OnPlayerEnterRoom(ctx, player_);
     castle_.SyncRoomStateToContext(startRoom, ctx);
+
+    bannerTimer_ = 2.2f;
+    if (ctx.CurrentHeirHasTrait(TraitType::TheOne)) {
+        bannerText_ = "JACKING IN...";
+    } else if (ctx.CurrentHeirHasTrait(TraitType::Nostalgic)) {
+        bannerText_ = "REMINISCING...";
+    } else if (ctx.CurrentHeirHasTrait(TraitType::Baldness)) {
+        bannerText_ = "BALDING...";
+    } else {
+        bannerText_ = "BUILDING CASTLE...";
+    }
 }
 
 void CastlePlayState::OnExit(GameContext& ctx) {
@@ -46,6 +57,10 @@ void CastlePlayState::OnExit(GameContext& ctx) {
 }
 
 void CastlePlayState::Update(float dt, GameContext& ctx) {
+    if (bannerTimer_ > 0.0f) {
+        bannerTimer_ -= dt;
+    }
+
     if (ctx.particles) {
         ctx.particles->Update(dt);
     }
@@ -486,7 +501,7 @@ void CastlePlayState::Draw(GameContext& ctx) {
         Vector2 pScreen = GetWorldToScreen2D(player_.GetCenter(), worldCam_);
         Vector2 pShaderPos = { pScreen.x / Config::SCALE_FACTOR, pScreen.y / Config::SCALE_FACTOR };
 
-        bool isDarkBiome = (curRoom.biome == BiomeType::LandOfDarkness);
+        bool isDarkBiome = (curRoom.biome == BiomeType::LandOfDarkness) || ctx.CurrentHeirHasTrait(TraitType::Glaucoma);
         ctx.shaders->PresentFinalScene(
             ctx,
             pShaderPos,
@@ -645,6 +660,18 @@ void CastlePlayState::DrawHud(const GameContext& ctx, [[maybe_unused]] const Roo
     int tkw = Ui::Measure(talentKey, 11);
     Ui::Text(talentKey, slot2X + (slotSize - tkw) / 2 + 1, slotY + slotSize + 3 + 1, 11, BLACK);
     Ui::Text(talentKey, slot2X + (slotSize - tkw) / 2, slotY + slotSize + 3, 11, Color{ 220, 230, 245, 255 });
+
+    // 6. Castle entry / loading banner (Canonical priority: TheOne > Nostalgic > Baldness > Default)
+    if (bannerTimer_ > 0.0f && !bannerText_.empty()) {
+        float alpha = std::clamp(bannerTimer_ / 0.5f, 0.0f, 1.0f);
+        int bw = Ui::Measure(bannerText_, 24);
+        int bx = (Config::VIRTUAL_WIDTH - bw) / 2;
+        int by = 36;
+        DrawRectangle(bx - 18, by - 8, bw + 36, 42, Fade(Color{ 10, 12, 22, 230 }, alpha));
+        DrawRectangleLines(bx - 18, by - 8, bw + 36, 42, Fade(GOLD, alpha));
+        Ui::Text(bannerText_, bx + 1, by + 1, 24, Fade(BLACK, alpha));
+        Ui::Text(bannerText_, bx, by, 24, Fade(Color{ 255, 230, 90, 255 }, alpha));
+    }
 }
 
 void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) const {

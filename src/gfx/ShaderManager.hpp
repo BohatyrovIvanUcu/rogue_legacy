@@ -142,6 +142,7 @@ private:
     int locGradingNostalgic_ = -1;
     int locGradingGrayscale_ = -1;
     int locGradingSilhouette_ = -1;
+    int locGradingTheOne_ = -1;
 
     int locNostalgicTime_ = -1;
     int locMyopiaPlayerPos_ = -1;

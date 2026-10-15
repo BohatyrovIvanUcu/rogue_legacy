@@ -5,6 +5,7 @@
 #include "states/SettingsMenu.hpp"
 #include "world/CastleGenerator.hpp"
 #include "entities/Player.hpp"
+#include <string>
 
 class CastlePlayState : public IGameState {
 public:
@@ -36,4 +37,7 @@ private:
     Camera2D worldCam_{};
     Vector2 camTarget_{ 600.0f, 360.0f };
     SettingsMenu settingsMenu_{};
+
+    float bannerTimer_ = 0.0f;
+    std::string bannerText_{};
 };

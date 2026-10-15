@@ -985,6 +985,7 @@ void Player::Draw(const GameContext& ctx) const {
     for (auto t : ctx.activeHeir.traits) {
         if (t == TraitType::Ectomorph) rp.isEctomorph = true;
         if (t == TraitType::Endomorph) rp.isEndomorph = true;
+        if (t == TraitType::Baldness)  rp.isBald = true;
     }
 
     ctx.renderer->DrawHero(rp);

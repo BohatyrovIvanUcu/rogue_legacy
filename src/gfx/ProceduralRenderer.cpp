@@ -579,23 +579,25 @@ void ProceduralRenderer::DrawHero(const HeroRenderParams& p) const {
             break;
         }
         default: {
-            // Багатосегментний плюмаж лицаря з інерційним хитанням (Spring inertia)
-            float springLag = (p.velocity.x * -0.0035f);
-            Vector2 plumeRoot = { headPos.x - dir * 1.0f * sx, headPos.y - headR * 0.98f };
-            constexpr int PLUME_SEGS = 4;
-            Vector2 prevPlume = plumeRoot;
+            if (!p.isBald) {
+                // Багатосегментний плюмаж лицаря з інерційним хитанням (Spring inertia)
+                float springLag = (p.velocity.x * -0.0035f);
+                Vector2 plumeRoot = { headPos.x - dir * 1.0f * sx, headPos.y - headR * 0.98f };
+                constexpr int PLUME_SEGS = 4;
+                Vector2 prevPlume = plumeRoot;
 
-            for (int pl = 1; pl <= PLUME_SEGS; ++pl) {
-                float t = static_cast<float>(pl) / PLUME_SEGS;
-                float pWave = std::sin(p.animTime * (10.0f + pl * 1.2f) - pl * 0.7f) * (3.5f + pl * 1.8f) * sy;
-                float px = plumeRoot.x - dir * (t * 22.0f * sx) + springLag * (pl * 4.0f);
-                float py = plumeRoot.y - (1.0f - t) * 6.0f * sy + (t * 8.0f * sy) + pWave - (p.velocity.y * 0.010f * t);
-                Vector2 nextPlume = { px, py };
-                float thick = (5.5f - pl * 0.85f) * ((sx + sy) * 0.5f);
-                Color segCol = (pl % 2 == 0) ? plumeCol : ColorTint(plumeCol, pal.fireGold[3]);
-                DrawLineEx(prevPlume, nextPlume, thick, Fade(segCol, alpha));
-                DrawCircleV(nextPlume, thick * 0.45f, Fade(segCol, alpha));
-                prevPlume = nextPlume;
+                for (int pl = 1; pl <= PLUME_SEGS; ++pl) {
+                    float t = static_cast<float>(pl) / PLUME_SEGS;
+                    float pWave = std::sin(p.animTime * (10.0f + pl * 1.2f) - pl * 0.7f) * (3.5f + pl * 1.8f) * sy;
+                    float px = plumeRoot.x - dir * (t * 22.0f * sx) + springLag * (pl * 4.0f);
+                    float py = plumeRoot.y - (1.0f - t) * 6.0f * sy + (t * 8.0f * sy) + pWave - (p.velocity.y * 0.010f * t);
+                    Vector2 nextPlume = { px, py };
+                    float thick = (5.5f - pl * 0.85f) * ((sx + sy) * 0.5f);
+                    Color segCol = (pl % 2 == 0) ? plumeCol : ColorTint(plumeCol, pal.fireGold[3]);
+                    DrawLineEx(prevPlume, nextPlume, thick, Fade(segCol, alpha));
+                    DrawCircleV(nextPlume, thick * 0.45f, Fade(segCol, alpha));
+                    prevPlume = nextPlume;
+                }
             }
             break;
         }
@@ -689,6 +691,10 @@ void ProceduralRenderer::DrawHeroPreview(
             hp.scaleX *= 0.68f;
         } else if (t == TraitType::Endomorph) {
             hp.scaleX *= 1.35f;
+        } else if (t == TraitType::Baldness) {
+            hp.isBald = true;
+        } else if (t == TraitType::Vertigo) {
+            hp.scaleY = -hp.scaleY;
         }
     }
 

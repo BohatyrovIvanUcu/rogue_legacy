@@ -33,6 +33,7 @@ struct HeroRenderParams {
     bool isFemale = false;
     bool isEctomorph = false;
     bool isEndomorph = false;
+    bool isBald = false;
 };
 
 class ProceduralRenderer {

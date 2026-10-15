@@ -370,6 +370,7 @@ uniform float u_time;
 uniform int u_isNostalgic;
 uniform int u_isGrayscale;
 uniform int u_isSilhouette;
+uniform int u_isTheOne;
 
 void main() {
     vec2 uv = fragTexCoord;
@@ -387,7 +388,28 @@ void main() {
 
     vec3 col = c.rgb;
 
-    if (u_isNostalgic == 1) {
+    if (u_isTheOne == 1) {
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        vec3 neonGreen = mix(vec3(0.02, 0.08, 0.03), vec3(0.12, 0.92, 0.28), clamp(lum * 1.4, 0.0, 1.0));
+        if (lum > 0.60) {
+            neonGreen = mix(neonGreen, vec3(0.75, 1.00, 0.85), (lum - 0.60) / 0.40);
+        }
+
+        // Digital scanline effect
+        float scanline = sin(uv.y * 720.0) * 0.05;
+        neonGreen += scanline;
+
+        // Digital matrix code rain modulation
+        float rainCol = floor(uv.x * 160.0);
+        float rainPhase = fract(sin(rainCol * 31.7 + floor((u_time * 8.0 - uv.y * 12.0))) * 43758.5453);
+        if (rainPhase > 0.985) {
+            neonGreen += vec3(0.12, 0.30, 0.15);
+        }
+
+        vec2 centered = uv - vec2(0.5);
+        float vig = 1.0 - dot(centered, centered) * 0.75;
+        col = clamp(neonGreen * clamp(vig, 0.35, 1.0), 0.0, 1.0);
+    } else if (u_isNostalgic == 1) {
         vec3 sepia;
         sepia.r = dot(col, vec3(0.393, 0.769, 0.189));
         sepia.g = dot(col, vec3(0.349, 0.686, 0.168));
@@ -506,6 +528,7 @@ void ShaderManager::Init() {
     locGradingNostalgic_  = GetShaderLocation(shGrading_, "u_isNostalgic");
     locGradingGrayscale_  = GetShaderLocation(shGrading_, "u_isGrayscale");
     locGradingSilhouette_ = GetShaderLocation(shGrading_, "u_isSilhouette");
+    locGradingTheOne_     = GetShaderLocation(shGrading_, "u_isTheOne");
 
     locNostalgicTime_       = GetShaderLocation(shNostalgic_, "u_time");
 
@@ -921,17 +944,19 @@ void ShaderManager::PresentFinalScene(
     int isNostalgic = ctx.CurrentHeirHasTrait(TraitType::Nostalgic) ? 1 : 0;
     int isGrayscale = (debugGrayscale_ || ctx.CurrentHeirHasTrait(TraitType::Colorblind)) ? 1 : 0;
     int isSilhouette = debugSilhouette_ ? 1 : 0;
+    int isTheOne = ctx.CurrentHeirHasTrait(TraitType::TheOne) ? 1 : 0;
 
     SetShaderValue(shGrading_, locGradingTime_, &curTime, SHADER_UNIFORM_FLOAT);
     SetShaderValue(shGrading_, locGradingNostalgic_, &isNostalgic, SHADER_UNIFORM_INT);
     SetShaderValue(shGrading_, locGradingGrayscale_, &isGrayscale, SHADER_UNIFORM_INT);
     SetShaderValue(shGrading_, locGradingSilhouette_, &isSilhouette, SHADER_UNIFORM_INT);
+    SetShaderValue(shGrading_, locGradingTheOne_, &isTheOne, SHADER_UNIFORM_INT);
     ApplyPass(shGrading_);
 
     bool hasVertigo = ctx.CurrentHeirHasTrait(TraitType::Vertigo);
     Rectangle finalSrcRec = {
         0.0f, 0.0f,
-        static_cast<float>(src->texture.width),
+        hasVertigo ? -static_cast<float>(src->texture.width) : static_cast<float>(src->texture.width),
         hasVertigo ? static_cast<float>(src->texture.height)
                    : -static_cast<float>(src->texture.height)
     };
