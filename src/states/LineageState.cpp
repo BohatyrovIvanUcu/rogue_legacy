@@ -70,6 +70,12 @@ void LineageState::Draw(GameContext& ctx) {
     int startX = (Config::VIRTUAL_WIDTH - (cardW * 3 + spacing * 2)) / 2;
     int cardY = 76;
 
+    bool hasProsop = ctx.CurrentHeirHasTrait(TraitType::Prosopagnosia);
+    bool hasDyslexia = ctx.CurrentHeirHasTrait(TraitType::Dyslexia);
+    auto Fmt = [hasDyslexia](const std::string& str) -> std::string {
+        return hasDyslexia ? Ui::ScrambleDyslexia(str) : str;
+    };
+
     for (int i = 0; i < 3; ++i) {
         const HeirCandidate& h = ctx.heirCandidates[static_cast<size_t>(i)];
         const ClassDef& cls = Registry::GetClass(h.classType);
@@ -96,10 +102,11 @@ void LineageState::Draw(GameContext& ctx) {
         }
 
         // 1. Heir Name & Class Header Banner
-        int nameW = Ui::Measure(h.name.c_str(), 20);
-        Ui::Text(h.name.c_str(), cx + (cardW - nameW) / 2, cy + 12, 20, isSelected ? GOLD : RAYWHITE);
+        std::string dispName = hasProsop ? "???" : Fmt(h.name);
+        int nameW = Ui::Measure(dispName.c_str(), 20);
+        Ui::Text(dispName.c_str(), cx + (cardW - nameW) / 2, cy + 12, 20, isSelected ? GOLD : RAYWHITE);
 
-        std::string clsTitle = "Class: " + cls.name;
+        std::string clsTitle = hasProsop ? "Class: ???" : ("Class: " + Fmt(cls.name));
         int cw = Ui::Measure(clsTitle.c_str(), 14);
         Ui::Text(clsTitle.c_str(), cx + (cardW - cw) / 2, cy + 34, 14, SKYBLUE);
 
@@ -118,24 +125,35 @@ void LineageState::Draw(GameContext& ctx) {
 
         if (ctx.renderer) {
             ctx.renderer->DrawHeroPreview(heroPos, 1.85f, h, ctx, isSelected ? animTimer_ : 0.4f);
+            if (hasProsop) {
+                DrawRectangleRounded(portraitBox, 0.08f, 4, Color{ 10, 8, 16, 235 });
+                Ui::Text("?", heroPos.x - 8, heroPos.y - 20, 36, Color{ 255, 215, 60, 240 });
+            }
         }
 
         // 3. Four Compact Graphical Stat Badges
         float statBadgeW = (cardW - 48.0f) / 4.0f;
         float statY = cy + 178.0f;
         if (ctx.renderer) {
-            ctx.renderer->DrawStatBadge({ cx + 18.0f + 0.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "HP",  static_cast<int>(cls.hpMult * 100.0f), RED);
-            ctx.renderer->DrawStatBadge({ cx + 18.0f + 1.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "MP",  static_cast<int>(cls.mpMult * 100.0f), SKYBLUE);
-            ctx.renderer->DrawStatBadge({ cx + 18.0f + 2.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "STR", static_cast<int>(cls.strMult * 100.0f), ORANGE);
-            ctx.renderer->DrawStatBadge({ cx + 18.0f + 3.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "INT", static_cast<int>(cls.intMult * 100.0f), Color{ 190, 120, 245, 255 });
+            int hpMult  = hasProsop ? -1 : static_cast<int>(cls.hpMult * 100.0f);
+            int mpMult  = hasProsop ? -1 : static_cast<int>(cls.mpMult * 100.0f);
+            int strMult = hasProsop ? -1 : static_cast<int>(cls.strMult * 100.0f);
+            int intMult = hasProsop ? -1 : static_cast<int>(cls.intMult * 100.0f);
+            ctx.renderer->DrawStatBadge({ cx + 18.0f + 0.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "HP",  hpMult, RED);
+            ctx.renderer->DrawStatBadge({ cx + 18.0f + 1.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "MP",  mpMult, SKYBLUE);
+            ctx.renderer->DrawStatBadge({ cx + 18.0f + 2.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "STR", strMult, ORANGE);
+            ctx.renderer->DrawStatBadge({ cx + 18.0f + 3.0f * (statBadgeW + 4.0f), statY }, statBadgeW, 26.0f, "INT", intMult, Color{ 190, 120, 245, 255 });
         }
 
         // 4. Ability Slots (Spell [L] & Talent [Q])
         float slotW = cardW - 36.0f;
         float slotY = cy + 212.0f;
         if (ctx.renderer) {
-            ctx.renderer->DrawAbilitySlot({ static_cast<float>(cx + 18), slotY }, slotW, 32.0f, "L", sp.name.c_str(), sp.manaCost, Color{ 255, 185, 55, 255 });
-            ctx.renderer->DrawAbilitySlot({ static_cast<float>(cx + 18), slotY + 38.0f }, slotW, 32.0f, "Q", cls.talentName.c_str(), 0, Color{ 100, 255, 130, 255 });
+            std::string spName = hasProsop ? "???" : Fmt(sp.name);
+            int spCost = hasProsop ? -1 : sp.manaCost;
+            std::string talName = hasProsop ? "???" : Fmt(cls.talentName);
+            ctx.renderer->DrawAbilitySlot({ static_cast<float>(cx + 18), slotY }, slotW, 32.0f, "L", spName.c_str(), spCost, Color{ 255, 185, 55, 255 });
+            ctx.renderer->DrawAbilitySlot({ static_cast<float>(cx + 18), slotY + 38.0f }, slotW, 32.0f, "Q", talName.c_str(), 0, Color{ 100, 255, 130, 255 });
         }
 
         // 5. Genetic Traits Badges
@@ -146,7 +164,12 @@ void LineageState::Draw(GameContext& ctx) {
         Ui::Text("GENETIC TRAITS", static_cast<float>(cx + 18), traitsY, 12, GOLD);
         traitsY += 18.0f;
 
-        if (h.traits.empty()) {
+        if (hasProsop) {
+            Rectangle unkRec = { static_cast<float>(cx + 18), traitsY, slotW, 30.0f };
+            DrawRectangleRounded(unkRec, 0.4f, 4, Color{ 36, 26, 42, 230 });
+            DrawRectangleRoundedLines(unkRec, 0.4f, 4, 1.2f, Color{ 200, 120, 220, 255 });
+            Ui::Text("- Hidden by Prosopagnosia -", static_cast<float>(cx + 28), traitsY + 8.0f, 12, Color{ 230, 180, 245, 255 });
+        } else if (h.traits.empty()) {
             Rectangle pureRec = { static_cast<float>(cx + 18), traitsY, slotW, 30.0f };
             DrawRectangleRounded(pureRec, 0.4f, 4, Color{ 24, 32, 28, 230 });
             DrawRectangleRoundedLines(pureRec, 0.4f, 4, 1.2f, LIME);
@@ -186,7 +209,9 @@ void LineageState::Draw(GameContext& ctx) {
     DrawRectangle(codexX + 2, codexY + 2, codexW - 4, 28, Color{ 32, 26, 44, 255 });
     DrawLine(codexX, codexY + 30, codexX + codexW, codexY + 30, GOLD);
 
-    std::string codexTitle = "HERITAGE CODEX: " + selHeir.name + " (" + selCls.name + ")";
+    std::string codexTitle = hasProsop
+        ? "HERITAGE CODEX: ??? (Face Blindness)"
+        : ("HERITAGE CODEX: " + Fmt(selHeir.name) + " (" + Fmt(selCls.name) + ")");
     Ui::Text(codexTitle.c_str(), codexX + 16, codexY + 7, 14, GOLD);
 
     const char* confirmHint = "[ENTER / SPACE] Claim Your Birthright   |   [A / D] Inspect Descendants";
@@ -197,11 +222,19 @@ void LineageState::Draw(GameContext& ctx) {
     int colLeftW = 420;
     int contentY = codexY + 38;
 
-    std::string spellInfo = "[L] " + selSp.name + " (" + std::to_string(selSp.manaCost) + " MP): " + selSp.description;
-    Ui::TextWrapped(spellInfo.c_str(), codexX + 16, contentY, colLeftW, 12, Color{ 255, 215, 140, 255 });
+    if (hasProsop) {
+        std::string spellInfo = "[L] ???: Ability concealed due to Prosopagnosia.";
+        Ui::TextWrapped(spellInfo.c_str(), codexX + 16, contentY, colLeftW, 12, Color{ 255, 215, 140, 255 });
 
-    std::string talentInfo = "[Q] " + selCls.talentName + ": " + selCls.talentDesc;
-    Ui::TextWrapped(talentInfo.c_str(), codexX + 16, contentY + 44, colLeftW, 12, Color{ 150, 245, 170, 255 });
+        std::string talentInfo = "[Q] ???: Class talents concealed.";
+        Ui::TextWrapped(talentInfo.c_str(), codexX + 16, contentY + 44, colLeftW, 12, Color{ 150, 245, 170, 255 });
+    } else {
+        std::string spellInfo = "[L] " + Fmt(selSp.name) + " (" + std::to_string(selSp.manaCost) + " MP): " + Fmt(selSp.description);
+        Ui::TextWrapped(spellInfo.c_str(), codexX + 16, contentY, colLeftW, 12, Color{ 255, 215, 140, 255 });
+
+        std::string talentInfo = "[Q] " + Fmt(selCls.talentName) + ": " + Fmt(selCls.talentDesc);
+        Ui::TextWrapped(talentInfo.c_str(), codexX + 16, contentY + 44, colLeftW, 12, Color{ 150, 245, 170, 255 });
+    }
 
     // Vertical Divider
     DrawLine(codexX + colLeftW + 28, codexY + 34, codexX + colLeftW + 28, codexY + codexH - 10, Color{ 60, 55, 75, 255 });
@@ -211,13 +244,16 @@ void LineageState::Draw(GameContext& ctx) {
     int colRightW = codexW - colLeftW - 60;
     int traitTextY = contentY;
 
-    if (selHeir.traits.empty()) {
+    if (hasProsop) {
+        Ui::Text("GENETIC PROFILE: ???", colRightX, traitTextY, 13, Color{ 220, 130, 235, 255 });
+        Ui::Text("Prosopagnosia prevents recognizing traits or features of prospective heirs.", colRightX, traitTextY + 20, 12, Color{ 210, 220, 235, 255 });
+    } else if (selHeir.traits.empty()) {
         Ui::Text("GENETIC PROFILE: Pure Bloodline", colRightX, traitTextY, 13, LIME);
         Ui::Text("This heir suffers from no biological afflictions or perceptual oddities.", colRightX, traitTextY + 20, 12, Color{ 210, 220, 235, 255 });
     } else {
         for (TraitType t : selHeir.traits) {
             const TraitDef& td = Registry::GetTrait(t);
-            std::string tHeader = td.name + ": ";
+            std::string tHeader = Fmt(td.name) + ": ";
             int thw = Ui::Measure(tHeader.c_str(), 12);
 
             // Draw mini trait icon in codex
@@ -225,7 +261,7 @@ void LineageState::Draw(GameContext& ctx) {
                 ctx.renderer->DrawTraitIcon({ static_cast<float>(colRightX + 6), static_cast<float>(traitTextY + 7) }, t, 6.0f, GOLD);
             }
             Ui::Text(tHeader.c_str(), colRightX + 18, traitTextY, 12, GOLD);
-            Ui::TextWrapped(td.description.c_str(), colRightX + 18 + thw, traitTextY, colRightW - thw - 20, 12, Color{ 225, 230, 242, 255 });
+            Ui::TextWrapped(Fmt(td.description).c_str(), colRightX + 18 + thw, traitTextY, colRightW - thw - 20, 12, Color{ 225, 230, 242, 255 });
             traitTextY += 32;
         }
     }

@@ -49,6 +49,10 @@ void CastlePlayState::OnEnter(GameContext& ctx) {
     } else {
         bannerText_ = "BUILDING CASTLE...";
     }
+
+    if (ctx.CurrentHeirHasTrait(TraitType::Dyslexia)) {
+        bannerText_ = Ui::ScrambleDyslexia(bannerText_);
+    }
 }
 
 void CastlePlayState::OnExit(GameContext& ctx) {
@@ -683,8 +687,10 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
     DrawRectangle(mapX - 6, mapY - 6, mapSize + 12, mapSize + 32, Color{ 10, 12, 22, 220 });
     DrawRectangleLines(mapX - 6, mapY - 6, mapSize + 12, mapSize + 32, GOLD);
 
+    bool hasEidetic = ctx.CurrentHeirHasTrait(TraitType::EideticMemory);
     bool isSpelunker = (ctx.activeHeir.classType == ClassType::Spelunker_Upgraded) ||
-                       (ctx.activeHeir.classType == ClassType::Miner_Base && player_.headlampOn);
+                       (ctx.activeHeir.classType == ClassType::Miner_Base && player_.headlampOn) ||
+                       hasEidetic;
 
     for (int y = 0; y < Config::CASTLE_GRID_SIZE; ++y) {
         for (int x = 0; x < Config::CASTLE_GRID_SIZE; ++x) {
@@ -735,6 +741,19 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
                 DrawCircle(rx + cell / 2, ry + cell / 2, 3.0f, GOLD);
             }
 
+            // Eidetic Memory: точкові позиції активних ворогів
+            if (hasEidetic && r.visited) {
+                for (const auto& en : r.enemies) {
+                    if (en.active) {
+                        float relX = (en.pos.x - Config::ROOM_OFFSET_X) / static_cast<float>(Config::ROOM_COLS * Config::TILE_SIZE);
+                        float relY = (en.pos.y - Config::ROOM_OFFSET_Y) / static_cast<float>(Config::ROOM_ROWS * Config::TILE_SIZE);
+                        int ex = rx + 1 + static_cast<int>(std::clamp(relX, 0.1f, 0.9f) * (cell - 3));
+                        int ey = ry + 1 + static_cast<int>(std::clamp(relY, 0.1f, 0.9f) * (cell - 3));
+                        DrawPixel(ex, ey, RED);
+                    }
+                }
+            }
+
             if (x == curGx_ && y == curGy_) {
                 DrawRectangleLines(rx, ry, cell, cell, WHITE);
             }
@@ -742,12 +761,15 @@ void CastlePlayState::DrawMinimap(const GameContext& ctx, const Room& curRoom) c
     }
 
     std::string bName = Registry::GetBiomeName(curRoom.biome);
+    if (ctx.CurrentHeirHasTrait(TraitType::Dyslexia)) {
+        bName = Ui::ScrambleDyslexia(bName);
+    }
     int bw = Ui::Measure(bName, 13);
     int bx = mapX + (mapSize - bw) / 2;
     Ui::Text(bName, bx, mapY + mapSize + 8, 13, GOLD);
 }
 
-void CastlePlayState::DrawTeleporterOverlay(const GameContext& /*ctx*/) const {
+void CastlePlayState::DrawTeleporterOverlay(const GameContext& ctx) const {
     DrawRectangle(0, 0, Config::VIRTUAL_WIDTH, Config::VIRTUAL_HEIGHT, Fade(BLACK, 0.82f));
 
     int cell = 44;
@@ -755,12 +777,18 @@ void CastlePlayState::DrawTeleporterOverlay(const GameContext& /*ctx*/) const {
     int mx = (Config::VIRTUAL_WIDTH - mapSize) / 2;
     int my = (Config::VIRTUAL_HEIGHT - mapSize) / 2 + 10;
 
-    const char* title = "CASTLE TELEPORTER NETWORK";
-    int tw = Ui::Measure(title, 26);
-    Ui::Text(title, (Config::VIRTUAL_WIDTH - tw) / 2, my - 68, 26, SKYBLUE);
-    const char* sub = "Select a visited Teleporter (Cyan) or Boss Entrance (Red) with [WASD] and press [SPACE / ENTER] to Warp.";
-    int sw = Ui::Measure(sub, 15);
-    Ui::Text(sub, (Config::VIRTUAL_WIDTH - sw) / 2, my - 32, 15, Color{ 220, 225, 235, 255 });
+    bool hasDyslexia = ctx.CurrentHeirHasTrait(TraitType::Dyslexia);
+    bool hasAlzheimers = ctx.CurrentHeirHasTrait(TraitType::Alzheimers);
+    bool hasEidetic = ctx.CurrentHeirHasTrait(TraitType::EideticMemory);
+
+    std::string title = hasDyslexia ? Ui::ScrambleDyslexia("CASTLE TELEPORTER NETWORK") : "CASTLE TELEPORTER NETWORK";
+    int tw = Ui::Measure(title.c_str(), 26);
+    Ui::Text(title.c_str(), (Config::VIRTUAL_WIDTH - tw) / 2, my - 68, 26, SKYBLUE);
+
+    std::string sub = hasDyslexia ? Ui::ScrambleDyslexia("Select a visited Teleporter (Cyan) or Boss Entrance (Red) with [WASD] and press [SPACE / ENTER] to Warp.")
+                                  : "Select a visited Teleporter (Cyan) or Boss Entrance (Red) with [WASD] and press [SPACE / ENTER] to Warp.";
+    int sw = Ui::Measure(sub.c_str(), 15);
+    Ui::Text(sub.c_str(), (Config::VIRTUAL_WIDTH - sw) / 2, my - 32, 15, Color{ 220, 225, 235, 255 });
 
     DrawRectangle(mx - 10, my - 10, mapSize + 20, mapSize + 20, Color{ 16, 18, 30, 255 });
     DrawRectangleLines(mx - 10, my - 10, mapSize + 20, mapSize + 20, SKYBLUE);
@@ -771,7 +799,14 @@ void CastlePlayState::DrawTeleporterOverlay(const GameContext& /*ctx*/) const {
             int rx = mx + x * cell;
             int ry = my + y * cell;
 
-            if (r.doorMask != 0 && r.visited) {
+            if (hasAlzheimers && (x != curGx_ || y != curGy_)) {
+                if (r.doorMask != 0) {
+                    DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, Color{ 28, 22, 40, 255 });
+                    Ui::Text("?", rx + 16, ry + 12, 18, Color{ 165, 150, 195, 255 });
+                } else {
+                    DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, Color{ 16, 18, 26, 255 });
+                }
+            } else if (r.doorMask != 0 && r.visited) {
                 Color col = Color{ 55, 65, 92, 255 };
                 if (r.roomType == RoomType::Entrance || r.roomType == RoomType::Teleporter) {
                     col = Color{ 35, 135, 195, 255 };
@@ -779,6 +814,16 @@ void CastlePlayState::DrawTeleporterOverlay(const GameContext& /*ctx*/) const {
                     col = Color{ 175, 42, 55, 255 };
                 }
                 DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, col);
+
+                if (hasEidetic) {
+                    int enCount = 0;
+                    for (const auto& en : r.enemies) {
+                        if (en.active) enCount++;
+                    }
+                    if (enCount > 0) {
+                        DrawCircle(rx + cell - 8, ry + 8, 3.5f, RED);
+                    }
+                }
             } else {
                 DrawRectangle(rx + 2, ry + 2, cell - 4, cell - 4, Color{ 24, 26, 38, 255 });
             }

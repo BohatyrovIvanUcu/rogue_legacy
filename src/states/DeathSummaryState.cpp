@@ -236,6 +236,9 @@ void DeathSummaryState::DrawRunOverviewModal(GameContext& ctx) {
     DrawLine(sx, sy + 30, sx + 270, sy + 30, Color{ 145, 110, 45, 255 });
 
     std::string fateLine = (ctx.lastRunVictory ? "Triumph: " : "Slain by: ") + ctx.lastKillerName;
+    if (ctx.CurrentHeirHasTrait(TraitType::Dyslexia)) {
+        fateLine = Ui::ScrambleDyslexia(fateLine);
+    }
     Ui::Text(fateLine.c_str(), sx, sy + 46, 17, ctx.lastRunVictory ? LIME : RED);
 
     Ui::Text(("Gold Plundered in Run: " + std::to_string(ctx.runGoldCollected) + " G").c_str(), sx, sy + 88, 16, YELLOW);

@@ -38,6 +38,9 @@ namespace Ui {
     inline int TextWrapped(const std::string& text, float x, float y, int maxWidth, int fontSize, Color color) {
         return TextWrapped(text.c_str(), static_cast<int>(x), static_cast<int>(y), maxWidth, fontSize, color);
     }
+
+    // Алгоритм риси Dyslexia: збереження першої та останньої літери кожного слова з перестановкою внутрішніх
+    std::string ScrambleDyslexia(std::string_view text);
 }
 
 

@@ -2672,7 +2672,7 @@ void ProceduralRenderer::DrawStatBadge(Vector2 pos, float width, float height, c
         DrawLine(static_cast<int>(ic.x), static_cast<int>(ic.y - 5), static_cast<int>(ic.x), static_cast<int>(ic.y + 5), WHITE);
     }
 
-    std::string valStr = std::to_string(multPercent) + "%";
+    std::string valStr = (multPercent < 0) ? "???" : (std::to_string(multPercent) + "%");
     Ui::Text(label, pos.x + 24.0f, pos.y + (height - 11.0f) * 0.5f, 11, accentCol);
     Ui::Text(valStr.c_str(), pos.x + width - Ui::Measure(valStr.c_str(), 11) - 6.0f, pos.y + (height - 11.0f) * 0.5f, 11, WHITE);
 }
@@ -2695,6 +2695,12 @@ void ProceduralRenderer::DrawAbilitySlot(Vector2 pos, float width, float height,
     // Mana cost diamond gem if applicable
     if (manaCost > 0) {
         std::string manaStr = std::to_string(manaCost) + " MP";
+        int mw = Ui::Measure(manaStr.c_str(), 11);
+        Vector2 gemC = { pos.x + width - mw - 14.0f, pos.y + height * 0.5f };
+        DrawPoly(gemC, 4, 5.0f, 45.0f, SKYBLUE);
+        Ui::Text(manaStr.c_str(), pos.x + width - mw - 6.0f, pos.y + (height - 11.0f) * 0.5f, 11, SKYBLUE);
+    } else if (manaCost < 0) {
+        std::string manaStr = "?? MP";
         int mw = Ui::Measure(manaStr.c_str(), 11);
         Vector2 gemC = { pos.x + width - mw - 14.0f, pos.y + height * 0.5f };
         DrawPoly(gemC, 4, 5.0f, 45.0f, SKYBLUE);

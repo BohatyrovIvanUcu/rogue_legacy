@@ -2,6 +2,9 @@
 #include "gfx/UiText.hpp"
 #include <string>
 #include <vector>
+#include <cctype>
+#include <utility>
+#include <cstdint>
 
 namespace {
     Font g_font{};
@@ -91,6 +94,52 @@ int TextWrapped(const char* text, int x, int y, int maxWidth, int fontSize, Colo
         lineY += lineHeight;
     }
     return lineY - y;
+}
+
+std::string ScrambleDyslexia(std::string_view text) {
+    std::string result(text);
+    size_t i = 0;
+    while (i < result.size()) {
+        if (std::isalpha(static_cast<unsigned char>(result[i]))) {
+            size_t start = i;
+            while (i < result.size() && std::isalpha(static_cast<unsigned char>(result[i]))) {
+                i++;
+            }
+            size_t end = i;
+            size_t len = end - start;
+            if (len >= 4) {
+                size_t midStart = start + 1;
+                size_t midLen = len - 2;
+                if (midLen == 2) {
+                    std::swap(result[midStart], result[midStart + 1]);
+                } else if (midLen > 2) {
+                    uint32_t seed = 2166136261u;
+                    for (size_t k = start; k < end; ++k) {
+                        seed = (seed ^ static_cast<unsigned char>(result[k])) * 16777619u;
+                    }
+                    for (size_t m = midLen - 1; m > 0; --m) {
+                        seed = seed * 1664525u + 1013904223u;
+                        size_t j = (seed >> 16) % (m + 1);
+                        std::swap(result[midStart + m], result[midStart + j]);
+                    }
+                    // Переконуємось, що перестановка дійсно відрізняється від оригіналу
+                    bool changed = false;
+                    for (size_t k = 0; k < midLen; ++k) {
+                        if (result[midStart + k] != text[midStart + k]) {
+                            changed = true;
+                            break;
+                        }
+                    }
+                    if (!changed && midLen >= 2) {
+                        std::swap(result[midStart], result[midStart + midLen - 1]);
+                    }
+                }
+            }
+        } else {
+            i++;
+        }
+    }
+    return result;
 }
 
 } // namespace Ui

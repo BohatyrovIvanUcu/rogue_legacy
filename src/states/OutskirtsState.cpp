@@ -769,15 +769,20 @@ void OutskirtsState::DrawArchitectModal(const GameContext& ctx) const {
     DrawRectangle(mx, my, mw, mh, Color{ 20, 28, 42, 250 });
     DrawRectangleLinesEx({ static_cast<float>(mx), static_cast<float>(my), static_cast<float>(mw), static_cast<float>(mh) }, 3.5f, SKYBLUE);
 
-    Ui::Text("THE ROYAL ARCHITECT", mx + 28, my + 22, 24, SKYBLUE);
-    Ui::Text("Lock the exact 9x9 Castle Layout from your previous run", mx + 28, my + 68, 16, RAYWHITE);
-    Ui::Text("so you can return straight to unopened Fairy Chests and Bosses.", mx + 28, my + 92, 16, RAYWHITE);
-    Ui::Text("Penalty: All Gold collected while locked is reduced to 70%.", mx + 28, my + 125, 16, ORANGE);
+    bool hasDyslexia = ctx.CurrentHeirHasTrait(TraitType::Dyslexia);
+    auto Fmt = [hasDyslexia](const std::string& s) -> std::string {
+        return hasDyslexia ? Ui::ScrambleDyslexia(s) : s;
+    };
+
+    Ui::Text(Fmt("THE ROYAL ARCHITECT").c_str(), mx + 28, my + 22, 24, SKYBLUE);
+    Ui::Text(Fmt("Lock the exact 9x9 Castle Layout from your previous run").c_str(), mx + 28, my + 68, 16, RAYWHITE);
+    Ui::Text(Fmt("so you can return straight to unopened Fairy Chests and Bosses.").c_str(), mx + 28, my + 92, 16, RAYWHITE);
+    Ui::Text(Fmt("Penalty: All Gold collected while locked is reduced to 70%.").c_str(), mx + 28, my + 125, 16, ORANGE);
 
     std::string stateTxt = std::string("CURRENT STATUS: ") + (ctx.isCastleLocked ? "CASTLE LOCKED (70% GOLD)" : "FRESH CASTLE (100% GOLD)");
-    Ui::Text(stateTxt, mx + 28, my + 180, 20, ctx.isCastleLocked ? GOLD : LIME);
+    Ui::Text(Fmt(stateTxt), mx + 28, my + 180, 20, ctx.isCastleLocked ? GOLD : LIME);
 
-    Ui::Text("Press [SPACE / ENTER] to Toggle Lock   |   Press [ESC] to Close", mx + 28, my + 252, 16, Color{ 220, 225, 235, 255 });
+    Ui::Text(Fmt("Press [SPACE / ENTER] to Toggle Lock   |   Press [ESC] to Close"), mx + 28, my + 252, 16, Color{ 220, 225, 235, 255 });
 }
 
 void OutskirtsState::DrawCharonModal(const GameContext& ctx) const {
@@ -806,9 +811,14 @@ void OutskirtsState::DrawCharonModal(const GameContext& ctx) const {
     int rx = mx + 230;
     int rw = mw - 260;
 
-    Ui::Text("\"All who seek entry into Castle Hamson", rx, my + 56, 13, Color{ 235, 220, 180, 255 });
-    Ui::Text(" must pay the Ferryman his toll.", rx, my + 74, 13, Color{ 235, 220, 180, 255 });
-    Ui::Text(" Earthly riches cannot cross into the underworld.\"", rx, my + 92, 13, Color{ 235, 220, 180, 255 });
+    bool hasDyslexia = ctx.CurrentHeirHasTrait(TraitType::Dyslexia);
+    auto Fmt = [hasDyslexia](const std::string& s) -> std::string {
+        return hasDyslexia ? Ui::ScrambleDyslexia(s) : s;
+    };
+
+    Ui::Text(Fmt("\"All who seek entry into Castle Hamson").c_str(), rx, my + 56, 13, Color{ 235, 220, 180, 255 });
+    Ui::Text(Fmt(" must pay the Ferryman his toll.").c_str(), rx, my + 74, 13, Color{ 235, 220, 180, 255 });
+    Ui::Text(Fmt(" Earthly riches cannot cross into the underworld.\"").c_str(), rx, my + 92, 13, Color{ 235, 220, 180, 255 });
 
     // Ledger frame
     Rectangle ledgerRec = { static_cast<float>(rx), static_cast<float>(my + 118), static_cast<float>(rw), 188.0f };
@@ -821,7 +831,7 @@ void OutskirtsState::DrawCharonModal(const GameContext& ctx) const {
     int tollPaid = std::max(0, totalGold - keptGold);
     int discountPercent = static_cast<int>(std::round(st.hagglingKeptRatio * 100.0f));
 
-    Ui::Text("GOLD SETTLEMENT LEDGER", rx + 16, my + 130, 13, GOLD);
+    Ui::Text(Fmt("GOLD SETTLEMENT LEDGER").c_str(), rx + 16, my + 130, 13, GOLD);
     DrawLine(rx + 16, my + 148, rx + rw - 16, my + 148, Color{ 70, 65, 88, 255 });
 
     std::string goldCarried = "Total Gold Carried: " + std::to_string(totalGold) + " G";

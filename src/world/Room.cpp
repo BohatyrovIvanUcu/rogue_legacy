@@ -1122,6 +1122,9 @@ void Room::DrawWorldUi([[maybe_unused]] const GameContext& ctx, const Player& pl
     // 2. Банер умови Скрині Феї у повній роздільності 1080p
     if (roomType == RoomType::FairyChest && !chestOpened) {
         std::string banner = Registry::GetFairyConditionDesc(fairyCond);
+        if (ctx.CurrentHeirHasTrait(TraitType::Dyslexia)) {
+            banner = Ui::ScrambleDyslexia(banner);
+        }
         if (fairyCond == FairyCondition::TimeLimit && fairyTrialActive) {
             char buf[32];
             std::snprintf(buf, sizeof(buf), " (%.1fs)", fairyTimer);
