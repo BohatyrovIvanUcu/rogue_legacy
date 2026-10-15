@@ -224,9 +224,11 @@ Sound SoundSynth::GenerateSfxWave(SfxId id) {
         case SfxId::SpellCast:   duration = 0.24f; break;
         case SfxId::PlayerHurt:  duration = 0.22f; break;
         case SfxId::PlayerDeath: duration = 0.65f; break;
-        case SfxId::ManorBuild:  duration = 0.32f; break;
-        case SfxId::BossRoar:    duration = 0.60f; break;
-        default:                 duration = 0.15f; break;
+        case SfxId::ManorBuild:   duration = 0.32f; break;
+        case SfxId::BossRoar:     duration = 0.60f; break;
+        case SfxId::HeavyThud:    duration = 0.35f; break;
+        case SfxId::ChickenCluck: duration = 0.16f; break;
+        default:                  duration = 0.15f; break;
     }
 
     int sampleCount = static_cast<int>(SAMPLE_RATE * duration);
@@ -332,6 +334,20 @@ Sound SoundSynth::GenerateSfxWave(SfxId id) {
                 float baseFreq = 92.0f - t * 40.0f + 14.0f * std::sin(TWO_PI * 19.0f * t);
                 float growl = std::sin(TWO_PI * baseFreq * t + 3.5f * std::sin(TWO_PI * 45.0f * t));
                 out = (growl * 0.7f + RandFloatSym() * 0.35f) * std::exp(-t * 3.2f) * 0.90f;
+                break;
+            }
+            case SfxId::HeavyThud: {
+                float freq = std::max(24.0f, 110.0f - t * 450.0f);
+                float sub = std::sin(TWO_PI * freq * t);
+                float crack = RandFloatSym() * std::exp(-t * 38.0f) * 0.65f;
+                out = (sub * 0.85f + crack) * std::exp(-t * 8.0f) * 0.95f;
+                break;
+            }
+            case SfxId::ChickenCluck: {
+                float fMod = 1.0f + 0.35f * std::sin(TWO_PI * 45.0f * t);
+                float freq = (480.0f - t * 650.0f) * fMod;
+                float cluck = std::sin(TWO_PI * freq * t) + 0.35f * std::sin(TWO_PI * freq * 1.5f * t);
+                out = cluck * std::exp(-t * 22.0f) * 0.85f;
                 break;
             }
             default:

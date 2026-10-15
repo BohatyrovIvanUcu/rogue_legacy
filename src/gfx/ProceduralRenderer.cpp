@@ -682,19 +682,23 @@ void ProceduralRenderer::DrawHeroPreview(
 
     for (TraitType t : heir.traits) {
         if (t == TraitType::Dwarfism) {
-            hp.scaleX *= 0.65f;
-            hp.scaleY *= 0.65f;
+            hp.scaleX *= 0.675f;
+            hp.scaleY *= 0.675f;
         } else if (t == TraitType::Gigantism) {
-            hp.scaleX *= 1.30f;
-            hp.scaleY *= 1.30f;
+            hp.scaleX *= 1.50f;
+            hp.scaleY *= 1.50f;
         } else if (t == TraitType::Ectomorph) {
-            hp.scaleX *= 0.68f;
+            hp.scaleX *= 0.825f;
+            hp.scaleY *= 1.15f;
         } else if (t == TraitType::Endomorph) {
-            hp.scaleX *= 1.35f;
+            hp.scaleX *= 1.25f;
+            hp.scaleY *= 1.175f;
         } else if (t == TraitType::Baldness) {
             hp.isBald = true;
         } else if (t == TraitType::Vertigo) {
             hp.scaleY = -hp.scaleY;
+        } else if (t == TraitType::StereoBlind) {
+            hp.scaleX *= std::max(0.08f, std::abs(std::cos(animTime * 2.8f)));
         }
     }
 

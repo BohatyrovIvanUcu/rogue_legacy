@@ -284,19 +284,21 @@ public:
         st.knockbackTakenMult = 1.0f;
 
         if (CurrentHeirHasTrait(TraitType::Dwarfism)) {
-            st.scaleX *= 0.48f;
-            st.scaleY *= 0.48f;
+            st.scaleX *= 0.675f;
+            st.scaleY *= 0.675f;
         } else if (CurrentHeirHasTrait(TraitType::Gigantism)) {
-            st.scaleX *= 1.55f;
-            st.scaleY *= 1.55f;
+            st.scaleX *= 1.50f;
+            st.scaleY *= 1.50f;
         }
 
         if (CurrentHeirHasTrait(TraitType::Ectomorph)) {
-            st.scaleX *= 0.60f;
-            st.knockbackTakenMult = 2.0f;
+            st.scaleX *= 0.825f;
+            st.scaleY *= 1.15f;
+            st.knockbackTakenMult *= 1.85f;
         } else if (CurrentHeirHasTrait(TraitType::Endomorph)) {
-            st.scaleX *= 1.45f;
-            st.knockbackTakenMult = 0.0f;
+            st.scaleX *= 1.25f;
+            st.scaleY *= 1.175f;
+            st.knockbackTakenMult *= 0.50f;
         }
 
         if (CurrentHeirHasTrait(TraitType::Dextrocardia)) {

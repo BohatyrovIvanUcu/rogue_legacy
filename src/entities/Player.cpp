@@ -66,6 +66,11 @@ void Player::InitFromContext(GameContext& ctx, Vector2 spawnCenter) {
     ibsTimer = 0.0f;
     animTime = 0.0f;
 
+    clonusIntervalTimer = 18.0f + static_cast<float>(std::rand() % 17);
+    clonusSpasmTimer = 0.0f;
+    turnFlipTimer = 0.0f;
+    prevFacingDir = facingDir;
+
     ResetRoomTrialFlags();
 }
 
@@ -159,6 +164,38 @@ void Player::Update(
             if (ctx.particles) ctx.particles->SpawnGasCloud({ GetCenter().x, GetBottom() - 6.0f });
             if (ctx.audio)     ctx.audio->PlayIbsFart();
         }
+    }
+
+    // Риса Clonus: періодичні спазми м'язів кожні 18-35 с із мікро-тремтінням та струшуванням екрана
+    if (ctx.CurrentHeirHasTrait(TraitType::Clonus)) {
+        if (clonusSpasmTimer > 0.0f) {
+            clonusSpasmTimer -= dt;
+            ctx.AddTrauma(0.18f * dt);
+            if (std::rand() % 6 == 0) {
+                pos.x += ((std::rand() % 3) - 1) * 0.75f;
+            }
+        } else {
+            clonusIntervalTimer -= dt;
+            if (clonusIntervalTimer <= 0.0f) {
+                clonusSpasmTimer = 5.0f;
+                clonusIntervalTimer = 18.0f + static_cast<float>(std::rand() % 17);
+                if (ctx.audio) ctx.audio->PlaySfx(SfxId::BossRoar, 1.8f, 0.35f);
+            }
+        }
+    }
+
+    // Риса StereoBlind: 2D-перевертання спрайта при зміні напрямку
+    if (ctx.CurrentHeirHasTrait(TraitType::StereoBlind)) {
+        if (facingDir != prevFacingDir) {
+            turnFlipTimer = 0.16f;
+            prevFacingDir = facingDir;
+        }
+        if (turnFlipTimer > 0.0f) {
+            turnFlipTimer -= dt;
+        }
+    } else {
+        prevFacingDir = facingDir;
+        turnFlipTimer = 0.0f;
     }
 
     HandleCombatAndAbilities(dt, ctx, tileMap, projectiles);
@@ -256,6 +293,10 @@ void Player::HandleMovementAndPhysics(
         vel.y = 0.0f;
         if (ctx.audio)     ctx.audio->PlaySfx(SfxId::Dash);
         if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 8);
+        if (ctx.CurrentHeirHasTrait(TraitType::IBS) && (std::rand() % 10 == 0)) {
+            if (ctx.particles) ctx.particles->SpawnGasCloud({ GetCenter().x - dashDirX * 12.0f, GetBottom() - 6.0f });
+            if (ctx.audio)     ctx.audio->PlayIbsFart();
+        }
     }
 
     if (isDashing) {
@@ -301,6 +342,10 @@ void Player::HandleMovementAndPhysics(
 
     // Виконання наземного стрибка (з урахуванням Coyote Time) або повітряного стрибка (Vault Rune)
     if (jumpBufferTimer > 0.0f) {
+        float jumpPitch = 1.0f;
+        if (ctx.CurrentHeirHasTrait(TraitType::Gigantism)) jumpPitch = 0.72f;
+        else if (ctx.CurrentHeirHasTrait(TraitType::Dwarfism)) jumpPitch = 1.38f;
+
         if (coyoteTimer > 0.0f) {
             vel.y = Config::PLAYER_JUMP_VELOCITY;
             onGround = false;
@@ -308,9 +353,9 @@ void Player::HandleMovementAndPhysics(
             jumpBufferTimer = 0.0f;
             jumpedInCurrentRoom = true;
             jumpStretchTimer = 0.08f; // Phase 7: jump stretch 1.10 on Y
-            if (ctx.audio)     ctx.audio->PlaySfx(SfxId::Jump);
+            if (ctx.audio)     ctx.audio->PlaySfx(SfxId::Jump, jumpPitch);
             if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 6);
-            if (ctx.CurrentHeirHasTrait(TraitType::IBS)) {
+            if (ctx.CurrentHeirHasTrait(TraitType::IBS) && (std::rand() % 10 == 0)) {
                 if (ctx.particles) ctx.particles->SpawnGasCloud({ GetCenter().x, GetBottom() });
                 if (ctx.audio)     ctx.audio->PlayIbsFart();
             }
@@ -320,9 +365,9 @@ void Player::HandleMovementAndPhysics(
             jumpBufferTimer = 0.0f;
             jumpedInCurrentRoom = true;
             jumpStretchTimer = 0.08f; // Phase 7: jump stretch 1.10 on Y
-            if (ctx.audio)     ctx.audio->PlaySfx(SfxId::Jump, 1.15f);
+            if (ctx.audio)     ctx.audio->PlaySfx(SfxId::Jump, jumpPitch * 1.15f);
             if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 8);
-            if (ctx.CurrentHeirHasTrait(TraitType::IBS)) {
+            if (ctx.CurrentHeirHasTrait(TraitType::IBS) && (std::rand() % 10 == 0)) {
                 if (ctx.particles) ctx.particles->SpawnGasCloud({ GetCenter().x, GetBottom() });
                 if (ctx.audio)     ctx.audio->PlayIbsFart();
             }
@@ -350,6 +395,7 @@ void Player::HandleMovementAndPhysics(
     pos.x += vel.x * dt;
     ResolveTileCollisionsX(tileMap, isDwarf);
 
+    float preLandVelY = vel.y;
     onGround = false;
     pos.y += vel.y * dt;
     ResolveTileCollisionsY(tileMap, isDwarf, prevBottom);
@@ -359,6 +405,13 @@ void Player::HandleMovementAndPhysics(
         if (!wasOnGround) {
             landSquashTimer = 0.08f; // Phase 7: landing squash 0.85 Y / 1.12 X
             if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 6);
+            if (ctx.CurrentHeirHasTrait(TraitType::Gigantism)) {
+                if (preLandVelY > 550.0f) {
+                    ctx.AddTrauma(0.40f);
+                    if (ctx.particles) ctx.particles->SpawnDust({ GetCenter().x, GetBottom() }, 24);
+                    if (ctx.audio) ctx.audio->PlaySfx(SfxId::HeavyThud, 0.90f, 1.0f);
+                }
+            }
         }
         if (std::abs(vel.x) > 20.0f) {
             footstepDustTimer += dt;
@@ -776,7 +829,11 @@ int Player::RollMeleeDamage(bool isDownStrike, bool& outIsCrit) const {
 }
 
 void Player::TriggerPogoBounce(GameContext& ctx) {
-    vel.y = Config::PLAYER_POGO_BOUNCE_VELOCITY;
+    float bounceVel = Config::PLAYER_POGO_BOUNCE_VELOCITY;
+    if (ctx.CurrentHeirHasTrait(TraitType::Flexible)) {
+        bounceVel *= 1.40f; // +40% high pogo bounce
+    }
+    vel.y = bounceVel;
     onGround = false;
     hitstopTimer = Config::HITSTOP_DURATION;
     if (ctx.audio) ctx.audio->PlaySfx(SfxId::PogoBounce);
@@ -952,6 +1009,11 @@ void Player::Draw(const GameContext& ctx) const {
 
     float sx = stats.scaleX;
     float sy = stats.scaleY;
+    if (ctx.CurrentHeirHasTrait(TraitType::StereoBlind) && turnFlipTimer > 0.0f) {
+        float flipProgress = turnFlipTimer / 0.16f;
+        float paperScale = std::abs(std::cos(flipProgress * 3.14159f));
+        sx *= std::max(0.04f, paperScale);
+    }
     if (landSquashTimer > 0.0f) {
         float t = landSquashTimer / 0.08f;
         sy *= (1.0f - 0.15f * t); // landing scaleY 0.85

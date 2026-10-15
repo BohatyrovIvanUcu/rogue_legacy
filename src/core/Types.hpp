@@ -204,7 +204,9 @@ enum class SfxId : int {
     PlayerDeath = 11,
     ManorBuild = 12,
     BossRoar = 13,
-    COUNT = 14
+    HeavyThud = 14,
+    ChickenCluck = 15,
+    COUNT = 16
 };
 
 enum class GameStateId : int {
